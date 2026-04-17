@@ -8,8 +8,16 @@ function StaticUserManagementNotice() {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-xl font-bold text-slate-900">系統登入用戶</h2>
-      <p className="mt-2 text-sm text-slate-500">帳號管理功能需要伺服器端部署才能使用。請使用本機開發環境或 Render 部署版本來管理用戶帳號。</p>
-      <p className="mt-1 text-sm text-slate-500">其他系統設定（Payroll 設定、員工欄位、主資料）可以喺呢度正常管理。</p>
+      <p className="mt-2 text-sm text-slate-500">帳號管理可以直接喺 Supabase Dashboard 操作：</p>
+      <a
+        href="https://supabase.com/dashboard/project/tudqrvisnmpschkqkzvz/auth/users"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+      >
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+        打開 Supabase 用戶管理
+      </a>
     </section>
   );
 }
