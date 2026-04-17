@@ -37,6 +37,11 @@ for dir in dashboard people payroll attendance leaves admin inbox onboarding off
   if [ -f "$src" ]; then
     cp "$src" "$UI_DIR/app/app/$dir/page.tsx"
   fi
+  # Copy action overlays if they exist
+  src_actions="$OVERLAY_DIR/app/app/$dir/actions.ts"
+  if [ -f "$src_actions" ]; then
+    cp "$src_actions" "$UI_DIR/app/app/$dir/actions.ts"
+  fi
 done
 
 # 3b. Remove dynamic routes (using query params instead for static export)
@@ -67,6 +72,10 @@ done
 find "$UI_DIR/app" -name 'actions.ts' -o -name 'document-actions.ts' | while read -r f; do
   sed -i '' "s/revalidatePath([^)]*)/void 0/g" "$f" 2>/dev/null || sed -i "s/revalidatePath([^)]*)/void 0/g" "$f"
   sed -i '' "s/revalidateTag([^)]*)/void 0/g" "$f" 2>/dev/null || sed -i "s/revalidateTag([^)]*)/void 0/g" "$f"
+  # Also remove the import line (dead import can cause issues in static export)
+  sed -i '' "/^import { revalidatePath } from/d" "$f" 2>/dev/null || sed -i "/^import { revalidatePath } from/d" "$f"
+  sed -i '' "/^import { revalidateTag } from/d" "$f" 2>/dev/null || sed -i "/^import { revalidateTag } from/d" "$f"
+  sed -i '' "/^import { revalidatePath, revalidateTag } from/d" "$f" 2>/dev/null || sed -i "/^import { revalidatePath, revalidateTag } from/d" "$f"
 done
 
 # 8. Remove API routes (not supported in static export)
