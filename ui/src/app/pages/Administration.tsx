@@ -174,6 +174,7 @@ type AdministrationProps = {
   banks: EmployeeDirectoryOption[];
   companies: EmployeeDirectoryOption[];
   branches: EmployeeDirectoryOption[];
+  hidePayrollSettings?: boolean;
 };
 
 function LookupSection({
@@ -256,7 +257,7 @@ function LookupSection({
   );
 }
 
-export default function Administration({ children, canManageUsers, fieldConfigs, payrollSettings, positions, banks, companies, branches }: AdministrationProps) {
+export default function Administration({ children, canManageUsers, fieldConfigs, payrollSettings, positions, banks, companies, branches, hidePayrollSettings }: AdministrationProps) {
   const [activeTab, setActiveTab] = useState(0);
   const t = useTranslation(translations);
 
@@ -294,6 +295,7 @@ export default function Administration({ children, canManageUsers, fieldConfigs,
           <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
             {activeTab === 0 ? (
               <div className="space-y-4">
+                {!hidePayrollSettings && (
                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-2">
                     <Settings2 className="h-4 w-4 text-slate-500" />
@@ -321,6 +323,7 @@ export default function Administration({ children, canManageUsers, fieldConfigs,
                     </button>
                   </form>
                 </section>
+                )}
 
                 {canManageUsers && children ? (
                   children

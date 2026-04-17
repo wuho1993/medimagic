@@ -12,7 +12,7 @@ export default function AdministrationPage() {
   if (!user || !data) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
   const canManageUsers = user.role === 'super_admin' || user.role === 'boss' || user.role === 'hr_manager';
   return (
-    <Administration canManageUsers={canManageUsers} fieldConfigs={data.fieldConfigs} payrollSettings={data.payrollSettings} positions={data.positions} banks={data.banks} companies={data.companies} branches={data.branches}>
+    <Administration canManageUsers={canManageUsers} hidePayrollSettings fieldConfigs={data.fieldConfigs} payrollSettings={data.payrollSettings} positions={data.positions} banks={data.banks} companies={data.companies} branches={data.branches}>
       {canManageUsers ? <ClientUserManagementPanel companies={data.companies} branches={data.branches} /> : null}
     </Administration>
   );
