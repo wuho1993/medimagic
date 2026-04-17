@@ -54,7 +54,7 @@ create or replace function public.admin_create_user(
 returns json
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public, auth, extensions
 as $$
 declare
   caller_role text;
