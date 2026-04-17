@@ -39,8 +39,15 @@ for dir in dashboard people payroll attendance leaves admin inbox onboarding off
   fi
 done
 
-# 3b. Remove dynamic routes (employee detail accessed via client-side nav only)
+# 3b. Remove dynamic routes (using query params instead for static export)
 rm -rf "$UI_DIR/app/app/people/[id]"
+
+# 3c. Rewrite employee profile links: /app/people/${code} → /app/people?id=${code}
+# Dynamic routes don't work in static export, so we use query params instead.
+find "$UI_DIR/src" -name '*.tsx' -o -name '*.ts' | while read -r f; do
+  sed -i '' 's|/app/people/\${|/app/people?id=\${|g' "$f" 2>/dev/null || \
+  sed -i 's|/app/people/\${|/app/people?id=\${|g' "$f"
+done
 
 # 4. (No longer deleting overlay dir — type-checking is skipped via next config)
 
@@ -65,18 +72,46 @@ done
 # 8. Remove API routes (not supported in static export)
 rm -rf "$UI_DIR/app/api"
 
+# 8b. Fix payroll actions — remove Node-only fs/path imports and stub exportPayslipWorkbook
+PAYROLL_ACTIONS="$UI_DIR/app/app/payroll/actions.ts"
+if [ -f "$PAYROLL_ACTIONS" ]; then
+  sed -i '' "s|^import { promises as fs } from 'fs';||" "$PAYROLL_ACTIONS" 2>/dev/null || \
+  sed -i "s|^import { promises as fs } from 'fs';||" "$PAYROLL_ACTIONS"
+  sed -i '' "s|^import \* as path from 'path';||" "$PAYROLL_ACTIONS" 2>/dev/null || \
+  sed -i "s|^import \* as path from 'path';||" "$PAYROLL_ACTIONS"
+  sed -i '' "s|^import { Workbook } from 'exceljs';|const Workbook = null;|" "$PAYROLL_ACTIONS" 2>/dev/null || \
+  sed -i "s|^import { Workbook } from 'exceljs';|const Workbook = null;|" "$PAYROLL_ACTIONS"
+fi
+
+# 8c. Fix metadata icon paths — prefix basePath BEFORE build so RSC payload is correct
+BASE_PATH="/medimagic"
+LAYOUT_FILE="$UI_DIR/app/layout.tsx"
+if [ -f "$LAYOUT_FILE" ]; then
+  sed -i '' "s|'/medi-magic-logo.png'|'${BASE_PATH}/medi-magic-logo.png'|g" "$LAYOUT_FILE" 2>/dev/null || \
+  sed -i "s|'/medi-magic-logo.png'|'${BASE_PATH}/medi-magic-logo.png'|g" "$LAYOUT_FILE"
+fi
+
 echo "==> Overlay applied. Running next build..."
 
 cd "$UI_DIR"
 npx next build
 
-# 9. Fix icon/favicon paths that don't get basePath prefixed
-BASE_PATH="/medimagic"
+# 9. Fix any remaining icon/favicon paths in HTML that weren't caught by pre-build fix
 find "$UI_DIR/out" -name '*.html' -o -name '*.txt' | while read -r f; do
   sed -i '' "s|href=\"/medi-magic-logo.png\"|href=\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f" 2>/dev/null || \
   sed -i "s|href=\"/medi-magic-logo.png\"|href=\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f"
-  sed -i '' "s|\"href\":\"/medi-magic-logo.png\"|\"href\":\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f" 2>/dev/null || \
-  sed -i "s|\"href\":\"/medi-magic-logo.png\"|\"href\":\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f"
+  # Fix escaped JSON in RSC payload: \"href\":\"/medi-magic-logo.png\"
+  sed -i '' 's|\\\"href\\\":\\\"/medi-magic-logo.png\\\"|\\\"href\\\":\\\"'"${BASE_PATH}"'/medi-magic-logo.png\\\"|g' "$f" 2>/dev/null || \
+  sed -i 's|\\\"href\\\":\\\"/medi-magic-logo.png\\\"|\\\"href\\\":\\\"'"${BASE_PATH}"'/medi-magic-logo.png\\\"|g' "$f"
 done
+
+# 10. Create 404.html for SPA-style client-side routing on GitHub Pages
+# When a user navigates directly to a dynamic route (e.g. /app/people/SF001),
+# GitHub Pages serves 404.html which loads the app shell, then client-side
+# routing takes over.
+if [ -f "$UI_DIR/out/index.html" ]; then
+  cp "$UI_DIR/out/index.html" "$UI_DIR/out/404.html"
+  echo "==> Created 404.html for SPA fallback routing"
+fi
 
 echo "==> Static export complete. Output in $UI_DIR/out/"

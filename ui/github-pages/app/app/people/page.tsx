@@ -1,12 +1,72 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import People from '@/src/app/pages/People';
+import EmployeeProfile from '@/src/app/pages/EmployeeProfile';
 import { useAuth } from '@/src/lib/hooks/useAuth';
-import { fetchEmployeeDirectory, fetchEmployeeDirectoryOptions } from '@/src/lib/employees/queries';
+import {
+  fetchEmployeeDirectory,
+  fetchEmployeeDirectoryOptions,
+  fetchEmployeeDetailByCode,
+  fetchCommissionRateTiers,
+  fetchSavedCommissionPresets,
+  fetchSavedPayrollBonusPresets,
+  fetchPayrollBonusConfigCatalog,
+} from '@/src/lib/employees/queries';
+
 export default function PeoplePage() {
   const { user } = useAuth();
-  const [data, setData] = useState<any>(null);
-  useEffect(() => { if (!user) return; Promise.all([fetchEmployeeDirectory(user), fetchEmployeeDirectoryOptions(user)]).then(([e, o]) => setData({ employees: e, ...o })).catch(console.error); }, [user]);
-  if (!user || !data) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
-  return <People employees={data.employees} positions={data.positions} banks={data.banks} companies={data.companies} branches={data.branches} />;
+  const searchParams = useSearchParams();
+  const employeeId = searchParams?.get('id') ?? null;
+  const [listData, setListData] = useState<any>(null);
+  const [profileData, setProfileData] = useState<Record<string, unknown> | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  // Load employee list
+  useEffect(() => {
+    if (!user || employeeId) return;
+    Promise.all([fetchEmployeeDirectory(user), fetchEmployeeDirectoryOptions(user)])
+      .then(([e, o]) => setListData({ employees: e, ...o }))
+      .catch(console.error);
+  }, [user, employeeId]);
+
+  // Load single employee profile when ?id= is present
+  useEffect(() => {
+    if (!user || !employeeId) return;
+    setProfileData(null);
+    setNotFound(false);
+    Promise.all([
+      fetchEmployeeDetailByCode(employeeId, user),
+      fetchEmployeeDirectoryOptions(user),
+      fetchCommissionRateTiers(),
+      fetchSavedCommissionPresets(),
+      fetchSavedPayrollBonusPresets(),
+      fetchPayrollBonusConfigCatalog(),
+    ]).then(([employee, options, commissionTiers, savedCommissionPresets, savedPayrollBonusPresets, payrollBonusConfig]) => {
+      if (!employee) { setNotFound(true); return; }
+      setProfileData({ employee, options, commissionTiers, savedCommissionPresets, savedPayrollBonusPresets, payrollBonusConfig });
+    }).catch(console.error);
+  }, [user, employeeId]);
+
+  if (!user) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
+
+  // Employee profile view
+  if (employeeId) {
+    if (notFound) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>找不到員工資料</p></div>;
+    if (!profileData) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
+    return (
+      <EmployeeProfile
+        employee={profileData.employee as any}
+        options={profileData.options as any}
+        commissionTiers={profileData.commissionTiers as any}
+        savedCommissionPresets={profileData.savedCommissionPresets as any}
+        savedPayrollBonusPresets={profileData.savedPayrollBonusPresets as any}
+        payrollBonusConfig={profileData.payrollBonusConfig as any}
+      />
+    );
+  }
+
+  // Employee list view
+  if (!listData) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
+  return <People employees={listData.employees} positions={listData.positions} banks={listData.banks} companies={listData.companies} branches={listData.branches} />;
 }
