@@ -42,6 +42,13 @@ for dir in dashboard people payroll attendance leaves admin inbox onboarding off
   if [ -f "$src_actions" ]; then
     cp "$src_actions" "$UI_DIR/app/app/$dir/actions.ts"
   fi
+  # Copy any additional overlay components (e.g. ClientUserManagementPanel.tsx)
+  find "$OVERLAY_DIR/app/app/$dir" -maxdepth 1 -name '*.tsx' -o -name '*.ts' 2>/dev/null | while read -r extra; do
+    basename_f="$(basename "$extra")"
+    if [ "$basename_f" != "page.tsx" ] && [ "$basename_f" != "actions.ts" ]; then
+      cp "$extra" "$UI_DIR/app/app/$dir/$basename_f"
+    fi
+  done
 done
 
 # 3b. Remove dynamic routes (using query params instead for static export)
