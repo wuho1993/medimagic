@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Medi Magic HRMS</title>
+    <title>Medi Magic HRMS Trial</title>
     <meta
       name="description"
-      content="Medi Magic 人力資源管理系統入口頁，提供系統簡介、模組概覽與 GitHub 專案入口。"
+      content="Medi Magic GitHub 試用版，提供 Supabase 登入與登入後儀表板試用介面。"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,75 +15,168 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
   </head>
   <body>
     <div class="page-shell">
       <div class="ambient ambient-one"></div>
       <div class="ambient ambient-two"></div>
 
-      <main class="hero-card">
-        <div class="brand-wrap">
-          <img src="./assets/medi-magic-logo.png" alt="Medi Magic" class="brand-logo" />
-        </div>
+      <main class="app-shell">
+        <section class="login-view" id="loginView">
+          <div class="login-card">
+            <div class="brand-wrap">
+              <img src="./assets/medi-magic-logo.png" alt="Medi Magic" class="brand-logo" />
+            </div>
 
-        <p class="eyebrow">Medi Magic HRMS</p>
-        <h1>人力資源管理系統</h1>
-        <p class="lead">
-          一個以出勤、薪酬、員工資料及系統管理為核心的內部平台入口頁。<br />
-          這個 GitHub Pages 網址可用作對外展示、內部分享及專案入口。
-        </p>
+            <p class="eyebrow">Medi Magic HRMS Trial</p>
+            <h1>人力資源管理系統</h1>
+            <p class="lead">GitHub 試用版登入入口。使用 Supabase Auth 驗證後可進入試用儀表板。</p>
+            <p class="tagline">Feel the difference. Feel The Magic.</p>
 
-        <p class="tagline">Feel the difference. Feel The Magic.</p>
+            <form class="login-form" id="loginForm">
+              <label class="field">
+                <span>電子郵件</span>
+                <input id="emailInput" type="email" placeholder="請輸入電子郵件" autocomplete="email" required />
+              </label>
 
-        <div class="cta-row">
-          <a class="button button-primary" href="https://github.com/wuho1993/medimagic" target="_blank" rel="noreferrer">查看 GitHub 專案</a>
-          <a class="button button-secondary" href="./#modules">查看系統模組</a>
-        </div>
+              <label class="field">
+                <span>密碼</span>
+                <input id="passwordInput" type="password" placeholder="請輸入密碼" autocomplete="current-password" required />
+              </label>
 
-        <section class="panel login-panel" aria-label="系統入口說明">
-          <div class="panel-header">
-            <span class="panel-dot"></span>
-            <span>系統入口</span>
-          </div>
-          <div class="input-grid">
-            <label>
-              <span>系統類型</span>
-              <input value="內部 HRMS 平台" readonly />
-            </label>
-            <label>
-              <span>部署方式</span>
-              <input value="GitHub Pages 靜態入口頁" readonly />
-            </label>
-          </div>
-          <div class="notice">
-            <strong>注意：</strong>
-            這個 `github.io` 網址是專案入口頁，用於展示與分享。完整 HRMS 動態功能仍需後端執行環境。
+              <div class="form-row">
+                <span class="form-hint">登入狀態會由瀏覽器保存，直到你手動登出。</span>
+                <button class="text-button" id="clearStatusButton" type="button">清除訊息</button>
+              </div>
+
+              <button class="button button-primary button-block" id="loginButton" type="submit">登入試用版</button>
+            </form>
+
+            <div class="status-banner" id="statusBanner" hidden></div>
+
+            <section class="panel setup-panel" aria-label="GitHub 試用版說明">
+              <div class="panel-header">
+                <span class="panel-dot"></span>
+                <span>試用版說明</span>
+              </div>
+              <ul class="notes-list">
+                <li>這是 GitHub Pages 前端試用版，登入使用 Supabase Auth。</li>
+                <li>登入後會顯示試用儀表板與基本帳戶資料。</li>
+                <li>完整 HRMS 伺服器功能未全部搬入這個試用版。</li>
+              </ul>
+            </section>
           </div>
         </section>
 
-        <section class="modules" id="modules" aria-label="系統模組">
-          <article class="module-card">
-            <h2>員工管理</h2>
-            <p>員工資料、證件、薪酬設定、職位及分店關聯管理。</p>
-          </article>
-          <article class="module-card">
-            <h2>出勤管理</h2>
-            <p>出勤月結、OT 累積、假期換鐘、無薪假扣減與記錄維護。</p>
-          </article>
-          <article class="module-card">
-            <h2>薪酬計算</h2>
-            <p>連動出勤、佣金、package commission 規則與行政設定。</p>
-          </article>
-          <article class="module-card">
-            <h2>系統管理</h2>
-            <p>權限、欄位配置、使用者管理與資料流程設定。</p>
-          </article>
-        </section>
+        <section class="dashboard-view" id="dashboardView" hidden>
+          <aside class="sidebar">
+            <div>
+              <div class="sidebar-brand">
+                <img src="./assets/medi-magic-logo.png" alt="Medi Magic" class="sidebar-logo" />
+              </div>
 
-        <footer class="footer">
-          <span>GitHub Pages Demo Entry</span>
-          <a href="https://github.com/wuho1993/medimagic" target="_blank" rel="noreferrer">wuho1993/medimagic</a>
-        </footer>
+              <nav class="sidebar-nav">
+                <a class="nav-item nav-item-active" href="#">儀表板</a>
+                <a class="nav-item" href="#trialModules">試用模組</a>
+                <a class="nav-item" href="https://github.com/wuho1993/medimagic" target="_blank" rel="noreferrer">GitHub Repo</a>
+              </nav>
+            </div>
+
+            <div class="sidebar-user">
+              <div>
+                <strong id="sidebarUserName">已登入用戶</strong>
+                <span id="sidebarUserRole">GitHub Trial User</span>
+              </div>
+              <button class="button button-secondary button-small" id="logoutButton" type="button">登出</button>
+            </div>
+          </aside>
+
+          <section class="dashboard-main">
+            <header class="topbar">
+              <div>
+                <p class="topbar-label">儀表板</p>
+                <h2>歡迎回來，<span id="welcomeName">試用用戶</span></h2>
+              </div>
+              <div class="topbar-actions">
+                <span class="pill" id="authStatePill">已登入</span>
+              </div>
+            </header>
+
+            <section class="metric-grid">
+              <article class="metric-card">
+                <span class="metric-label">登入狀態</span>
+                <strong id="metricSession">有效</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">帳戶電郵</span>
+                <strong id="metricEmail">-</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">員工資料</span>
+                <strong id="metricEmployee">載入中</strong>
+              </article>
+            </section>
+
+            <section class="content-grid" id="trialModules">
+              <article class="surface-card account-card">
+                <div class="surface-head">
+                  <h3>帳戶資料</h3>
+                  <span class="surface-chip">Supabase Auth</span>
+                </div>
+                <dl class="info-list">
+                  <div>
+                    <dt>電子郵件</dt>
+                    <dd id="accountEmail">-</dd>
+                  </div>
+                  <div>
+                    <dt>User ID</dt>
+                    <dd id="accountUserId">-</dd>
+                  </div>
+                  <div>
+                    <dt>最後登入</dt>
+                    <dd id="accountLastSignIn">-</dd>
+                  </div>
+                </dl>
+              </article>
+
+              <article class="surface-card employee-card">
+                <div class="surface-head">
+                  <h3>員工資料試讀</h3>
+                  <span class="surface-chip">RLS</span>
+                </div>
+                <p class="surface-copy" id="employeeSummary">登入後會嘗試讀取對應員工資料。</p>
+                <dl class="info-list compact">
+                  <div>
+                    <dt>員工編號</dt>
+                    <dd id="employeeCode">-</dd>
+                  </div>
+                  <div>
+                    <dt>中文姓名</dt>
+                    <dd id="employeeNameZh">-</dd>
+                  </div>
+                  <div>
+                    <dt>職位 / 分店</dt>
+                    <dd id="employeeMeta">-</dd>
+                  </div>
+                </dl>
+              </article>
+
+              <article class="surface-card modules-card">
+                <div class="surface-head">
+                  <h3>試用模組</h3>
+                  <span class="surface-chip">Preview</span>
+                </div>
+                <div class="trial-grid">
+                  <div class="trial-item"><strong>員工管理</strong><span>瀏覽資料結構與登入狀態</span></div>
+                  <div class="trial-item"><strong>出勤管理</strong><span>現有規則已整理在主系統 repo</span></div>
+                  <div class="trial-item"><strong>薪酬計算</strong><span>GitHub 試用版目前不含 server-side payroll</span></div>
+                  <div class="trial-item"><strong>系統管理</strong><span>完整權限功能仍保留在主系統</span></div>
+                </div>
+              </article>
+            </section>
+          </section>
+        </section>
       </main>
     </div>
   </body>
