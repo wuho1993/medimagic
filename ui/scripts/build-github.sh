@@ -105,6 +105,12 @@ find "$UI_DIR/out" -name '*.html' -o -name '*.txt' | while read -r f; do
   sed -i 's|\\\"href\\\":\\\"/medi-magic-logo.png\\\"|\\\"href\\\":\\\"'"${BASE_PATH}"'/medi-magic-logo.png\\\"|g' "$f"
 done
 
+# 9b. Fix logo src in JS bundles — next/image with unoptimized doesn't always prefix basePath
+find "$UI_DIR/out/_next" -name '*.js' | while read -r f; do
+  sed -i '' "s|\"/medi-magic-logo.png\"|\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f" 2>/dev/null || \
+  sed -i "s|\"/medi-magic-logo.png\"|\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f"
+done
+
 # 10. Create 404.html for SPA-style client-side routing on GitHub Pages
 # When a user navigates directly to a dynamic route (e.g. /app/people/SF001),
 # GitHub Pages serves 404.html which loads the app shell, then client-side
