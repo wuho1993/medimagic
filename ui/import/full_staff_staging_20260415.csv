@@ -1,0 +1,108 @@
+code,name_zh,name_en,alias,identity,hire_date,dob,address,phone,status,branch_raw,branch_norm,company_raw,company_norm,position_raw,position_norm,base_salary,attendance,briefing,booking,transport,pay_day_1,pay_day_2,probation_months,mpf_company,has_salary,flags
+SF001,黃麗詩,Wong Lai Sze,Alice,N/A,2016-12-10,,,,active,Office,OFFICE,A,ASA,老闆,BOSS,N/A,N/A,N/A,N/A,N/A,N/A,N/A,,A - 宏利,False,missing_identity|no_salary
+SF002,何泳橋,Ho Wing Kiu Su,Alice,N/A,2016-12-10,,,,active,Office,OFFICE,A,ASA,老闆,BOSS,N/A,N/A,N/A,N/A,N/A,N/A,N/A,,A - 宏利,False,missing_identity|no_salary
+SF006,鄭家彤,Cheng Ka Tung,KT,Y270111A,2016-12-12,1992-09-24,新界大埔大埔中心18座15樓H室,,active,TOP,MKTOP,A,ASA,Senior Beautician,SENIOR_BEAUTICIAN,4000,1000,500,0,,6,7,1,A - Sun,True,
+SF011,李瑞斯,Lee Sui Sze Sylvia,Sylvia,C672456(4),2016-12-19,1971-12-24,"Flat C,31/F,Tower2, One East Coast, 1 Lei Yue Mun Path, Yau Tong, Kowloon,HK",,active,TOP,MKTOP,A,ASA,Sales Manager,SALES_MANAGER,15300,2000,500,500,0,6,8,0,A - Sun,True,
+SF014,沈雯美,Shum  Man Mei,Jess,K564713(4),2017-02-03,1957-02-15,,,active,TOP,MKTOP,A,ASA,Massagist,MASSAGIST,10200,2000,250,250,,6,7,1,自,True,
+SF025,黃芊銢,Wong Chin Wing,Winnie,R441938(2),2017-12-01,1989-03-20,沙田康林苑景林閣2307室,98645403,active,TOP,MKTOP,A,ASA,Senior Beautician,SENIOR_BEAUTICIAN,7800,2000,500,500,0,6,9,1,A - Sun,True,
+SF065,班秀珍,Ban Xiuzhen,珍珍,M649553(8),2019-05-03,1968-01-14,九龍城城南道68號2樓F室,55411189,active,TOP,MKTOP,A,ASA,Massagist,MASSAGIST,7200,2000,500,500,0,6,7,1,A - Sun,True,
+SF066,溫樂心,Wan Lok Sum,Yan,P514901(4),2019-07-15,1989-07-23,九龍石硤尾邨23座1302室,64053998,active,TOP,MKTOP,A,ASA,Beautician,BEAUTICIAN,21300,2000,500,500,0,6,7,1,A - 宏利,True,
+SF068,焦麗萍,Chiu Lai Ping,Canice,Y021950(7),2020-07-13,1989-03-20,富亨邨亨榮樓1403室,67316009,active,Office,OFFICE,ASAS,ASAS,Receptionist,RECEPTIONIST,17200,1000,1000,0,1000,6,7,1,ASAS - Sun,True,
+SF102,溫婉華,Wan Yuen Wa,Carol,V112473(0),2020-09-07,1989-08-22,"Flat D, 17/F, Tower One, Twin Peaks, TKO",63901341,active,TOP,MKTOP,A,ASA,Beautician,BEAUTICIAN,7200,2000,500,500,0,6,7,1,A - 宏利,True,
+SF117,張穎詩,Cheung Wendy,Wendy,K396005(6),2021-02-27,1975-03-30,,,active,TOP,MKTOP,A,ASA,Beautician,BEAUTICIAN,6300,2000,500,500,0,6,7,1,A - 宏利,True,
+SF119,王龍欣,Wong Lung Yan,Yan Wong,R725739(1),2021-03-01,1992-01-02,青衣清心街鹽田角村34號3樓,91625959,active,TW,TW,ASAS,ASAS,Beautician,BEAUTICIAN,8300,2000,500,500,0,6,7,1,ASAS - 宏利,True,
+SF129,劉麗霞,LAU LAI HAR,Jackie,Z545263(6),2021-04-12,1980-11-20,屯門富健花園10座21樓H室,92012353,active,Office,OFFICE,ASAS,ASAS,Operation Manager,OPERATION_MANAGER,52000,2000,1000,0,0,6,12,1,ASAS - 宏利,True,
+SF131,鄭寶珠,Cheng Po Chu,Jumbo,P978292(7),2021-05-01,1989-04-27,新界天水圍俊宏軒3座32樓F室,64892564,active,TW,TW,ASAS,ASAS,Consultant,CONSULTANT,5200,1000,500,500,0,6,10,1,ASAS - Sun,True,
+SF134,朱詠賢,Chu Wing Yin,Jacqueline,K964736(8),2021-05-01,1979-05-12,將軍澳蔚藍灣畔五座43樓F室,65022002,active,CWB,CWB,A,ASA,Manager,MANAGER,20500,2000,500,500,0,6,10,0,A - 宏利,True,
+SF137,陳泳芝,Chan Wing Chi,Yena,Y346086(8),2021-07-01,1993-08-14,坑口厚德邨德志樓2118室,,active,CWB,CWB,A,ASA,Consultant,CONSULTANT,13500,2000,500,500,0,6,9,0,A - 宏利,True,
+SF139,金琴娣,Kam Kam Tai,Candy,P476594(3),2021-08-01,1964-11-13,葵涌梨木樹邨樂榭樓2403室,92336226,active,TW,TW,ASAS,ASAS,Massagist,MASSAGIST,8300,2000,250,250,0,6,7,1,ASAS - 宏利,True,
+SF143,陳潔汶,Chan Kit Man,Money,Y192730(0),2021-08-09,1991-04-21,九龍旺角西洋菜南街西洋大樓3208室,64625267,resigned,MK,MKTOP,,ASA,Receptionist,RECEPTIONIST,,,,,,,,,,False,no_salary
+SF144,楊詠兒,Yeung Wing Yi,Wing,Y511410(4),2021-09-01,1994-12-14,"Room 1723 Oi Fai House, Yau Oi Estate, Tuen Mum",67684188,active,TM,TMA,ASAS,ASAS,Beautician,BEAUTICIAN,8000,2000,500,500,0,6,7,1,ASAS - 宏利,True,
+SF145,梁捷瑩,Leung Chit Ying,Alice,Z239447(3),2021-07-07,1982-02-16,香港西灣河筲箕灣道92-102號業寧大廈10樓H室,97816132,active,CWB,CWB,A,ASA,Beautician,BEAUTICIAN,8000,2000,500,500,0,6,7,1,A - 宏利,True,
+SF146,陳潔湘,Chan Kit Sheung,Emily,Z194767(3),2021-09-03,1984-01-19,"Rm 3208, Lung Tat Hse Lower, Wong Tai Sin",60481158,active,CWB,CWB,A,ASA,Beautician,BEAUTICIAN,6500,2000,500,500,0,6,7,1,A - 宏利,True,
+SF149,梁家欣,Leung Ka Yan,Mika,Z421420(0),2021-09-03,1984-01-07,西貢西貢道89號地下,53987815,active,CWB,CWB,A,ASA,Beautician,BEAUTICIAN,6300,2000,500,500,0,6,7,1,A - 宏利,True,
+SF153,李賴潔貞,Lee Lai Kit Ching,貞姐,E226104(2),2021-09-01,1948-11-12,九龍何文田愛民邨新民樓412室,27142718,active,MK TOP,MKTOP,A,ASA,Janitor,JANITOR,12000,1000,0,0,0,6,7,1,自,True,
+SF154,毛曉春,Mo Hiu Chun,Lanke,V062304(0),2021-10-01,1985-04-14,屯門福亨村215號地下,91727370,active,TM,TMA,ASAS,ASAS,店長,SHOP_MANAGER,13500,2000,1000,0,0,6,7,0,ASAS - 宏利,True,
+SF155,吳嘉敏,NG KA MAN CARMAN,Carman,Z539776(7),2021-10-16,1980-10-01,"Flat A, 11/F, Blk 6, Piorhead Gdn, 168 Wu Chui Rd, Tuen Mun",97102336,active,Office,OFFICE,A,ASA,Trainer,TRAINER,27000,1000,1000,0,1000,6,7,1,A - 宏利,True,
+SF156,馬玉雯,Ma Yuk Man,Sunny,R179085(3),2021-10-01,1996-09-06,東涌滿東邨滿康樓24樓2411室,67081514,active,Office,OFFICE,ASAS,ASAS,Masketing Executive,MARKETING_EXECUTIVE,24500,1000,1000,0,0,6,7,1,ASAS - 宏利,True,
+SF164,楊樂兒,Yeung Lok Yi,Lok Yi,Y289319(1),2017-12-01,1992-06-23,"RM1801,YAT SANG HOUSE, SIU HIN COURT, TUEN MUN",62712555,active,TM,TMA,ASAS,ASAS,Beautician,BEAUTICIAN,20500,2000,500,500,,6,9,1,ASAS - 宏利,True,
+SF167,曾瑞卿,Tsang Sui Hing,Ella,G816457(5),2024-11-01,1971-04-06,,61931944,active,TOP,MKTOP,Asa,Asa,Sales Manager,SALES_MANAGER,13300,2000,500,500,0,6,7,0,-,True,
+SF168,陳凱婷,Chan Hoi Ting,Moon,Z4724926,2022-04-21,1983-03-21,"Rm 407, Po On Hse, Kam On Court, Ma On Shan",98205136,active,Tai Wai,TAIWAI,A,ASA,Manager,MANAGER,15500,2000,500,500,0,6,7,0,A - 宏利,True,
+SF170,李佩英,Lee Pui Ying,Moon(B),D469961(1),2022-04-21,1959-06-26,"Flat B, 12/F, Blk 3, Grandway Gdn, Shatin",94689533,active,Tai wai,TAIWAI,A,ASA,Massagist,MASSAGIST,19300,1000,0,0,0,6,7,1,A - 宏利,True,
+SF171,,Ha Mung Ying,Ying,,2022-04-21,,,,resigned,TaiWai,TAIWAI,,ASA,Beautician(PT),BEAUTICIAN,,,,,,,,,,False,missing_identity|no_salary
+SF172,陳欣欣,Chan Yan Yan,YY,P841845(8),2022-04-21,1986-06-19,"G/F, No.55 Prosperous Villa, Tai Hang Village, Tai Po",65758276,active,Tai Wai,TAIWAI,A,ASA,Beautician,BEAUTICIAN,15500,2000,500,500,0,6,7,0,A - 宏利,True,
+SF173,何嘉慧,Ho Ka Wai,Karrie,Z819778(5),2022-04-22,1981-01-27,深水埗海壇街218號愛海頌1座17/F B室,66288546,active,MKCY,MKCY,A,ASA,Consultant,CONSULTANT,14000,2000,500,500,0,6,7,0,A - 宏利,True,
+SF182,陳家寶,Chan Ka Po,BoYi,Y117412(4),2022-06-02,1990-07-21,新界天水圍俊宏軒6座22室,60600219,active,TM,TMA,ASAS,ASAS,Receptionist,RECEPTIONIST,14500,2000,500,500,0,6,7,1,ASAS - Sun,True,
+SF185,陳凱螢,Chan Hoi Ying,Iris,z241337(0),2021-04-21,1982-02-16,"Rm C8, 31/F, BLK E, Garden Rivera, Shatin, NT",97254926,active,Tai Wai,TAIWAI,A,ASA,Manager,MANAGER,15500,2000,500,500,0,6,7,0,A - 宏利,True,
+SF188,廖詩盈,LIU SZE YING,Helen,V127902(5),2022-06-27,1996-12-10,油麻地渡船街252號富景洋樓26F/C座,51818948,active,Office,OFFICE,ASAS,ASAS,Designer,DESIGNER,20500,1000,1000,0,0,6,7,1,ASAS - 宏利,True,
+SF190,鄒善盈,Chow Sin Ying Dorcas,Dorcas,Y021740(7),2022-06-28,1989-01-16,元朗坑屋村129號1樓,65887466,active,TM,TMA,ASAS,ASAS,Assistant Shop Manager,ASSISTANT_SHOP_MANAGER,14500,2000,500,500,0,6,7,0,ASAS - Sun,True,
+SF193,林碧珠,Lam Pik Chu,雯雯,P354517(6),2022-07-07,1967-02-14,黃大仙蒲崗村道75號富祐大廈3C,62711052,active,MKCY,MKCY,A,ASA,Beautician,BEAUTICIAN,7000,2000,500,500,0,6,7,1,A - 宏利,True,
+SF196,李迎迎,Li Ying Ying,(B)婷婷,F024215(4),2022-07-19,1989-08-15,天水圍天瑞邨瑞林樓709室,96258910,active,TM,TMA,ASAS,ASAS,Beautician,BEAUTICIAN,7000,2000,250,250,,,,,,True,
+SF199,梁玉嬋,Leung Yuk Sim,呀晴,K362389(0),2022-08-01,1974-08-17,"FLAT 9 37/F, BLK D, LUNG POON COUR, LUNG KEI HOUSE, DIAMOND HILL, KOWLOON.",91704116,active,Tai wai,TAIWAI,A,ASA,Beautician,BEAUTICIAN,6800,2000,500,500,0,6,7,1,自,True,
+SF202,黃文慧,Wong Man Wai,Cora,Z666996(5),2022-08-11,1985-01-31,"1/F, No 18, Kwan Mun Hau Tsuen, Tsuen Wan, NT",68939892,active,MK,MKTOP,,ASA,Receptionist,RECEPTIONIST,,,,,,,,,,False,no_salary
+SF206,江儉,Kong Kim,Water(PT),H462407(8),2022-08-16,,,,active,CWB,CWB,A,ASA,Beautician,BEAUTICIAN,3700,1000,250,250,0,6,7,1,A - 宏利,True,
+SF208,梁美英,Leung Mei Ying,Jessie,Z302198(0,2022-09-01,1981-01-24,沙田廣源邨廣棉樓3014室,97553336,resigned,TaiWai,TAIWAI,,ASA,Beautician,BEAUTICIAN,,,,,,,,,,False,no_salary
+SF211,徐慧玲,Chui Wai Ling,細Ling,Y434812(3),2022-09-02,,,55115746,active,TM,TMA,A,ASA,Beautician,BEAUTICIAN,日薪(Part-time),1000,0,0,0,6,7,1,A - 宏利,False,part_time_salary
+SF220,郭麗萍,Guo LiPing,Pinky,R709407(7),2022-11-01,1979-03-28,石硤尾白田村太田樓1814室,90907339,active,Tai wai,TAIWAI,A,ASA,Beautician,BEAUTICIAN,7200,2000,500,500,0,6,7,1,A - 宏利,True,
+SF221,阮美儀,Yuen Mei Yee,MAY(cs),K761150(1),2023-06-22,,,93566477,active,MOS/MKCY,MOS/MKCY,A,ASA,RECEPTIONIST,RECEPTIONIST,13000,2000,500,500,0,6,7,1,A - 宏利,True,multi_branch|unknown_branch
+SF222,區寶欣,Au Po Yan,Penny,Z335626(5),2022-12-01,1983-10-23,"Flat B, 20/F, Block 20, City One Statin 1 Tak Wing Street, Shatin, N.T.",61069237,active,Office,OFFICE,ASAS,ASAS,Trainer,TRAINER,33000,1000,1000,0,1000,6,7,1,ASAS - Sun,True,
+SF233,黃碧儀,Wong Pik Yee,Tracy,Y846228(1),2023-04-27,2002-06-11,大埔翠屏花園A座一樓八室,55790622,active,Tai wai,TAIWAI,ASAS,ASAS,Receptionist,RECEPTIONIST,13000,2000,500,500,0,6,7,1,ASAS - 宏利,True,
+SF238,張月峙琦,Cheung Yuet Si Kei,Kei,P623734(0),2023-05-08,1967-01-18,沙田馬鞍山錦泰苑錦天閣1003室,54148878,active,MKCY,MKCY,A,ASA,Massagist,MASSAGIST,7200,2000,250,250,0,6,7,1,A - 宏利,True,
+SF239,羊思思,Yeung Sze Sze,Ceci,R117602(4),2023-05-15,1989-07-24,元朗橫洲楊屋邨143A 1/F,91957812,resigned,Mos,MOS,,ASA,Consultant,CONSULTANT,,,,,,,,,,False,no_salary
+SF240,郭偉傑,Kwok Wai Kit,Roy,M323221(8),2023-06-01,1996-09-05,九龍深水埗榮昌邨榮俊樓1011室,65296165,resigned,Office,OFFICE,,ASA,Designer,DESIGNER,,,,,,,,,,False,no_salary
+SF241,梁頌慈,Leung Chung Chi,Rachel,Y616699(5),2023-06-07,1997-05-29,屯門富健花園9座18樓K室,66412541,active,MOS,MOS,ASAS,ASAS,Beautician,BEAUTICIAN,6500,2000,500,500,,6,7,1,ASAS - 宏利,True,
+SF243,廖舒欣,Liu Shu Yan,Chilly,Z659025(0),2023-07-01,,,,active,TW,TW,ASAS,ASAS,Beautician,BEAUTICIAN,7500,2000,1000,0,0,6,9,1,ASAS - 宏利,True,
+SF247,賀蓉花,He Ronghua,Anna,M454095(1),2023-08-01,1979-03-17,馬鞍山利安邨利華樓2309室,63064650,active,TOP,MKTOP,A,ASA,Massagist,MASSAGIST,7200,2000,250,250,0,6,7,1,自,True,
+SF249,戴美美,Tai Mei Mei,Maymay,K766222(A),2023-08-11,,九龍城城南道68號2樓F室,,active,TOP,MKTOP,A,ASA,Beautician,BEAUTICIAN,8500,2000,500,500,0,6,7,1,A - 宏利,True,
+SF250,蔡文瑛,Choi Man Ying,Gina,K040808(5),2023-08-14,1972-07-20,"Rm 513 Man Tai House, Tze Man Estater, Tze Wan, Shan Kowloon",93865064,active,Office,OFFICE,ASAS,ASAS,Telesales,TELESALES,15000,1000,0,0,0,6,7,1,ASAS - Sun,True,
+SF258,胡滿金,HU Manjin,珍珍(TW),R687103(7),2023-09-26,1968-11-06,荃灣同和街老圍村42A地下,96823751,resigned,TW,TW,,ASA,Massagist,MASSAGIST,,,,,,,,,,False,no_salary
+SF260,許靜婷,Hui Ching Ting,Jay,Y425013(1),2023-10-09,1994-02-02,"Room 14, 17/F, Sun Man Hse, Oi Man Est, Ho Man Tin",61938884,active,TW,TW,ASAS,ASAS,Beautician,BEAUTICIAN,6000,2000,1000,0,0,6,7,1,ASAS - Sun,True,
+SF261,黃麗齡,Wong Lai Ling Anna,Jc,,2024-01-15,,,,resigned,TM,TMA,,ASA,Consultant,CONSULTANT,,,,,,,,,,False,missing_identity|no_salary
+SF262,,,Gigi,,2024-01-16,,,,resigned,CWB,CWB,,ASA,Massagist,MASSAGIST,,,,,,,,,,False,missing_identity|no_salary
+SF265,王雪婷,Wong Suet Ting,Sugar,Y152326(9),2023-11-09,1990-10-29,沙田大圍豐盛苑華盛閣2715室,95530022,active,CWB,CWB,A,ASA,Beautician,BEAUTICIAN,6500,2000,500,500,0,6,7,1,A - 宏利,True,
+SF266,黃美娜,Chiranan Thianhom,Cat,K716637(0),2023-11-25,1974-10-06,屯門寶田邨第8座2610室,62922876,active,TM,TMA,ASAS,ASAS,Massagist,MASSAGIST,7000,2000,500,,0,6,7,1,ASAS - 宏利,True,
+SF267,文芊茹,Man Chin Yu,Bell,Y602809(6),2023-12-11,1997-09-05,青衣青康路青盛苑12樓16室,54087715,resigned,TW,TW,,ASA,Receptionist,RECEPTIONIST,,,,,,,,,,False,no_salary
+SF271,趙淑貞,Chiu Shuk Ching,Crystal,R226581(7),2024-01-15,1990-07-21,"3718, 37/F, Ching Shum House, Ching Tin Estate, Tuen Mun",67924092,resigned,TM,TMA,,ASA,Consultant,CONSULTANT,,,,,,,,,,False,no_salary
+SF272,邱少碧,Qiu Shaobi,Jojo,R184303(5),19/1//2024,1962-10-15,荃灣梨木樹邨翠樹樓3013室,51721328,active,CWB,CWB,A,ASA,Massagist,MASSAGIST,7300,2000,250,250,0,6,7,1,A - 宏利,True,
+SF273,陳慧敏,Chan Wai Man Grace,Grace,K921631(6),2024-02-19,1979-01-02,,,resigned,TW,TW,,ASA,Assistant Shop Manager,ASSISTANT_SHOP_MANAGER,,,,,,,,,,False,no_salary
+SF275,盧詠茵,Lo Wing Yan,Wingo,K696639(A),2024-02-26,1977-07-01,九龍紅磡大環道28號紅磡邨紅日樓9樓911室,60380861,active,Office,OFFICE,,ASA,會計文員,OFFICE_CLERK,,,,,,,,,,False,no_salary
+SF276,,,Helen,,2024-02-27,,,,resigned,Mos,MOS,,ASA,,BEAUTICIAN,,,,,,,,,,False,missing_identity|no_salary
+SF277,高鳳香,GAO Feng Xiang,Joey,R333773(0),2024-03-14,,,,active,CWB,CWB,A,ASA,治療師,BEAUTICIAN,6500,2000,500,500,0,6,7,1,A - 宏利,True,
+SF279,王嬌,Wang Jiao,KITTY,M535934(7),2024-04-04,1985-08-14,葵涌葵盛東邨盛安樓1912室,68712298,active,TW,TW,ASAS,ASAS,Massagist,MASSAGIST,7200,2000,250,250,0,6,7,1,-,True,
+SF280,何文頤,Ho Man Yee,Amanda,Y382696(A),2024-04-12,1994-12-27,"Flat A,16/F,Harkfield Building, 8Smithfield Road,Kenndy Town",60644515,active,CBA/MKCY,CBA/MKCY,A,ASA,Receptionist,RECEPTIONIST,15000,2000,500,500,0,6,7,1,A - 宏利,True,multi_branch|unknown_branch
+SF282,黃惠燕,Wong Wai Yin,Vincci,Z408146(4),2024-05-08,1981-04-16,青衣青康路10號青盛苑1510室,63808403,active,MKCY,MKCY,A,ASA,跟針姑娘,NURSE,22000,2000,1000,0,,6,7,1,A - 宏利,True,
+SF284,林麗雅,LAM LAI NGA YURI,Yuri,M349281(3),2024-05-27,1996-10-08,"Rm 2021, Blk 2, Choi Wah Hse, Choi Yuen Est, Choi Yuen Rd, Sheung Shui, NT, HK",52282181,resigned,MKCY,MKCY,,ASA,Assistant Operation Manager,ASSISTANT_OPERATION_MANAGER,,,,,,,,,,False,no_salary
+SF287,,Cheung Wing Fong,Winnie,V140594(2),2024-05-27,1988-07-24,Kwun Tong,55957933,resigned,MKCY,MKCY,,ASA,Senior Sales Manager,SENIOR_SALES_MANAGER,,,,,,,,,,False,no_salary
+SF288,何寶瓊,Ho Po King,Summer,Y297887(1),2024-06-01,1993-01-20,沙田禾輋邨厚和樓6樓06室,64090689,resigned,TW,TW,,ASA,,BEAUTICIAN,,,,,,,,,,False,no_salary
+SF292,連嘉雯,Lin Ka Man,Mon,Z871828(9),2024-06-01,1987-09-20,沙田大圍隆亨邨學心樓2樓209室,90527088,active,TW,TW,ASAS,ASAS,接待員,RECEPTIONIST,17000,2000,500,500,0,6,7,1,ASAS - 宏利,True,
+SF296,彭慧文,Pang Wai Man,Monique,Z795112(5),2024-06-03,1986-12-07,"Rm F,23/F, Blk 5, Sky Tower, To Kwa Wan, Kln",90191595,resigned,MKCY,MKCY,,ASA,Senior Shop Manager,SENIOR_SHOP_MANAGER,,,,,,,,,,False,no_salary
+SF299,薜娟,Xue Juan,小娟,M912251(1),2024-06-17,1989-01-05,,56779285,resigned,MKCY,MKCY,,ASA,Massagist,MASSAGIST,,,,,,,,,,False,no_salary
+SF300,袁巧玲,Yuen Hau Ling,Jessica,P891388(2),2024-06-17,1969-01-13,青衣長宏邨宏心樓3417室,91443313,resigned,MKCY,MKCY,,ASA,Beautician,BEAUTICIAN,,,,,,,,,,False,no_salary
+SF301,曾志鵬,Tsang Chi Pang,Alice,,2024-06-18,,,,active,MKCY,MKCY,A,ASA,曾醫師,DOCTOR,日薪(Part-time),0,0,0,0,6,7,1,A - 宏利,False,missing_identity|part_time_salary
+SF302,周曉玲,Zhou Xiao Ling,Ling,R861468(6),2024-06-20,1972-04-26,九龍觀塘安達邨正達樓11樓1113室,92718333,resigned,MOS,MOS,,ASA,Body C,BEAUTICIAN,,,,,,,,,,False,no_salary
+SF303,朱韋瑤,Chu Wai Yiu,YOYO,Y118284(4),2024-06-24,1990-03-27,粉嶺龍馬路68號皇后山邨皇頤樓2522室,67910446,resigned,Mos,MOS,,ASA,Beautician,BEAUTICIAN,,,,,,,,,,False,no_salary
+SF304,郭佩詩,Kwok Pui Sze,May May,K678402(A),2024-06-25,1977-05-18,"Rm1405,",68100007,resigned,TW,TW,,ASA,Manager,MANAGER,,,,,,,,,,False,no_salary
+SF311,江配配,Jiang Peipei,Polly,F044031(7),2024-07-09,2024-01-12,九龍旺廷通菜街115號,55706886,resigned,MKCY,MKCY,,ASA,Beautician,BEAUTICIAN,,,,,,,,,,False,no_salary
+SF312,林映明,Lam  Ying Ming,MING,F463321(7),2024-07-09,1992-11-24,葵芳邨葵明樓15樓13室,60509821,active,MKCY,MKCY,A,ASA,Beautician,BEAUTICIAN,7200,2000,500,500,0,6,7,1,A - 宏利,True,
+SF313,楊達偉,Yeung Tat Wai,Barry,Z472686(4),2024-07-23,1983-05-09,"Flat H, 5/F, Blk 2, Fu Ning Garden, 25 Po Ning Road, TKO",96262425,active,Office,OFFICE,ASAS,ASAS,Account Manager,ACCOUNT_MANAGER,42500,1000,0,0,0,6,10,1,ASAS - 宏利,True,
+SF315,歐東林,Au Tong Lam,Chloe,Y258158(0),2024-07-24,,,96681570,resigned,MK,MKTOP,,ASA,Consultant,CONSULTANT,,,,,,,,,,False,no_salary
+SF318,陳熾燊,Chan Chi San,Santo,Z068047(9),2024-08-01,1980-12-13,,93745571,active,Office,OFFICE,ASAS,ASAS,Operation Manager,OPERATION_MANAGER,33500,2000,500,500,0,7,10,1,ASAS - Sun,True,
+SF320,陳禧旻,Chan Hei Man,Vanessa,Y810406(7),2024-08-01,2001-03-03,"Rm1617, Chun Tung House, Tung Tau Estate, Kowloon",62290067,active,MOS,MOS,A,ASA,Beautician,BEAUTICIAN,6000,2000,500,500,0,6,7,1,A  -  Man,True,
+SF322,黃敏珍,Huang Minzhen,Alice,R827658(6),2024-09-03,,,,active,CWB,CWB,A,ASA,治療師,BEAUTICIAN,7300,2000,500,500,0,6,7,1,A - 宏利,True,
+SF323,費曉蓮,Fei Xiao Lian,Candy,R808067(3),2024-09-03,1982-02-08,沙田馬鞍山150號錦駿苑E座3604室,,active,MOS,MOS,A,ASA,Consultant,CONSULTANT,9000,2000,500,500,0,6,7,1,A - 宏利,True,
+SF325,陳靜怡,Chan Ching Yi,Faye,V116590(9),2024-09-19,1987-03-16,旺角西洋菜街新江大廈9B,52111281,resigned,,,,ASA,Beautician,BEAUTICIAN,,,,,,,,,,False,no_salary
+SF327,吳芷瑜,Ng Chi Yu,Jenny,P877515(3),2024-09-23,1993-10-30,粉嶺祥華邨祥智樓B2402室,91059389,resigned,TW,TW,,ASA,Manager,MANAGER,,,,,,,,,,False,no_salary
+SF330,黃鈺淋,Wong Yuk Lam,COCO,R845614(2),2024-10-02,1999-04-28,沙田圍水泉澳河泉樓0804室,66428565,resigned,,,,ASA,Beautician,BEAUTICIAN,,,,,,,,,,False,no_salary
+SF331,劉洁婷,Liu Jieting,Miki,M910957(4),2024-10-10,2001-02-01,深水埗福榮街12號嘉榮大廈6F B室,55249795,active,MKCY,MKCY,A,ASA,Receptionist,RECEPTIONIST,13500,2000,500,500,0,6,7,1,A - 宏利,True,
+SF333,葉柏芬,Ye Baifen,Suki,M104719(7),2024-10-14,1980-11-16,上水彩園邨彩麗樓732窒,90803799,resigned,MKCY,MKCY,,ASA,Massagist,MASSAGIST,,,,,,,,,,False,no_salary
+SF334,徐狄美,Tsui Tik Mei,Maymay,Y606363(0),2024-10-21,1997-07-23,"Rm10,11/F, Blk5,Mei Lok Hse,Mei Tin Est, Tai Wai NT, HK",94243161,active,Tai wai,TAIWAI,A,ASA,Beautician,BEAUTICIAN,6200,2000,500,500,0,6,7,1,A - 宏利,True,
+SF335,丘沛然,YAU PUI YIN,ZOE,Z378318(A),2024-10-25,1981-08-15,大圍顯徑邨顯貴樓2613室/大圍嘉田苑嘉詠閣1208室,97078121,active,TW,TW,ASAS,ASAS,Consultant,CONSULTANT,12200,2000,500,500,0,6,7,0,ASAS - 宏利,True,
+SF336,夏澤嬌,Xia Zejiao,Mimi,M715082(8),2024-10-28,1974-03-15,香港九龍深水埗汝州街236號1FA,67638908,active,MOS,MOS,A,ASA,Massagist,MASSAGIST,7000,2000,500,500,0,6,7,1,A - 宏利,True,
+SF337,黃婉君,Wong Yuen Kwan,Monica,R80474(3),2024-11-04,1998-11-17,粉嶺華心邨華冠樓3014室,55135963,active,TOP,MKTOP,A,ASA,Receptionist,RECEPTIONIST,12200,2000,500,500,0,6,7,1,A - 宏利,True,
+SF338,梁怡欣,Leung Yee Yan,Joyce,Z689731(3),2024-11-12,1984-12-06,"G/F, Block 1, Tsui Yin Garden, 146 Tai Tong Road, Yuen Long",90576126,resigned,Office,OFFICE,,ASA,Office Clerk,OFFICE_CLERK,,,,,,,,,,False,no_salary
+SF339,余敏慧,Yu Man Wai,Fanny,Y048581(9),2024-11-18,1988-12-16,"Falt E, 5/F,Blk 2 , Broadview Gdn,Tsing Yi",65303020,active,OFfice,OFFICE,ASAS,ASAS,Office Clerk,OFFICE_CLERK,15500,1000,0,0,0,6,7,1,-,True,
+SF341,李紅妹,Lee Hong Mei,Esther,R753960(5),2025年1月6日,,,,active,MKCY,MKCY,A,ASA,養生師,MASSAGIST,7000,2000,500,500,0,6,7,1,-,True,
+SF342,楊美美,Yeung May May,May 姐,C274465(A),2019-11-11,1956-09-25,荃灣大窩口邨富德樓1樓13室,98628843,active,CWB,CWB,A,ASA,清潔員,JANITOR,10427,0,0,0,,6,7,1,>65,True,
+SF344,吳佩臻,Ng Pui Chun,Me,C455131(A),2025-03-07,1965-01-21,天水圍天慈邨慈心樓1202室,66816511,active,TM,TMA,ASAS,ASAS,養生師,MASSAGIST,7000,2000,500,500,0,6,7,1,-,True,
+SF345,鍾嫣嫣,Chung Yin Yin,Vanessa,R483737(0),2025年2月4日,1995年7月2日,青衣長安宏文樓1520室,51091579,active,MOS,MOS,ASAS,ASAS,治療師(PS),BEAUTICIAN,8000,2000,500,500,0,6,7,1,新加入,True,
+SF346,李嘉賢,Lei Ka In,Yvonne,K471749(A),2025-03-10,1975-10-30,"Flat G,4/F,Blook 13,Kenswood Count,kingswood villas tin shui wai,NT",64141149,active,TW,TW,ASA,ASA,經理,MANAGER,13000,2000,500,500,0,6,7,0,-,True,

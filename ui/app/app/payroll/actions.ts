@@ -1,0 +1,558 @@
+'use server';
+
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { Workbook } from 'exceljs';
+import { createSupabaseAdminClient } from '@/src/lib/supabase/admin';
+import { getCurrentUser } from '@/src/lib/auth/session';
+import { canAccessRoute } from '@/src/lib/auth/roles';
+import type { PackageNoPayHandling, PayrollEmployeeSummary } from '@/src/lib/employees/queries';
+import { createLegacyCustomCommissionTiers, normalizeCustomCommissionName, normalizeCustomCommissionTiers } from '@/src/lib/employees/custom-commission';
+import { calculateShopTargetPercent } from '@/src/lib/employees/payroll-bonus';
+import { normalizePayrollBonusTiers, normalizeShopBonusTiers, type PayrollBonusScheme, type ShopBonusScheme } from '@/src/lib/employees/payroll-bonus';
+
+function isMissingColumnError(message: string | null | undefined) {
+  return typeof message === 'string' && (
+    message.includes('does not exist') ||
+    message.includes('schema cache') ||
+    message.includes('Could not find the')
+  );
+}
+
+type CommissionEntry = {
+  employeeCode: string;
+  mpfEeApplied: boolean;
+  mpfEeDeductionMode: 'split' | 'month_end';
+  mpfEeAmount: number;
+  mpfEeManualOverride: boolean;
+  mpfErApplied: boolean;
+  mpfErAmount: number;
+  mpfErManualOverride: boolean;
+  workedDays: number;
+  workedHours: number;
+  redeemVolume: number;
+  salesVolume: number;
+  salesAmountTotal: number;
+  salesAmountCommission: number;
+  jobAmount: number;
+  sgmVolume: number;
+  streetPromoterHeadcount: number;
+  streetPromoterCommissionAmount: number;
+  telesalesHeadcount: number;
+  telesalesCommissionAmount: number;
+  briefingBonusApplied: boolean;
+  briefingBonusAmount: number;
+  attendanceBonusApplied: boolean;
+  attendanceBonusAmount: number;
+  bookingBonusApplied: boolean;
+  bookingBonusAmount: number;
+  manualBonusApplied: boolean;
+  manualBonusAmount: number;
+  manualBonusMpfIncluded: boolean;
+  manualDeductionApplied: boolean;
+  manualDeductionAmount: number;
+  manualDeductionMpfIncluded: boolean;
+  shopTargetAmount: number;
+  shopActualSalesAmount: number;
+  shopTargetPercent: number;
+  shopBonusAmount: number;
+  redeemCommission: number;
+  salesCommission: number;
+  sgmCommission: number;
+  salesBonus: number;
+  payrollBonus: number;
+  totalCommission: number;
+  packageNoPayHandling: PackageNoPayHandling | null;
+};
+
+type LatestPayrollEmployeeDefaults = Partial<PayrollEmployeeSummary> & {
+  employeeCode: string;
+  streetPromoterEnabled?: boolean;
+  telesalesEnabled?: boolean;
+};
+
+type PayslipExportEntry = {
+  employeeCode: string;
+  employeeName: string;
+  branchName: string | null;
+  selectedMonth: string;
+  calculatedBaseSalary: number;
+  allowanceAmount: number;
+  transportAllowance: number;
+  briefingBonus: number;
+  attendanceBonus: number;
+  bookingBonus: number;
+  manualBonus: number;
+  manualDeduction: number;
+  shopBonus: number;
+  redeemCommission: number;
+  salesCommission: number;
+  sgmCommission: number;
+  salesAmountTotal: number;
+  salesAmountRatePercent: number;
+  salesAmountCommission: number;
+  jobCommission: number;
+  streetPromoterCommission: number;
+  telesalesCommission: number;
+  salesBonus: number;
+  payrollBonus: number;
+  packageCommission: number;
+  isPackageEmployee: boolean;
+  grossAmount: number;
+  mpfEe: number;
+  mpfEr: number;
+  netAmount: number;
+  payDayPrimary: number | null;
+  payDaySecondary: number | null;
+  primaryPayoutGross: number;
+  primaryMpf: number;
+  primaryPayoutNet: number;
+  secondaryPayoutGross: number;
+  secondaryMpf: number;
+  secondaryPayoutNet: number;
+  monthEndMpf: number;
+};
+
+function formatMonthLabel(yearMonth: string) {
+  const [year, month] = yearMonth.split('-');
+  return year && month ? `${year}年${Number(month)}月` : yearMonth;
+}
+
+function formatPayoutLabel(day: number | null) {
+  return day ? `${day}號` : '—';
+}
+
+async function findPayrollTemplateWorkbookPath() {
+  const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+  const fileNames = await fs.readdir(workspaceRoot);
+  const xlsxFiles = fileNames.filter((fileName) => fileName.toLowerCase().endsWith('.xlsx') && !fileName.startsWith('~$'));
+
+  if (xlsxFiles.length === 0) {
+    throw new Error('No payroll Excel template workbook was found in the workspace root.');
+  }
+
+  const prioritized = [
+    ...xlsxFiles.filter((fileName) => /_v\d+\.xlsx$/i.test(fileName) || /mm\(fy\)/i.test(fileName)),
+    ...xlsxFiles.filter((fileName) => !(/_v\d+\.xlsx$/i.test(fileName) || /mm\(fy\)/i.test(fileName))),
+  ];
+
+  const selectedFileName = prioritized.sort((left, right) => left.localeCompare(right)).at(-1);
+  if (!selectedFileName) {
+    throw new Error('No payroll Excel template workbook was selected.');
+  }
+
+  return path.join(workspaceRoot, selectedFileName);
+}
+
+function applyMoneyFormat(cell: { value: unknown; numFmt?: string }) {
+  if (typeof cell.value === 'number') {
+    cell.numFmt = '#,##0.00';
+  }
+}
+
+function writePayslipLine(
+  worksheet: ReturnType<Workbook['addWorksheet']>,
+  rowNumber: number,
+  leftLabel: string,
+  leftValue: string | number,
+  rightLabel: string,
+  rightValue: string | number,
+) {
+  worksheet.getCell(`A${rowNumber}`).value = leftLabel;
+  worksheet.getCell(`B${rowNumber}`).value = leftValue;
+  worksheet.getCell(`D${rowNumber}`).value = rightLabel;
+  worksheet.getCell(`E${rowNumber}`).value = rightValue;
+  applyMoneyFormat(worksheet.getCell(`B${rowNumber}`));
+  applyMoneyFormat(worksheet.getCell(`E${rowNumber}`));
+}
+
+function buildPayslipDetailSheet(workbook: Workbook, entries: PayslipExportEntry[], selectedMonth: string) {
+  const existingSheet = workbook.getWorksheet('PAYSLIP DETAILS');
+  if (existingSheet) {
+    workbook.removeWorksheet(existingSheet.id);
+  }
+
+  const worksheet = workbook.addWorksheet('PAYSLIP DETAILS');
+  worksheet.columns = [
+    { width: 24 },
+    { width: 18 },
+    { width: 4 },
+    { width: 24 },
+    { width: 18 },
+  ];
+
+  worksheet.mergeCells('A1:E1');
+  worksheet.getCell('A1').value = `Payslip Details - ${formatMonthLabel(selectedMonth)}`;
+  worksheet.getCell('A1').font = { bold: true, size: 16 };
+  worksheet.getCell('A1').alignment = { vertical: 'middle' };
+
+  let currentRow = 3;
+
+  for (const entry of entries) {
+    worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `${entry.employeeName} (${entry.employeeCode})`;
+    worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 13 };
+    worksheet.getCell(`A${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF3F4F6' },
+    };
+    currentRow += 1;
+
+    writePayslipLine(worksheet, currentRow, 'Month', formatMonthLabel(entry.selectedMonth), 'Branch', entry.branchName ?? '—');
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Base Salary', entry.calculatedBaseSalary, 'Allowance + Transport', entry.allowanceAmount + entry.transportAllowance);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Briefing Bonus', entry.briefingBonus, 'Attendance Bonus', entry.attendanceBonus);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Booking Bonus', entry.bookingBonus, 'Manual Bonus', entry.manualBonus);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Shop Bonus', entry.shopBonus, 'Manual Deduction', entry.manualDeduction);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Redeem Commission', entry.redeemCommission, 'Sales Commission', entry.salesCommission);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'SGM Commission', entry.sgmCommission, 'Job Commission', entry.jobCommission);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Sales Amount Commission', entry.salesAmountCommission, 'Sales Amount Basis', `${entry.salesAmountTotal.toFixed(2)} x ${entry.salesAmountRatePercent.toFixed(2)}%`);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Street Promoter', entry.streetPromoterCommission, 'Telesales', entry.telesalesCommission);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Sales Bonus', entry.salesBonus, 'Payroll Bonus', entry.payrollBonus);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Package Commission', entry.isPackageEmployee ? entry.packageCommission : 0, 'Gross Amount', entry.grossAmount);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'MPF (Employee)', entry.mpfEe, 'MPF (Employer)', entry.mpfEr);
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, `Payment 1 (${formatPayoutLabel(entry.payDayPrimary)})`, entry.primaryPayoutNet, `Payment 2 (${formatPayoutLabel(entry.payDaySecondary)})`, entry.secondaryPayoutGross > 0 ? entry.secondaryPayoutNet : '—');
+    currentRow += 1;
+    writePayslipLine(worksheet, currentRow, 'Month-end MPF Deduction', entry.monthEndMpf, 'Net Amount', entry.netAmount);
+
+    for (let rowCursor = currentRow - 12; rowCursor <= currentRow; rowCursor += 1) {
+      for (const cellRef of [`A${rowCursor}`, `B${rowCursor}`, `D${rowCursor}`, `E${rowCursor}`]) {
+        worksheet.getCell(cellRef).border = {
+          top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        };
+      }
+    }
+
+    currentRow += 3;
+  }
+}
+
+export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): Promise<{ success: true; employee: LatestPayrollEmployeeDefaults } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || !canAccessRoute(user.role, 'payroll')) {
+    return { error: 'Unauthorized' };
+  }
+
+  const normalizedCode = employeeCode.trim();
+  if (!normalizedCode) {
+    return { error: 'Missing employee code' };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const legacyProfileSelect = 'salary_type, base_salary, allowance_amount, attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus, mpf_enabled, pay_day_primary, pay_day_secondary, commission_method, commission_custom_name, commission_custom_tiers, commission_redeem_rate, commission_sales_rate, commission_sgm_rate, sales_bonus_enabled, sales_bonus_rate, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme';
+  const currentProfileSelect = `${legacyProfileSelect}, package_commission_amount, sales_amount_rate_percent`;
+  const buildQuery = (profileSelect: string) => supabase
+    .from('employees')
+    .select(`employee_code, name_zh, alias, hire_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
+    .eq('employee_code', normalizedCode)
+    .maybeSingle();
+  const currentResult = await buildQuery(currentProfileSelect);
+  const { data, error } = currentResult.error && isMissingColumnError(currentResult.error.message)
+    ? await buildQuery(legacyProfileSelect)
+    : currentResult;
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!data) {
+    return { error: 'Employee not found' };
+  }
+
+  const row = data as unknown as {
+    employee_code: string;
+    name_zh: string;
+    alias: string | null;
+    hire_date: string;
+    date_of_birth: string | null;
+    position: { code: string | null; name_zh: string | null } | { code: string | null; name_zh: string | null }[] | null;
+    branch: { name_zh: string | null } | { name_zh: string | null }[] | null;
+    employee_salary_profiles: {
+      salary_type: PayrollEmployeeSummary['salaryType'];
+      base_salary: number | string | null;
+      package_commission_amount: number | string | null;
+      allowance_amount: number | string | null;
+      attendance_bonus_amount: number | string | null;
+      transport_allowance: number | string | null;
+      briefing_bonus: number | string | null;
+      booking_bonus: number | string | null;
+      mpf_enabled: boolean | null;
+      pay_day_primary: number | null;
+      pay_day_secondary: number | null;
+      commission_method: string | null;
+      commission_custom_name: string | null;
+      commission_custom_tiers: unknown | null;
+      commission_redeem_rate: number | string | null;
+      commission_sales_rate: number | string | null;
+      commission_sgm_rate: number | string | null;
+      sales_amount_rate_percent: number | string | null;
+      sales_bonus_enabled: boolean | null;
+      sales_bonus_rate: number | string | null;
+      sales_bonus_custom_name: string | null;
+      sales_bonus_custom_tiers: unknown | null;
+      payroll_bonus_enabled: boolean | null;
+      payroll_bonus_scheme: PayrollBonusScheme | null;
+      street_promoter_enabled: boolean | null;
+      telesales_enabled: boolean | null;
+      shop_bonus_enabled: boolean | null;
+      shop_bonus_custom_name: string | null;
+      shop_bonus_custom_tiers: unknown | null;
+      shop_bonus_scheme: ShopBonusScheme | null;
+    } | null;
+  };
+
+  const profile = row.employee_salary_profiles;
+  const commissionRedeemRate = profile?.commission_redeem_rate ? Number(profile.commission_redeem_rate) : null;
+  const commissionSalesRate = profile?.commission_sales_rate ? Number(profile.commission_sales_rate) : null;
+  const commissionSgmRate = profile?.commission_sgm_rate ? Number(profile.commission_sgm_rate) : null;
+  const salesAmountRatePercent = profile?.sales_amount_rate_percent ? Number(profile.sales_amount_rate_percent) : null;
+  const commissionCustomTiers = normalizeCustomCommissionTiers(profile?.commission_custom_tiers ?? null);
+  const branchName = Array.isArray(row.branch) ? (row.branch[0]?.name_zh ?? null) : (row.branch?.name_zh ?? null);
+  const positionCode = Array.isArray(row.position) ? (row.position[0]?.code ?? null) : (row.position?.code ?? null);
+  const positionNameZh = Array.isArray(row.position) ? (row.position[0]?.name_zh ?? null) : (row.position?.name_zh ?? null);
+
+  return {
+    success: true,
+    employee: {
+      employeeCode: row.employee_code,
+      nameZh: row.name_zh,
+      alias: row.alias,
+      branchName,
+      positionCode,
+      positionNameZh,
+      hireDate: row.hire_date,
+      dateOfBirth: row.date_of_birth,
+      salaryType: profile?.salary_type ?? null,
+      baseSalary: profile?.base_salary ? Number(profile.base_salary) : 0,
+      packageCommissionAmount: profile?.package_commission_amount ? Number(profile.package_commission_amount) : 0,
+      allowanceAmount: profile?.allowance_amount ? Number(profile.allowance_amount) : 0,
+      attendanceBonusAmount: profile?.attendance_bonus_amount ? Number(profile.attendance_bonus_amount) : 0,
+      transportAllowance: profile?.transport_allowance ? Number(profile.transport_allowance) : 0,
+      briefingBonus: profile?.briefing_bonus ? Number(profile.briefing_bonus) : 0,
+      bookingBonus: profile?.booking_bonus ? Number(profile.booking_bonus) : 0,
+      mpfEnabled: profile?.mpf_enabled ?? false,
+      payDayPrimary: profile?.pay_day_primary ?? null,
+      payDaySecondary: profile?.pay_day_secondary ?? null,
+      commissionMethod: profile?.commission_method ?? null,
+      commissionCustomName: normalizeCustomCommissionName(profile?.commission_custom_name ?? null),
+      commissionCustomTiers: profile?.commission_method === 'custom' && commissionCustomTiers.length === 0
+        ? createLegacyCustomCommissionTiers(commissionRedeemRate, commissionSalesRate, commissionSgmRate)
+        : commissionCustomTiers,
+      commissionRedeemRate,
+      commissionSalesRate,
+      commissionSgmRate,
+      salesAmountRatePercent,
+      salesBonusEnabled: profile?.sales_bonus_enabled ?? false,
+      salesBonusRate: profile?.sales_bonus_rate ? Number(profile.sales_bonus_rate) : null,
+      salesBonusCustomName: profile?.sales_bonus_custom_name ?? null,
+      salesBonusCustomTiers: normalizePayrollBonusTiers(profile?.sales_bonus_custom_tiers ?? null),
+      payrollBonusEnabled: profile?.payroll_bonus_enabled ?? false,
+      payrollBonusScheme: profile?.payroll_bonus_scheme ?? null,
+      streetPromoterEnabled: profile?.street_promoter_enabled ?? false,
+      telesalesEnabled: profile?.telesales_enabled ?? false,
+      shopBonusEnabled: profile?.shop_bonus_enabled ?? false,
+      shopBonusCustomName: profile?.shop_bonus_custom_name ?? null,
+      shopBonusCustomTiers: normalizeShopBonusTiers(profile?.shop_bonus_custom_tiers ?? null),
+      shopBonusScheme: profile?.shop_bonus_scheme ?? null,
+    },
+  };
+}
+
+export async function saveMonthlyCommission(yearMonth: string, entries: CommissionEntry[]) {
+  const user = await getCurrentUser();
+  if (!user || !canAccessRoute(user.role, 'payroll')) {
+    return { error: 'Unauthorized' };
+  }
+
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+    return { error: 'Invalid year-month format' };
+  }
+
+  const nonEmpty = entries.filter((e) => (
+    e.mpfEeApplied ||
+    e.mpfErApplied ||
+    e.mpfEeDeductionMode !== 'split' ||
+    e.mpfEeAmount > 0 ||
+    e.mpfErAmount > 0 ||
+    e.mpfEeManualOverride ||
+    e.mpfErManualOverride ||
+    e.workedDays > 0 ||
+    e.workedHours > 0 ||
+    e.redeemVolume > 0 ||
+    e.salesVolume > 0 ||
+    e.salesAmountTotal > 0 ||
+    e.salesAmountCommission > 0 ||
+    e.jobAmount > 0 ||
+    e.sgmVolume > 0 ||
+    e.streetPromoterHeadcount > 0 ||
+    e.streetPromoterCommissionAmount > 0 ||
+    e.telesalesHeadcount > 0 ||
+    e.telesalesCommissionAmount > 0 ||
+    e.briefingBonusApplied ||
+    e.attendanceBonusApplied ||
+    e.bookingBonusApplied ||
+    e.manualBonusApplied ||
+    e.manualBonusAmount > 0 ||
+    e.manualBonusMpfIncluded ||
+    e.manualDeductionApplied ||
+    e.manualDeductionAmount > 0 ||
+    e.manualDeductionMpfIncluded ||
+    e.shopTargetAmount > 0 ||
+    e.shopActualSalesAmount > 0 ||
+    e.shopTargetPercent > 0 ||
+    e.shopBonusAmount > 0 ||
+    e.redeemCommission > 0 ||
+    e.salesCommission > 0 ||
+    e.sgmCommission > 0 ||
+    e.salesBonus > 0 ||
+    e.payrollBonus > 0 ||
+    e.totalCommission > 0
+  ));
+  if (nonEmpty.length === 0) {
+    return { error: 'No commission data to save' };
+  }
+
+  const supabase = createSupabaseAdminClient();
+
+  // Resolve employee_code -> employee_id
+  const codes = nonEmpty.map((e) => e.employeeCode);
+  const { data: employees, error: empError } = await supabase
+    .from('employees')
+    .select('id, employee_code')
+    .in('employee_code', codes);
+
+  if (empError || !employees) {
+    return { error: empError?.message ?? 'Failed to resolve employees' };
+  }
+
+  const codeToId = new Map(employees.map((e) => [e.employee_code, e.id]));
+
+  const rows = nonEmpty
+    .filter((e) => codeToId.has(e.employeeCode))
+    .map((e) => {
+      const shopTargetAmount = e.shopTargetAmount > 0 ? e.shopTargetAmount : 0;
+      const shopActualSalesAmount = e.shopActualSalesAmount > 0 ? e.shopActualSalesAmount : 0;
+      const shopTargetPercent = calculateShopTargetPercent(shopTargetAmount, shopActualSalesAmount) || e.shopTargetPercent;
+
+      return {
+        employee_id: codeToId.get(e.employeeCode)!,
+        year_month: yearMonth,
+        mpf_ee_applied: e.mpfEeApplied,
+        mpf_ee_deduction_mode: e.mpfEeApplied ? e.mpfEeDeductionMode : 'split',
+        mpf_ee_amount: e.mpfEeApplied ? e.mpfEeAmount : 0,
+        mpf_ee_manual_override: e.mpfEeManualOverride,
+        mpf_er_applied: e.mpfErApplied,
+        mpf_er_amount: e.mpfErApplied ? e.mpfErAmount : 0,
+        mpf_er_manual_override: e.mpfErManualOverride,
+        worked_days: e.workedDays,
+        worked_hours: e.workedHours,
+        redeem_volume: e.redeemVolume,
+        sales_volume: e.salesVolume,
+        sales_amount_total: e.salesAmountTotal,
+        sales_amount_commission: e.salesAmountCommission,
+        job_amount: e.jobAmount,
+        sgm_volume: e.sgmVolume,
+        street_promoter_headcount: e.streetPromoterHeadcount,
+        street_promoter_commission_amount: e.streetPromoterCommissionAmount,
+        telesales_headcount: e.telesalesHeadcount,
+        telesales_commission_amount: e.telesalesCommissionAmount,
+        briefing_bonus_applied: e.briefingBonusApplied,
+        briefing_bonus_amount: e.briefingBonusApplied ? e.briefingBonusAmount : 0,
+        attendance_bonus_applied: e.attendanceBonusApplied,
+        attendance_bonus_amount: e.attendanceBonusApplied ? e.attendanceBonusAmount : 0,
+        booking_bonus_applied: e.bookingBonusApplied,
+        booking_bonus_amount: e.bookingBonusApplied ? e.bookingBonusAmount : 0,
+        manual_bonus_applied: e.manualBonusApplied,
+        manual_bonus_amount: e.manualBonusApplied ? e.manualBonusAmount : 0,
+        manual_bonus_mpf_included: e.manualBonusApplied ? e.manualBonusMpfIncluded : false,
+        manual_deduction_applied: e.manualDeductionApplied,
+        manual_deduction_amount: e.manualDeductionApplied ? e.manualDeductionAmount : 0,
+        manual_deduction_mpf_included: e.manualDeductionApplied ? e.manualDeductionMpfIncluded : false,
+        shop_target_amount: shopTargetAmount,
+        shop_actual_sales_amount: shopActualSalesAmount,
+        shop_target_percent: shopTargetPercent,
+        shop_bonus_amount: e.shopBonusAmount,
+        redeem_commission: e.redeemCommission,
+        sales_commission: e.salesCommission,
+        sgm_commission: e.sgmCommission,
+        sales_bonus: e.salesBonus,
+        payroll_bonus: e.payrollBonus,
+        total_commission: e.totalCommission,
+        package_no_pay_handling: e.packageNoPayHandling,
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+  const currentResult = await supabase
+    .from('monthly_commission_records')
+    .upsert(rows, { onConflict: 'employee_id,year_month' });
+
+  const upsertError = currentResult.error && isMissingColumnError(currentResult.error.message)
+    ? (console.warn('Monthly commission schema drift detected while saving payroll; falling back to legacy shop bonus snapshot fields.'), (
+      await supabase
+        .from('monthly_commission_records')
+        .upsert(
+          rows.map(({ shop_target_amount, shop_actual_sales_amount, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, manual_deduction_applied, manual_deduction_amount, manual_bonus_mpf_included, manual_deduction_mpf_included, mpf_ee_deduction_mode, worked_days, worked_hours, sales_amount_total, sales_amount_commission, package_no_pay_handling, ...row }) => ({
+            ...row,
+            job_amount: Number(row.job_amount ?? 0) + Number(street_promoter_commission_amount ?? 0) + Number(telesales_commission_amount ?? 0),
+          })),
+          { onConflict: 'employee_id,year_month' },
+        )
+    ).error)
+    : currentResult.error;
+
+  if (upsertError) {
+    return { error: upsertError.message };
+  }
+
+  return { success: true, count: rows.length };
+}
+
+export async function exportPayslipWorkbook(selectedMonth: string, entries: PayslipExportEntry[]) {
+  const user = await getCurrentUser();
+  if (!user || !canAccessRoute(user.role, 'payroll')) {
+    return { error: 'Unauthorized' };
+  }
+
+  if (!/^\d{4}-\d{2}$/.test(selectedMonth)) {
+    return { error: 'Invalid year-month format' };
+  }
+
+  if (entries.length === 0) {
+    return { error: 'No payslip data to export' };
+  }
+
+  try {
+    const templatePath = await findPayrollTemplateWorkbookPath();
+    const workbook = new Workbook();
+    await workbook.xlsx.readFile(templatePath);
+    buildPayslipDetailSheet(workbook, entries, selectedMonth);
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    return {
+      success: true,
+      fileName: `payroll-payslip-details-${selectedMonth}.xlsx`,
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      base64: Buffer.from(buffer).toString('base64'),
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : 'Failed to export payslip workbook',
+    };
+  }
+}

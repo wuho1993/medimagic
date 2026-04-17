@@ -1,0 +1,53 @@
+Medi Magic HRMS Remote Database Access Notes
+===========================================
+
+Project
+-------
+Project name: Medi Magic HRMS
+Project ref: tudqrvisnmpschkqkzvz
+Project URL: https://tudqrvisnmpschkqkzvz.supabase.co
+
+What Worked
+-----------
+Direct host db.tudqrvisnmpschkqkzvz.supabase.co:5432 did not work from this environment because it resolved to IPv6 only.
+
+Working method:
+- Supabase Session Pooler
+- Host: aws-1-ap-southeast-1.pooler.supabase.com
+- Port: 5432
+- Database: postgres
+- User: postgres.tudqrvisnmpschkqkzvz
+- Network: IPv4 compatible
+
+Reusable Command Pattern
+------------------------
+cd "/Users/joecheung/Kojin Ai Solution/Medi Magic HRMS/ui"
+export DB_PASS="<database-password>"
+export DATABASE_URL="postgresql://postgres.tudqrvisnmpschkqkzvz:${DB_PASS}@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres"
+npm run db:apply-file -- --file supabase/migrations/<migration-file>.sql
+
+Applied SQL Files On 2026-03-24
+-------------------------------
+1. supabase/migrations/20260319_create_employee_directory.sql
+2. supabase/migrations/20260322_create_system_field_configs.sql
+3. supabase/migrations/20260322_add_employee_salary_profiles.sql
+4. supabase/migrations/20260324_expand_hrms_foundation.sql
+5. supabase/migrations/20260324_seed_branch_master_from_workbook.sql
+6. supabase/migrations/20260324_normalize_branch_codes.sql
+
+Important Notes
+---------------
+- Use Session Pooler for future migration or admin scripts in this environment.
+- Do not use the direct db.<project>.supabase.co host here unless the runtime supports IPv6.
+- The local Node SQL runner supports DATABASE_URL.
+- Script path: scripts/apply-sql-file.mjs
+
+Supabase CLI Workflow
+---------------------
+- Migration files in supabase/migrations now use unique 14-digit timestamps, for example 20260414200000_add_sales_bonus_custom_name.sql.
+- Legacy file _seed_commission_tiers.sql was moved to supabase/archive because Supabase CLI ignores non-timestamped migration filenames.
+- Remote migration history has been repaired to match the timestamped filenames, so `supabase db push --db-url <pooler-url>` works again.
+- Preferred remote CLI pattern in this environment:
+	1. Create new migration with a unique timestamp prefix.
+	2. Use the session pooler connection string.
+	3. Run `supabase db push --db-url "postgresql://postgres.<project-ref>:<password>@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres"`.

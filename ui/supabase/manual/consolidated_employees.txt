@@ -1,0 +1,154 @@
+============================================================================================================================================
+MEDI MAGIC HRMS - CONSOLIDATED EMPLOYEE DATA
+Generated: 2026-04-15 21:50
+Total: 118 employees (Active: 90, Resigned: 28)
+============================================================================================================================================
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ACTIVE EMPLOYEES
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Code     Alias           Name(ZH)     Name(EN)                  Branch   Position               Company SalType          Base    Atten    Brief     Book    Trans
+--------------------------------------------------------------------------------------------------------------------------------------------
+SF006    KT              鄭家彤          Cheng Ka Tung             MK       Senior Beautician      ASA    monthly          3750     1000      250      250         
+SF011    Sylvia          李瑞斯          Lee Sui Sze Sylvia        MK       Sales Manager          ASA    monthly         15300     2000      500      500         
+SF014    Jess            沈雯美          Shum  Man Mei             MK       Massagist              ASA    monthly         10200     2000      250      250         
+SF025    Winnie          黃芊銢          Wong Chin Wing            MK       Senior Beautician      ASA    monthly          3900     1000      250      250         
+SF065    珍珍              班秀珍          Ban Xiuzhen               MK       Massagist              ASA    monthly          7200     2000      500      500         
+SF066    Yan             溫樂心          Wan Lok Sum               MK       Beautician             ASA    monthly         21300     2000      500      500         
+SF068    Canice          焦麗萍          Chiu Lai Ping             Office   Receptionist           ASAS   monthly         17200     1000     1000              1000
+SF102    Carol           溫婉華          Wan Yuen Wa               MK       Beautician             ASA    monthly          7200     2000      500      500         
+SF117    Wendy           張穎詩          Cheung Wendy              MK       Beautician             ASA    monthly          6300     2000      500      500         
+SF119    Yan Wong        王龍欣          Wong Lung Yan             TW       Beautician             ASAS   monthly          8300     2000      500      500         
+SF129    Jackie          劉麗霞          LAU LAI HAR               Office   Operation Manager      ASAS   monthly         55000     2000     1000                  
+SF131    Jumbo           鄭寶珠          Cheng Po Chu              TW       Consultant             ASA    monthly                                                  
+SF134    Jacqueline      朱詠賢          Chu Wing Yin              MK       Manager                ASA    monthly         20500     2000      500      500         
+SF137    Yena            陳泳芝          Chan Wing Chi             CWB      Consultant             ASA    monthly         13500     2000      500      500         
+SF139    Candy           金琴娣          Kam Kam Tai               TW       Massagist              ASA    monthly                                                  
+SF144    Wing            楊詠兒          Yeung Wing Yi             TM       Beautician             ASAS   monthly          8000     2000      500      500         
+SF145    Alice           梁捷瑩                                    CWB      Beautician             ASA    monthly          8000     2000      500      500         
+SF146    Emily           陳潔湘          Chan Kit Sheung           CWB      Beautician             ASA    monthly          1000                                    
+SF149    Mika            梁家欣          Leung Ka Yan              CWB      Beautician             ASA    monthly                                                  
+SF153    貞姐              李賴潔貞         Lee Lai Kit Ching         MK       Janitor                ASA    monthly                                                  
+SF154    Lanke           毛曉春          Mo Hiu Chun               TM       店長                     ASAS   monthly         13500     2000      500      500         
+SF155    Carman          吳嘉敏          NG KA MAN CARMAN          Office   Trainer                ASAS   monthly         27000     1000     1000              1000
+SF156    Sunny           馬玉雯          Ma Yuk Man                Office   Masketing Executive    ASAS   monthly         24500     1000     1000                  
+SF164    Lok Yi          楊樂兒          Yeung Lok Yi              TM       Beautician             ASAS   monthly         20500     2000      500      500         
+SF167    Ella            曾瑞卿          Tsang Sui Hing            MK       Sales Manager          ASA    monthly         13300     2000      500      500         
+SF168    Moon            陳凱婷          Chan Hoi Ting             TaiWai   Manager                ASA    monthly                                                  
+SF170    Moon(B)         李佩英          Lee Pui Ying              TaiWai   Massagist              ASA    monthly         19300     1000                           
+SF172    YY              陳欣欣          Chan Yan Yan              TaiWai   Beautician             ASA    monthly         15500     2000      500      500         
+SF173    Karrie          何嘉慧          Ho Ka Wai                 MK       Consultant             ASA    monthly         14000     2000      500      500         
+SF182    BoYi            陳家寶          Chan Ka Po                TM       Receptionist           ASAS   monthly         14500     2000      500      500         
+SF185    Iris            陳凱螢          Chan Hoi Ying             TaiWai   Manager                ASA    monthly         15500     2000      500      500         
+SF186    Moon                                                   TAIWAI                          ASA    monthly         15500     2000      500      500         
+SF188    Helen           廖詩盈          LIU SZE YING              Office   Designer               ASAS   monthly         20500     1000     1000                  
+SF189    JUMBO                                                  TW                              ASAS   monthly          5200     1000      250      250         
+SF190    Dorcas          鄒善盈          Chow Sin Ying Dorcas      TW       Assistant Shop Manager ASAS   monthly         17000     2000      500      500         
+SF193    雯雯              林碧珠          Lam Pik Chu               MKCY     Beautician             ASA    monthly          7000     2000      500      500         
+SF196    (B)婷婷           李迎迎          Li Ying Ying              TM       Beautician             ASAS   monthly          7000     2000      250      250         
+SF199    呀晴              梁玉嬋          Leung Yuk Sim             TaiWai   Beautician             ASA    monthly          6800     2000      500      500         
+SF202    Cora            黃文慧          Wong Man Wai              MK       Receptionist           ASA    monthly                                                  
+SF206    Water(PT)       江儉           Kong Kim                  CWB      Beautician             ASA    monthly          3700     1000      250      250         
+SF211    細Ling           徐慧玲          Chui Wai Ling             TM       Beautician             ASA    daily            1000     1000                           
+SF216    Lilly                                                  Mos                             ASA    monthly          7000     2000      500      500         
+SF220    Pinky           郭麗萍          Guo LiPing                TaiWai   Beautician             ASA    monthly          7200     2000      500      500         
+SF221    MAY(cs)         阮美儀          Yuen Mei Yee              Mos      RECEPTIONIST           ASA    monthly                                                  
+SF222    Penny           區寶欣          Au Po Yan                 Office   Trainer                ASAS   monthly         33000     1000     1000              1000
+SF233    Tracy           黃碧儀          Wong Pik Yee              TaiWai   Receptionist           ASAS   monthly         13000     2000      500      500         
+SF238    Kei             張月峙琦         Cheung Yuet Si Kei        CWB      Massagist              ASA    monthly          7200     2000      250      250         
+SF241    Rachel          梁頌慈          Leung Chung Chi           MOS      Beautician             ASAS   monthly          7000     2000      500      500         
+SF243    Chilly                       Liu Shu Yan               TW       Beautician             ASAS   monthly          9000     2000      500      500         
+SF247    Anna            賀蓉花          He Ronghua                MK       Massagist              ASA    monthly          7200     2000      250      250         
+SF249    Maymay                       Tai Mei Mei               MK       Beautician             ASA    monthly          8500     2000      500      500         
+SF250    Gina            蔡文瑛          Choi Man Ying             Office   Telesales              ASA    monthly                                                  
+SF260    Jay             許靜婷          Hui Ching Ting            TW       Beautician             ASA    monthly                                                  
+SF265    Sugar           王雪婷          Wong Suet Ting            CWB      Beautician             ASA    monthly          6500     2000      500      500         
+SF266    Cat             黃美娜          Chiranan Thianhom         TW       Massagist              ASA    monthly                                                  
+SF272    Jojo            邱少碧          Qiu Shaobi                CWB      Massagist              ASA    monthly          7300     2000      250      250         
+SF275    Wingo           盧詠茵          Lo Wing Yan               Office   會計文員                   ASA    monthly                                                  
+SF277    Joey            高鳳香          GAO Feng Xiang            CWB                             ASA    monthly          7000     2000      500      500         
+SF279    KITTY           王嬌           Wang Jiao                 TW       Massagist              ASAS   monthly          7200     2000      250      250         
+SF280    Amanda          何文頤          Ho Man Yee                CWB      Receptionist           ASA    monthly         15000     2000      500      500         
+SF282    Vincci          黃惠燕          Wong Wai Yin              醫療       跟針姑娘                   ASA    monthly         22000     2000     1000                  
+SF292    Mon             連嘉雯          Lin Ka Man                TW                              ASAS   monthly         17000     2000      500      500         
+SF312    MING            林映明          Lam  Ying Ming            MKCY     Beautician             ASA    monthly          7200     2000      500      500         
+SF313    Barry           楊達偉          Yeung Tat Wai             Office   Account Manager        ASAS   monthly         42500     1000                       2000
+SF318    Santo           陳熾燊          Chan Chi San              Office   Operation Manager      ASAS   monthly         33500     2000      500      500         
+SF320    Vanessa         陳禧旻          Chan Hei Man              MOS      Beautician             ASA    monthly                                                  
+SF322    Icy                                                    CWA                             ASA    monthly          7300     2000      500      500         
+SF323    Candy           費曉蓮          Fei Xiao Lian             MOS      Consultant             ASA    monthly          9000     2000      500      500         
+SF331    Miki            劉洁婷          Liu Jieting               MKCY     Receptionist           ASA    monthly                                                  
+SF334    Maymay          徐狄美          Tsui Tik Mei              TaiWai   Beautician             ASA    monthly          6200     2000      500      500         
+SF335    ZOE             丘沛然          YAU PUI YIN               TW       Consultant             ASAS   monthly         12200     2000      500      500         
+SF336    Mimi            夏澤嬌          Xia Zejiao                MOS      Massagist              ASA    monthly                                                  
+SF337    Monica          黃婉君          Wong Yuen Kwan            MK TOP   Receptionist           ASA    monthly         12200     2000      500      500         
+SF339    Fanny           余敏慧          Yu Man Wai                Office   Office Clerk           ASAS   monthly         15500     1000                           
+SF341    Esther          李紅妹          Lee Hong Mei                                              ASA    monthly                                                  
+SF342    May 姐           楊美美          Yeung May May             CWB                             ASA    monthly         10427                                    
+SF344    Me              吳佩臻          Ng Pui Chun                                               ASA    monthly                                                  
+SF345    Vanessa         鍾嫣嫣          Chung Yin Yin                                             ASA    monthly                                                  
+SF346    Yvonne          李嘉賢          Lei Ka In                                                 ASA    monthly                                                  
+SF355    Gigi                                                   TW                              ASAS   monthly          7000     2000      250      250         
+SF356    Yu (Office)                                            Office                          ASAS   monthly         13000     1000                           
+SF358    Maggie                                                 Mos                             ASA    monthly          7000     2000      500      500         
+SF360    Joyce                                                  TW                              ASAS   monthly          6000     2000      500      500         
+SF368    Yana(MKCYCS)                                           MKCY                            ASA    monthly         12500     2000                           
+SF370    Yu                                                     TW                              ASAS   monthly          6000     2000      500      500         
+SF372    Costte                                                 Office                          ASAS   monthly         14500     1000                           
+SF375    Alferd                                                 TW                              ASAS   monthly         12000     2000      500      500         
+SF376    Tiffany                                                MKTOP                           ASA    monthly          7000     2000      500      500         
+SF377    玉                                                      MKCY                            ASA    monthly          8000     2000      500      500         
+SF378    英                                                      TM                              ASAS   monthly          7000     2000      500      500         
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+RESIGNED EMPLOYEES
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Code     Alias           Name(ZH)     Name(EN)                  Branch   Position               Hire Date    End Date    
+--------------------------------------------------------------------------------------------------------------------------------------------
+SF143    Money           陳潔汶          Chan Kit Man              MK       Receptionist           2021-08-09               
+SF171    Ying                         Ha Mung Ying              TaiWai   Beautician(PT)         2022-04-21               
+SF208    Jessie          梁美英          Leung Mei Ying            TaiWai   Beautician             2022-09-01               
+SF239    Ceci            羊思思          Yeung Sze Sze             Mos      Consultant             2023-05-15   2024-09-20  
+SF240    Roy             郭偉傑          Kwok Wai Kit              Office   Designer               2023-06-01   2024-05-31  
+SF258    珍珍(TW)          胡滿金          HU Manjin                 TW       Massagist              2023-09-26   2024-03-31  
+SF261    Jc              黃麗齡          Wong Lai Ling Anna        TM       Consultant             2024-01-15               
+SF262    Gigi                                                   CWB      Massagist              2024-01-16               
+SF267    Bell            文芊茹          Man Chin Yu               TW       Receptionist           2023-12-11               
+SF271    Crystal         趙淑貞          Chiu Shuk Ching           TM       Consultant             2024-01-15               
+SF273    Grace           陳慧敏          Chan Wai Man Grace        TW       Assistant Shop Manager 2024-02-19               
+SF276    Helen                                                  Mos                             2024-02-27   2024-07-09  
+SF284    Yuri            林麗雅          LAM LAI NGA YURI          MKCY     Assistant Operation Manager 2024-05-27   2024-09-07  
+SF287    Winnie                       Cheung Wing Fong          MKCY     Senior Sales Manager   2024-05-27   2024-09-07  
+SF288    Summer          何寶瓊          Ho Po King                TW                              2024-06-01   2024-10-31  
+SF296    Monique         彭慧文          Pang Wai Man              MKCY     Senior Shop Manager    2024-06-03   2024-09-30  
+SF299    小娟              薜娟           Xue Juan                  MKCY     Massagist              2024-06-17   2024-10-23  
+SF300    Jessica         袁巧玲          Yuen Hau Ling             MKCY     Beautician             2024-06-17   2024-07-15  
+SF302    Ling            周曉玲          Zhou Xiao Ling            MOS      Body C                 2024-06-20   2024-10-31  
+SF303    YOYO            朱韋瑤          Chu Wai Yiu               Mos      Beautician             2024-06-24   2024-10-16  
+SF304    May May         郭佩詩          Kwok Pui Sze              TW       Manager                2024-06-25               
+SF311    Polly           江配配          Jiang Peipei              MKCY     Beautician             2024-07-09               
+SF315    Chloe           歐東林          Au Tong Lam               MK       Consultant             2024-07-24   2024-11-20  
+SF325    Faye            陳靜怡          Chan Ching Yi                      Beautician             2024-09-19   2024-10-11  
+SF327    Jenny           吳芷瑜          Ng Chi Yu                 TW       Manager                2024-09-23   2024-10-13  
+SF330    COCO            黃鈺淋          Wong Yuk Lam                       Beautician             2024-10-02               
+SF333    Suki            葉柏芬          Ye Baifen                 MKCY     Massagist              2024-10-14               
+SF338    Joyce           梁怡欣          Leung Yee Yan             Office   Office Clerk           2024-11-12               
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+EMPLOYEES WITH SALARY BUT NO PERSONAL INFO (need data entry)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  SF186 - Moon (Branch: TAIWAI, Company: ASA)
+  SF189 - JUMBO (Branch: TW, Company: ASAS)
+  SF216 - Lilly (Branch: Mos, Company: ASA)
+  SF322 - Icy (Branch: CWA, Company: ASA)
+  SF355 - Gigi (Branch: TW, Company: ASAS)
+  SF356 - Yu (Office) (Branch: Office, Company: ASAS)
+  SF358 - Maggie (Branch: Mos, Company: ASA)
+  SF360 - Joyce (Branch: TW, Company: ASAS)
+  SF368 - Yana(MKCYCS) (Branch: MKCY, Company: ASA)
+  SF370 - Yu (Branch: TW, Company: ASAS)
+  SF372 - Costte (Branch: Office, Company: ASAS)
+  SF375 - Alferd (Branch: TW, Company: ASAS)
+  SF376 - Tiffany (Branch: MKTOP, Company: ASA)
+  SF377 - 玉 (Branch: MKCY, Company: ASA)
+  SF378 - 英 (Branch: TM, Company: ASAS)

@@ -1,0 +1,316 @@
+Medi Magic HRMS Supabase Structure Description
+Generated: 2026-04-15
+
+1. Core employee tables
+
+employees
+- Primary employee master table.
+- Holds identity, employment, company, branch, bank linkage, and status fields.
+- Key relationships:
+  - employees.company_id -> companies.id
+  - employees.branch_id -> branches.id
+  - employees.position_id -> positions.id
+  - employees.bank_id -> banks.id
+  - employees.id -> employee_salary_profiles.employee_id
+  - employees.id -> monthly_commission_records.employee_id
+  - employees.id -> employee_documents.employee_id
+  - employees.id -> employee_visas.employee_id
+
+employee_salary_profiles
+- One-to-one salary and compensation profile per employee.
+- Main functional groups:
+  - Salary setup: salary_type, base_salary, allowance_amount, effective_from, remarks
+  - Fixed monthly extras: attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus
+  - MPF default: mpf_enabled
+  - Commission setup: commission_method, commission_preset_id, commission_custom_name, commission_custom_tiers
+  - Legacy commission rate fields: commission_redeem_rate, commission_sales_rate, commission_sgm_rate
+  - Sales bonus / payroll bonus: sales_bonus_enabled, sales_bonus_rate, payroll_bonus_preset_id, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme
+  - New independent shop bonus: shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme
+  - Pay days and notes: pay_day_primary, pay_day_secondary, commission_notes
+
+monthly_commission_records
+- Monthly payroll snapshot table.
+- Stores month-specific values so payroll changes do not need to mutate employee master settings.
+- Main functional groups:
+  - Raw monthly commission input: redeem_volume, sales_volume, job_amount, sgm_volume
+  - Package employee month mode: use_commission_calculation
+  - Work-unit snapshots for non-monthly salary types: worked_days, worked_hours
+  - Monthly bonus switches and amounts: briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_deduction_applied, manual_deduction_amount
+  - Monthly MPF overrides: mpf_ee_applied, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override
+  - New independent shop bonus snapshot: shop_target_percent, shop_bonus_amount
+  - Computed outputs: redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, total_commission
+
+2. Supporting configuration tables
+
+commission_rate_tiers
+- Stores standard commission ranges and rates.
+- Current active code uses this for standard redeem / sales / sgm commission rates.
+- Contains extra fields bonus_amount and bonus_threshold that are currently not used by live payroll calculations.
+- Contains staff_group variants and seeded achievement_bonus rows that are not currently wired into payroll calculations.
+
+payroll_scheme_configs
+- New source-of-truth table for tier-based payroll business configuration.
+- Stores:
+  - standard payroll bonus tiers for scheme_code bonus_1
+  - standard payroll bonus tiers for scheme_code bonus_2
+  - standard shop bonus tiers for scheme_code standard
+- Structure direction:
+  - scheme_category: payroll_bonus or shop_bonus
+  - scheme_code: business-facing scheme key
+  - name_zh / name_en: display labels
+  - tiers: jsonb array of threshold rows
+  - is_active / sort_order: activation and display order control
+- Runtime intention:
+  - intranet should read these values from Supabase instead of from TypeScript constants
+  - future business tier changes should be data changes, not redeploys
+
+saved_commission_presets
+- Intended reusable custom commission presets.
+- Current code can read and write preset ids, but active feature usage should be reviewed.
+
+saved_payroll_bonus_presets
+- Intended reusable payroll bonus presets.
+- Current code can read and write preset ids, but active feature usage should be reviewed.
+
+companies, branches, positions, banks
+- Master data tables used by employee forms and payroll display.
+- branches belongs to companies.
+
+employee_documents
+- Employee certificates and contracts.
+
+employee_visas
+- Employee visa records and reminders.
+
+3. Current intranet to Supabase sync status
+
+Confirmed schema drift blockers on remote Supabase via HTTPS query checks:
+- employee_salary_profiles.shop_bonus_enabled does not exist remotely
+- monthly_commission_records.shop_target_percent does not exist remotely
+- monthly_commission_records.use_commission_calculation does not exist remotely
+
+Implication:
+- The remote database has not yet applied the latest payroll migrations.
+- Before fallback support, this drift could make Payroll page selects fail and show an empty state.
+- Intranet code now includes fallback query logic so legacy data can still load even if remote schema is behind.
+
+Pending migrations that should exist remotely for full sync:
+- supabase/migrations/20260415001000_add_use_commission_calculation_to_monthly_records.sql
+- supabase/migrations/20260415010000_add_monthly_mpf_overrides.sql
+- supabase/migrations/20260415012000_add_manual_bonus_to_monthly_records.sql
+- supabase/migrations/20260416100000_add_worked_days_hours_to_monthly_records.sql
+- supabase/migrations/20260416090000_add_manual_deduction_to_monthly_records.sql
+- supabase/migrations/20260415014000_add_shop_bonus_configuration.sql
+
+4. Items likely no longer central to active flow
+
+Review candidates before deletion:
+- employee_salary_profiles.sales_bonus_rate
+- employee_salary_profiles.sales_bonus_custom_tiers
+- employee_salary_profiles.commission_redeem_rate
+- employee_salary_profiles.commission_sales_rate
+- employee_salary_profiles.commission_sgm_rate
+- commission_rate_tiers.bonus_amount
+- commission_rate_tiers.bonus_threshold
+- commission_rate_tiers rows where commission_type = achievement_bonus
+- preset linkage columns if preset workflow is not actually used:
+  - commission_preset_id
+  - payroll_bonus_preset_id
+
+These should not be removed until business confirms whether legacy employee data still depends on them.
+
+5. Hardcode replacement status
+
+Now moved to Supabase-managed configuration model:
+- Payroll bonus standard tiers bonus_1 and bonus_2
+- Shop bonus standard tiers
+
+Temporary compatibility note:
+- The intranet still keeps a legacy in-code fallback for these tier configs only when remote Supabase has not yet applied the new payroll_scheme_configs migration.
+- This fallback should be deleted after remote schema sync is complete and data is confirmed present.
+
+Still hardcoded and should be reviewed next:
+- Company type enum values ASA / ASAS in UI and schema enum logic
+
+6. Simplification opportunities
+
+Recommended simplifications:
+- Unify legacy bonus fields after confirming no remaining dependency on sales_bonus_rate and old custom tier flow.
+- Trim commission_rate_tiers to only fields and commission types actively used by payroll, unless achievement_bonus is planned for implementation.
+- Consider one configuration table for tier-based schemes:
+  - scheme_category: commission / payroll_bonus / shop_bonus
+  - scheme_code
+  - scheme_name
+  - tier_json or normalized child tier rows
+- Preserve monthly_commission_records as the monthly snapshot source of truth; this part of the design is already cleaner than mutating employee master data.
+
+7. Current known Supabase vs intranet conflicts
+
+Conflict A
+- Intranet expects new payroll monthly columns.
+- Remote Supabase is missing at least part of the latest payroll migration chain.
+
+Conflict B
+- Intranet now supports independent shop bonus.
+- Remote Supabase has not yet created the shop bonus employee-profile and monthly snapshot columns.
+
+Conflict C
+- Intranet still contains some hardcoded standard tier schemes.
+- Supabase is not yet the single source of truth for all payroll/business rules.
+
+8. Suggested next operational steps
+
+- Apply pending payroll migrations to remote Supabase.
+- Decide whether legacy commission and sales bonus fields should stay.
+- Decide whether standard bonus tiers and shop bonus tiers should move into Supabase-managed configuration.
+- After business confirmation, remove unused legacy fields and simplify query payloads.
+
+9. Final design decisions based on current intranet logic
+
+Decision A
+- Remove legacy commission rate fields from employee_salary_profiles after migration cleanup:
+  - commission_redeem_rate
+  - commission_sales_rate
+  - commission_sgm_rate
+- Reason:
+  - Current intranet logic already uses commission_method plus commission_custom_tiers for custom logic, and commission_rate_tiers for standard logic.
+  - Keeping both models increases ambiguity and data drift risk.
+
+Decision B
+- Remove legacy Sales Bonus fields after migration cleanup:
+  - sales_bonus_rate
+  - sales_bonus_custom_tiers
+- Reason:
+  - Current intranet logic uses payroll_bonus_scheme and sales bonus custom naming/preset flow instead.
+  - Legacy per-rate bonus logic is no longer the main model.
+
+Decision C
+- Keep reusable preset infrastructure:
+  - saved_commission_presets
+  - saved_payroll_bonus_presets
+  - commission_preset_id
+  - payroll_bonus_preset_id
+- Reason:
+  - The current employee profile page actively loads and renders these presets.
+  - This supports reuse and reduces repetitive manual setup.
+
+Decision D
+- Remove unused commission tier bonus extensions unless a real feature is being built immediately:
+  - commission_rate_tiers.bonus_amount
+  - commission_rate_tiers.bonus_threshold
+  - achievement_bonus rows / logic path
+- Reason:
+  - They are not part of the live intranet payroll flow.
+  - Dead schema branches make payroll harder to reason about.
+
+Decision E
+- Move all standard tier-based business rules out of hardcoded TypeScript and into Supabase-managed configuration.
+- Includes:
+  - standard payroll bonus tiers bonus_1
+  - standard payroll bonus tiers bonus_2
+  - standard shop bonus tiers
+- Reason:
+  - Current business configuration should not require redeploys.
+  - This matches the stated requirement of avoiding hardcode.
+
+Decision F
+- Keep monthly_commission_records as the source of truth for month-specific overrides and snapshots.
+- Reason:
+  - This is already the cleanest part of the design.
+  - It avoids mutating employee master defaults for temporary payroll decisions.
+
+Decision G
+- Defer removal of any column until remote Supabase is fully synced and a one-time data migration is done.
+- Reason:
+  - Remote schema is currently behind intranet code.
+  - Cleanup should happen only after sync, not before.
+
+Decision H
+- Centralize tier-based payroll configuration in payroll_scheme_configs and treat TypeScript fallback values as migration-only compatibility code.
+- Reason:
+  - This gives a single data authority for standard payroll and shop bonus tiers.
+  - It keeps the system operational while remote Supabase is still behind.
+
+10. No-hardcode operating rule
+
+From this point onward, business rules that affect payroll behavior must follow this order:
+- Step 1: create or extend a Supabase configuration table
+- Step 2: seed or migrate the data in Supabase
+- Step 3: read the configuration through server queries
+- Step 4: pass normalized config into UI pages as props
+- Step 5: only keep an in-code fallback if remote schema drift would otherwise break production, and document a removal deadline
+
+Do not add new runtime business constants directly into:
+- src/app/pages/*
+- src/lib/employees/*
+- server actions
+
+Allowed exception:
+- compatibility fallback during migration rollout, but it must be explicitly marked as temporary and removed after remote sync
+
+11. Supabase connection organization
+
+Current connection path in this repo:
+- src/lib/supabase/config.ts resolves Supabase URL from:
+  - NEXT_PUBLIC_SUPABASE_URL
+  - SUPABASE_URL
+  - or derived from SUPABASE_DB_HOST
+- Public client key comes from:
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY
+- Admin/server write access uses:
+  - SUPABASE_SERVICE_ROLE_KEY
+- Direct database connection variables documented in .env.example:
+  - SUPABASE_DB_HOST
+  - SUPABASE_DB_PORT
+  - SUPABASE_DB_NAME
+  - SUPABASE_DB_USER
+  - SUPABASE_DB_PASSWORD
+
+Recommended organization:
+- .env.local
+  - keep actual local runtime secrets only here
+- .env.example
+  - keep variable names only, never real secrets
+- supabase-project-reference.txt
+  - should become a redacted operational reference, not a live secret dump
+  - keep project reference, host naming convention, and setup notes
+  - remove or redact live anon key, service role key, and DB password material
+
+Connection usage split:
+- Browser-safe read path:
+  - NEXT_PUBLIC_SUPABASE_URL
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY
+- Server privileged path:
+  - SUPABASE_SERVICE_ROLE_KEY
+- Direct SQL / migration path:
+  - SUPABASE_DB_HOST
+  - SUPABASE_DB_PORT
+  - SUPABASE_DB_NAME
+  - SUPABASE_DB_USER
+  - SUPABASE_DB_PASSWORD
+
+Operational rule:
+- password, service-role key, and any non-public connection key should exist in one secret source only
+- reference documents may describe what each key is for, but should not duplicate raw secret values across the repo
+- if a text file must exist for handover, keep it redacted and point to the env variable name instead of storing the real value
+
+12. Remote sync bundle
+
+For remote environments that are behind several payroll migrations, use the rerunnable bundle SQL:
+- supabase/manual/20260415_remote_payroll_sync_bundle.sql
+
+Purpose:
+- apply the current pending payroll schema updates in one run
+- create payroll_scheme_configs
+- seed standard payroll bonus tiers and standard shop bonus tiers
+- avoid having to execute multiple smaller migration files manually
+
+Safety characteristics:
+- uses add column if not exists
+- recreates relevant check constraints safely
+- uses create table if not exists
+- uses on conflict upsert for seeded scheme rows
+
+Recommended use:
+- prefer this bundle for one-time remote recovery when the target Supabase is known to be behind
+- after remote is healthy again, continue using normal migration flow for future schema changes

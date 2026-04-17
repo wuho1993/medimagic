@@ -1,0 +1,10 @@
+.DS_Store
+.env.local
+.env*.local
+supabase-credentials.txt
+supabase-project-reference.txt
+.next
+dist
+node_modules
+supabase/.temp
+supabase/.branches

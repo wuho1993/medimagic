@@ -1,0 +1,77 @@
+employee_code,alias,branch_raw,branch_normalized,position_raw,position_normalized,name_en,name_zh,identity_number,company_raw,company_normalized,probation_months,hire_date,employment_status,employment_type,gender,base_salary,attendance_bonus_amount,briefing_bonus,booking_bonus,transport_allowance,pay_day_primary,pay_day_secondary,review_flags
+SF145,Alice,CWB,,治療師,BEAUTICIAN,Leung Chit Ying,梁捷瑩,Z239447(3),A,ASA,1,2021-07-07,active,full_time,other,8000,2000,500,500,0,7,,unknown_branch
+SF280,Amanda,CBA/MKCY,,接待員,CONSULTANT,Ho Man Yee,何文頤,Y382696(A),A,ASA,1,2024-04-12,active,full_time,other,15000,2000,500,500,0,7,,multi_branch_review
+SF247,Anna,TOP,MKTOP,養生師,BEAUTICIAN,He Ronghua,賀蓉花,M454095(1),A,ASA,1,2023-08-01,active,full_time,other,7200,2000,250,250,0,7,,
+SF001,April,Office,OFFICE,老闆,CONSULTANT,Wong Lai Sze,黃麗詩,N/A,A,ASA,,2016-12-10,active,full_time,other,N/A,N/A,N/A,N/A,N/A,N/A,N/A,missing_identity_number
+SF313,Barry,Office,OFFICE,會計經理,CONSULTANT,Yeung Tat Wai,楊達偉,Z472686(4),ASAS,ASAS,1,2024-07-23,active,full_time,other,42500,1000,0,0,0,10,,
+SF182,Bo Yi,TM,TMA,接待員,CONSULTANT,Chan Ka Po,陳家寶,Y117412(4),ASAS,ASAS,1,2022-06-02,active,full_time,other,14500,2000,500,500,0,7,,
+SF323,Candy,MOS,MOS,顧問,CONSULTANT,Fei Xiao Lian,費曉蓮,R808067(3),A,ASA,1,2024-09-03,active,full_time,other,9000,2000,500,500,0,7,,
+SF139,Candy Kam,TW,TW,養生師,BEAUTICIAN,Kam Kam Tai/Kam Kan Tai,金琴娣,P476594(3),ASAS,ASAS,1,2021-08-01,active,full_time,other,8300,2000,250,250,0,7,,
+SF068,Canice,Office,OFFICE,客戶服務主管,CONSULTANT,Chiu Lai Ping,焦麗萍,Y021950(7),ASAS,ASAS,1,2020-07-13,active,full_time,other,17200,1000,1000,0,1000,7,,
+SF155,Carman,Office,OFFICE,培訓老師,CONSULTANT,Ng Ka Man Carman,吳嘉敏,Z539776(7),A,ASA,1,2021-10-16,active,full_time,other,27000,1000,1000,0,1000,7,,
+SF102,Carol,TOP,MKTOP,治療師,BEAUTICIAN,Wan Yuen Wa,溫婉華,V112473(0),A,ASA,1,2020-09-07,active,full_time,other,7200,2000,500,500,0,7,,
+SF266,Cat,TM,TMA,養生師,BEAUTICIAN,Thianhom Chiranan,黃美娜,K716637(0),ASAS,ASAS,1,2023-11-25,resigned,full_time,other,7000,2000,500,,0,7,,code_trimmed
+SF243,Chilly,TW,TW,治療師,BEAUTICIAN,Liu Shu Yan,廖舒欣,Z659025(0),ASAS,ASAS,1,2023-07-01,active,full_time,other,7500,2000,1000,0,0,9,,
+SF190,Dorcas,TM,TMA,店長,CONSULTANT,Chow Sin Ying Dorcas,鄒善盈,Y021740(7),ASAS,ASAS,7,2022-06-28,active,full_time,other,14500,2000,500,500,0,7,,
+SF167,Ella,TOP,MKTOP,經理,CONSULTANT,Tsang Sui Hing Carmen,曾瑞卿,G816457(5),,,7,2024-11-01,active,full_time,other,13300,2000,500,500,0,7,,missing_company
+SF146,Emily,CWB,,治療師,BEAUTICIAN,Chan Kit Sheung,陳潔湘,Z194767(3),A,ASA,1,2021-09-03,active,full_time,other,6500,2000,500,500,0,7,,unknown_branch
+SF341,Esther,MKCY,MKCY,養生師,BEAUTICIAN,Li Hong Mei,李紅妹,R753960(5),A,ASA,1,2025-01-06,active,full_time,other,7000,2000,500,500,0,7,,
+SF339,Fanny,OFfice,OFFICE,文員,CONSULTANT,Yu Man Wai,余敏慧,Y048581(9),ASAS,ASAS,1,2024-11-18,active,full_time,other,15500,1000,0,0,0,7,,
+SF250,Gina,Office,OFFICE,電話銷售員,CONSULTANT,Choi Man Ying,蔡文瑛,K040808(5),ASAS,ASAS,1,2023-08-14,active,full_time,other,15000,1000,0,0,0,7,,
+SF188,Helen,Office,OFFICE,美容動畫設計師,,Liu Sze Ying,廖詩盈,V127902(5),ASAS,ASAS,1,2022-06-27,active,full_time,other,20500,1000,1000,0,0,7,,unknown_position
+SF322,ICY,CWB,,治療師,BEAUTICIAN,Huang Minzhen,黃敏珍,R827658(6),A,ASA,1,2024-09-03,active,full_time,other,7300,2000,500,500,0,7,,unknown_branch
+SF169/SF185,Iris,Tai Wai,,店長,CONSULTANT,Chan Hoi Ying,陳凱螢,Z241337(0),A,ASA,7,2021-04-21,active,full_time,other,15500,2000,500,500,0,7,,unknown_branch
+SF129,Jackie,Office,OFFICE,營運總監,,Lau Lai Har,劉麗霞,Z545263(6),ASAS,ASAS,1,2021-04-12,active,full_time,other,52000,2000,1000,0,0,12,,unknown_position
+SF134,Jacqueline,CWB,,店長,CONSULTANT,Chu Wing Yin,朱詠賢,P623734(0),A,ASA,7,2021-05-01,active,full_time,other,20500,2000,500,500,0,10,,unknown_branch
+SF260,Jay,TW,TW,治療師,BEAUTICIAN,Hui Ching Ting,許靜婷,Y425013(1),ASAS,ASAS,1,2023-10-09,active,full_time,other,6000,2000,1000,0,0,7,,
+SF014,Jess,TOP,MKTOP,養生師,BEAUTICIAN,Shum  Man Mei,沈雯美,K564713(4),A,ASA,1,2017-02-03,active,full_time,other,10200,2000,250,250,,7,,
+SF277,Joey,CWB,,治療師,BEAUTICIAN,Gao Feng Xiang,高鳳香,R333773(0),A,ASA,1,2024-03-14,active,full_time,other,6500,2000,500,500,0,7,,unknown_branch
+SF272,Jojo,CWB,,養生師,BEAUTICIAN,Qiu Shaobi,邱少碧,R184303(5),A,ASA,1,2024-01-19,active,full_time,other,7300,2000,250,250,0,7,,unknown_branch
+SF131,Jumbo,TW,TW,治療師 (PT),,Cheng Po Chu,鄭寶珠,P978292(7),ASAS,ASAS,1,2021-05-01,active,full_time,other,5200,1000,500,500,0,10,,unknown_position
+SF173,Karrie,MKCY,MKCY,經理,CONSULTANT,Ho Ka Wai Karen,何嘉慧,Z819778(5),A,ASA,7,2022-04-22,active,full_time,other,14000,2000,500,500,0,7,,
+SF259,Ki Ki,MKCY,MKCY,養生師,BEAUTICIAN,Cheung Yuet Si Kei,張月時琦,P623734(0),A,ASA,1,2023-10-07,active,full_time,other,7200,2000,250,250,0,7,,
+SF279,Kitty,TW,TW,治療師 (自),,Wang Jiao,王嬌,M535934(7),ASAS,ASAS,1,2025-04-04,active,full_time,other,7200,2000,250,250,0,7,,unknown_position
+SF006,KT,TOP,MKTOP,治療師,BEAUTICIAN,Cheng Ka Tung,鄭家彤,Y270111(A),A,ASA,1,2016-12-12,active,full_time,other,4000,1000,500,0,,7,,
+SF154,Lanke,TM,TMA,店長,CONSULTANT,Mo Hiu Chun,毛曉春,V062304(0),ASAS,ASAS,7,2021-10-01,active,full_time,other,13500,2000,1000,0,0,7,,
+SF211,Ling,TM,TMA,治療師(PT),,Chui Wai Ling,徐慧玲,Y434812(3),A,ASA,1,2022-09-02,active,full_time,other,日薪(Part-time),1000,0,0,0,7,,unknown_position
+SF164,Lok Yi,TM,TMA,治療師,BEAUTICIAN,Yeung Lok Yi,楊樂兒,Y289319(1),ASAS,ASAS,1,2017-12-01,active,full_time,other,20500,2000,500,500,,9,,
+SF221,MAY(CS),MOS/MKCY,,接待員,CONSULTANT,Yuen Mei Yee May,阮美儀,K761150(1),A,ASA,1,2023-06-22,active,full_time,other,13000,2000,500,500,0,7,,multi_branch_review
+SF249,Maymay,TOP,MKTOP,治療師,BEAUTICIAN,Tai Mei Mei,戴美美,K766222(A),A,ASA,1,2023-08-11,active,full_time,other,8500,2000,500,500,0,7,,
+SF334,Maymay,Tai wai,,治療師,BEAUTICIAN,Tsui Tik Mei,徐狄美,Y606363(0),A,ASA,1,2024-10-21,active,full_time,other,6200,2000,500,500,0,7,,unknown_branch
+SF342,May姐,CWB,,清潔員,,Yeung May May,楊美美,C274465(A),A,ASA,1,2019-11-11,active,full_time,other,10427,0,0,0,,7,,unknown_branch|unknown_position
+SF344,Me,TM,TMA,養生師,BEAUTICIAN,Ng Pui Chun,吳佩臻,C455131(A),ASAS,ASAS,1,2025-03-07,active,full_time,other,7000,2000,500,500,0,7,,
+SF149,Mika,CWB,,治療師,BEAUTICIAN,Leung Ka Yan,梁家欣,Z421420(0),A,ASA,1,2021-09-03,active,full_time,other,6300,2000,500,500,0,7,,unknown_branch
+SF331,Miki,MKCY,MKCY,接待員,CONSULTANT,Liu Jieting,劉洁婷,M910957(4),A,ASA,1,2024-10-10,active,full_time,other,13500,2000,500,500,0,7,,
+SF336,Mimi,MOS,MOS,養生師,BEAUTICIAN,Xia Zejiao,夏澤嬌,M715082(8),A,ASA,1,2024-10-28,active,full_time,other,7000,2000,500,500,0,7,,
+SF312,MING,MKCY,MKCY,治療師,BEAUTICIAN,Lin Yingming,林映明,F463321(7),A,ASA,1,2024-07-09,active,full_time,other,7200,2000,500,500,0,7,,
+SF292,Mon,TW,TW,接待員,CONSULTANT,Lin Ka Man,連嘉雯,Z871828(9),ASAS,ASAS,1,2024-06-01,active,full_time,other,17000,2000,500,500,0,7,,
+SF337,Monica,TOP,MKTOP,接待員,CONSULTANT,Wong Yuen Kwan,黃婉君,R804374(3),A,ASA,1,2024-11-04,active,full_time,other,12200,2000,500,500,0,7,,
+SF168/SF186,Moon,Tai Wai,,經理,CONSULTANT,Chan Hoi Ting,陳凱婷,Z472492(6),A,ASA,7,2022-04-21,active,full_time,other,15500,2000,500,500,0,7,,unknown_branch
+SF170,Moon(B),Tai wai,,養生師,BEAUTICIAN,Lee Pui Ying,李佩塋,D469961(1),A,ASA,1,2022-04-21,active,full_time,other,19300,1000,0,0,0,7,,unknown_branch
+SF222,Penny,Office,OFFICE,培訓老師,CONSULTANT,Au Po Yan,區寶欣,Z335626(5),ASAS,ASAS,1,2022-12-01,active,full_time,other,33000,1000,1000,0,1000,7,,
+SF220,Pinky,Tai wai,,治療師,BEAUTICIAN,Guo Liping,郭麗萍,R709407(7),A,ASA,1,2022-11-01,active,full_time,other,7200,2000,500,500,0,7,,unknown_branch
+SF241,Rachel,MOS,MOS,治療師,BEAUTICIAN,Leung Chung Chi,梁頌慈,Y616699(5),ASAS,ASAS,1,2023-06-07,active,full_time,other,6500,2000,500,500,,7,,
+SF318,Santo,Office,OFFICE,營運經理,,Chan Chi San,陳熾燊,Z068047(9),ASAS,ASAS,1,2024-08-01,active,full_time,other,33500,2000,500,500,0,10,,unknown_position
+SF002,Su,Office,OFFICE,老闆,CONSULTANT,Ho Wing Kiu Su,何泳橋,N/A,A,ASA,,2016-12-10,active,full_time,other,N/A,N/A,N/A,N/A,N/A,N/A,N/A,missing_identity_number
+SF265,Sugar,CWB,,治療師,BEAUTICIAN,Wong Suet Ting,王雪婷,Y152326(9),A,ASA,1,2023-11-09,active,full_time,other,6500,2000,500,500,0,7,,unknown_branch
+SF156,Sunny,Office,OFFICE,行銷主管,,Ma Yuk Man,馬玉雯,R179085(3),ASAS,ASAS,1,2021-10-01,active,full_time,other,24500,1000,1000,0,0,7,,unknown_position
+SF011,Sylvia,TOP,MKTOP,店長,CONSULTANT,Lee Sui Sze Sylvia,李瑞斯,C672456(4),A,ASA,7,2016-12-19,active,full_time,other,15300,2000,500,500,0,8,,
+SF233,Tracy,Tai wai,,接待員,CONSULTANT,Wong Pik Yee,黃碧儀,Y846228(1),ASAS,ASAS,1,2023-04-27,active,full_time,other,13000,2000,500,500,0,7,,unknown_branch
+SF320,Vanessa,MOS,MOS,治療師,BEAUTICIAN,Chan Hei Man,陳禧旻,Y810406(7),A,ASA,1,2024-08-01,active,full_time,other,6000,2000,500,500,0,7,,
+SF345,Vanessa Chung,MOS,MOS,治療師(PS),,Chung Yin Yin,鍾嫣嫣,R483737(0),ASAS,ASAS,1,2025-03-11,active,full_time,other,8000,2000,500,500,0,7,,unknown_position
+SF282,Vincci,,,醫生護士,,Wong Wai Yin,黃惠燕,Z408146(4),A,ASA,1,2024-05-08,active,full_time,other,22000,2000,1000,0,,7,,missing_branch|unknown_position
+SF206,Water,CWB,,養生師 (PT),,Kong Kim,江儉,H462407(8),A,ASA,1,2022-08-16,active,full_time,other,3700,1000,250,250,0,7,,unknown_branch|unknown_position
+SF117,Wendy,TOP,MKTOP,治療師,BEAUTICIAN,Cheung Wendy,張穎詩,K396005(6),A,ASA,1,2021-02-27,active,full_time,other,6300,2000,500,500,0,7,,
+SF144,Wing,TM,TMA,治療師,BEAUTICIAN,Yeung Wing Yi,楊詠兒,Y511410(4),ASAS,ASAS,1,2021-09-01,active,full_time,other,8000,2000,500,500,0,7,,
+SF025,Winnie,TOP,MKTOP,治療師,BEAUTICIAN,Wong Chin Wing,黃芊銢,R441938(2),A,ASA,1,2017-12-01,active,full_time,other,7800,2000,500,500,0,9,,
+SF066,Yan,TOP,MKTOP,治療師,BEAUTICIAN,Wan Lok Sum,溫樂心,P514901(4),A,ASA,1,2019-07-15,active,full_time,other,21300,2000,500,500,0,7,,
+SF119,Yan Wong,TW,TW,治療師,BEAUTICIAN,Wong Lung Yan,王龍欣,R725739(1),ASAS,ASAS,1,2021-03-01,active,full_time,other,8300,2000,500,500,0,7,,
+SF137,Yena,CWB,,店長,CONSULTANT,Chan Wing Chi,陳泳芝,Y346086(8),A,ASA,7,2021-07-01,active,full_time,other,13500,2000,500,500,0,9,,unknown_branch
+SF346,Yvonne,TW,TW,經理,CONSULTANT,Lei Ka In,李嘉賢,K471749(A),ASA,ASA,7,2025-03-10,active,full_time,other,13000,2000,500,500,0,7,,
+SF172,YY,Tai Wai,,治療師,BEAUTICIAN,Chan Yan Yan,陳欣欣,P841845(8),A,ASA,7,2022-04-21,active,full_time,other,15500,2000,500,500,0,7,,unknown_branch
+SF335,ZOE,TW,TW,顧問,CONSULTANT,Yau Pui Yin,丘沛然,Z378318(A),ASAS,ASAS,7,2024-10-25,active,full_time,other,12200,2000,500,500,0,7,,
+SF199,呀晴,Tai wai,,治療師,BEAUTICIAN,Leung Yuk Sim,梁玉嬋,K362389(0),A,ASA,1,2022-08-01,active,full_time,other,6800,2000,500,500,0,7,,unknown_branch
+SF065,珍珍,TOP,MKTOP,治療師,BEAUTICIAN,Ban Xiuzhen,班秀珍,M649553(8),A,ASA,1,2019-05-03,active,full_time,other,7200,2000,500,500,0,7,,
+SF343,貞姐,MK TOP,,清潔員,,Lee Lai Kit Ching,李賴潔貞,E226104(2),A,ASA,1,2021-08-16,resigned,full_time,other,12000,1000,0,0,0,7,,code_trimmed|unknown_branch|unknown_position
+SF301,曾醫,MKCY,MKCY,曾醫師,,Tsang Chi Pang,曾志鵬,,A,ASA,1,2024-06-18,active,full_time,other,日薪(Part-time),0,0,0,0,7,,unknown_position|missing_identity_number
+SF193,雯雯,MKCY,MKCY,治療師,BEAUTICIAN,Lam Pik Chu,林碧珠,P354517(6),A,ASA,1,2022-07-07,active,full_time,other,7000,2000,500,500,0,7,,
