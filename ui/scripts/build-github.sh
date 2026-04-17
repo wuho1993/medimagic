@@ -70,4 +70,13 @@ echo "==> Overlay applied. Running next build..."
 cd "$UI_DIR"
 npx next build
 
+# 9. Fix icon/favicon paths that don't get basePath prefixed
+BASE_PATH="/medimagic"
+find "$UI_DIR/out" -name '*.html' -o -name '*.txt' | while read -r f; do
+  sed -i '' "s|href=\"/medi-magic-logo.png\"|href=\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f" 2>/dev/null || \
+  sed -i "s|href=\"/medi-magic-logo.png\"|href=\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f"
+  sed -i '' "s|\"href\":\"/medi-magic-logo.png\"|\"href\":\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f" 2>/dev/null || \
+  sed -i "s|\"href\":\"/medi-magic-logo.png\"|\"href\":\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f"
+done
+
 echo "==> Static export complete. Output in $UI_DIR/out/"

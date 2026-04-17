@@ -2,17 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { createBrowserSupabaseClient } from '@/src/lib/supabase/client';
-import type { AppShellUser } from '@/src/lib/auth/types';
+import type { AppShellUser } from '@/src/lib/auth/session';
+import { normalizeRole, getRoleLabel } from '@/src/lib/auth/roles';
+import { normalizeAccessScope } from '@/src/lib/auth/access';
 import type { User } from '@supabase/supabase-js';
 
 function mapUser(u: User): AppShellUser {
   const m = u.user_metadata ?? {};
+  const am = u.app_metadata ?? {};
+  const role = normalizeRole(m.role ?? am.role ?? null);
+  const accessScope = normalizeAccessScope(m.access_scope ?? am.access_scope ?? null, role);
   return {
-    id: u.id,
-    email: u.email ?? '',
-    fullName: m.full_name ?? m.name ?? u.email ?? '',
-    role: m.role ?? 'employee',
-    employeeCode: m.employee_code ?? null,
+    email: u.email ?? null,
+    fullName: m.full_name ?? m.name ?? u.email?.split('@')[0] ?? 'User',
+    role,
+    roleLabel: getRoleLabel(role),
+    accessScope,
   };
 }
 
