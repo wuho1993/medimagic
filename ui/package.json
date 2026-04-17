@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "db:apply-file": "node scripts/apply-sql-file.mjs"
+    "db:apply-file": "node scripts/apply-sql-file.mjs",
+    "build:github": "bash scripts/build-github.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
