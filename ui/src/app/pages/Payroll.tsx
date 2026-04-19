@@ -1551,12 +1551,12 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
           <p className="mt-1 text-sm text-slate-500">{t.subtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">{t.month}</label>
             <input type="month" value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]" />
@@ -1565,7 +1565,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
             type="button"
             onClick={handleSave}
             disabled={isPending}
-            className={`mt-5 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
               saveStatus === 'saving' ? 'bg-slate-500 text-white' :
               saveStatus === 'saved' ? 'bg-emerald-500 text-white' :
               saveStatus === 'error' ? 'bg-rose-500 text-white' :
@@ -1579,7 +1579,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
             type="button"
             onClick={() => void handleExportPayslip()}
             disabled={exportStatus === 'exporting'}
-            className={`mt-5 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
               exportStatus === 'exporting' ? 'bg-slate-500 text-white' :
               exportStatus === 'error' ? 'bg-rose-500 text-white' :
               'bg-white text-slate-800 border border-slate-200 hover:border-[#D4AF37] hover:text-[#B38E18]'
@@ -1588,7 +1588,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
             <Download className="h-4 w-4" />
             {exportStatus === 'exporting' ? t.exportingPayslip : exportStatus === 'error' ? t.exportPayslipFail : t.exportPayslip}
           </button>
-          <div className="mt-5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-center shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-center shadow-sm">
             <div className="text-xs font-medium text-slate-500">{t.totals}</div>
             <div className="text-lg font-bold text-slate-900">{fmt(totals.net)}</div>
           </div>
@@ -2425,7 +2425,6 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                   <td className="px-3 py-3 text-right tabular-nums">{fmt(totals.mpfEe)}</td>
                   <td className="px-3 py-3 text-right tabular-nums">{fmt(totals.mpfEr)}</td>
                   <td className="px-3 py-3 text-right tabular-nums font-bold">{fmt(totals.net)}</td>
-                  <td className="px-3 py-3"></td>
                   <td className="px-3 py-3"></td>
                 </tr>
               </tfoot>
