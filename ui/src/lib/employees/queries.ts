@@ -1176,6 +1176,7 @@ export type PayrollAttendanceRecord = {
   noPayLeaveDays: number;
   noPayStatutoryHolidayDays: number;
   noPayDays: number;
+  lateDays: number;
   attendanceDeductionAmount: number;
   remainingDeductionAmount: number;
   proratedPackageCommission: number;
@@ -1194,7 +1195,7 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from('payroll_attendance_records')
-    .select('employee_code, year_month, calendar_days, worked_days, off_days, statutory_holiday_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, attendance_deduction_amount, remaining_deduction_amount, prorated_package_commission, actual_commission_amount, effective_commission_amount, package_no_pay_handling, package_no_pay_selection_required')
+    .select('employee_code, year_month, calendar_days, worked_days, off_days, statutory_holiday_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, attendance_deduction_amount, remaining_deduction_amount, prorated_package_commission, actual_commission_amount, effective_commission_amount, package_no_pay_handling, package_no_pay_selection_required')
     .eq('year_month', yearMonth)
     .in('employee_code', employees);
 
@@ -1224,6 +1225,7 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
       no_pay_leave_days: number | string | null;
       no_pay_statutory_holiday_days: number | string | null;
       no_pay_days: number | string | null;
+      late_days: number | string | null;
       attendance_deduction_amount: number | string | null;
       remaining_deduction_amount: number | string | null;
       prorated_package_commission: number | string | null;
@@ -1251,6 +1253,7 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
         noPayLeaveDays: Number(row.no_pay_leave_days ?? 0),
         noPayStatutoryHolidayDays: Number(row.no_pay_statutory_holiday_days ?? 0),
         noPayDays: Number(row.no_pay_days ?? 0),
+        lateDays: Number(row.late_days ?? 0),
         attendanceDeductionAmount: Number(row.attendance_deduction_amount ?? 0),
         remainingDeductionAmount: Number(row.remaining_deduction_amount ?? 0),
         proratedPackageCommission: Number(row.prorated_package_commission ?? 0),
@@ -1470,6 +1473,7 @@ export type AttendanceManagementMonthlyRecord = {
   deductionAmount: number | null;
   packageCommissionAmount: number | null;
   proratedPackageCommission: number | null;
+  lateDays: number | null;
   prevMonthRemainingHours: number | null;
   makeupHours: number | null;
   overtimeHours: number | null;
@@ -1543,7 +1547,7 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
   const employeeIds = employees.map((employee) => employee.id);
   const { data, error } = await supabase
     .from('attendance_management_records')
-    .select('employee_id, employee_code, year_month, salary_type, branch_section, calendar_days, worked_days, off_days, statutory_holiday_days, total_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, deduction_base, deduction_amount, package_commission_amount, prorated_package_commission, prev_month_remaining_hours, makeup_hours, overtime_hours, leave_to_hours_conversion, accumulated_ot_hours, remarks')
+    .select('employee_id, employee_code, year_month, salary_type, branch_section, calendar_days, worked_days, off_days, statutory_holiday_days, total_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, deduction_base, deduction_amount, package_commission_amount, prorated_package_commission, prev_month_remaining_hours, makeup_hours, overtime_hours, leave_to_hours_conversion, accumulated_ot_hours, remarks')
     .in('employee_id', employeeIds)
     .order('year_month', { ascending: false })
     .order('employee_code', { ascending: true });
@@ -1588,6 +1592,7 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
     no_pay_leave_days: number | string | null;
     no_pay_statutory_holiday_days: number | string | null;
     no_pay_days: number | string | null;
+    late_days: number | string | null;
     deduction_base: number | string | null;
     deduction_amount: number | string | null;
     package_commission_amount: number | string | null;
@@ -1620,6 +1625,7 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
     noPayLeaveDays: row.no_pay_leave_days === null ? null : Number(row.no_pay_leave_days),
     noPayStatutoryHolidayDays: row.no_pay_statutory_holiday_days === null ? null : Number(row.no_pay_statutory_holiday_days),
     noPayDays: row.no_pay_days === null ? null : Number(row.no_pay_days),
+    lateDays: row.late_days === null ? null : Number(row.late_days),
     deductionBase: row.deduction_base === null ? null : Number(row.deduction_base),
     deductionAmount: row.deduction_amount === null ? null : Number(row.deduction_amount),
     packageCommissionAmount: row.package_commission_amount === null ? null : Number(row.package_commission_amount),

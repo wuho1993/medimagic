@@ -50,6 +50,7 @@ type EditableAttendanceField =
   | 'sickNoPayDays'
   | 'noPayLeaveDays'
   | 'noPayStatutoryHolidayDays'
+  | 'lateDays'
   | 'prevMonthRemainingHours'
   | 'makeupHours'
   | 'overtimeHours'
@@ -93,7 +94,7 @@ const editableHourFields: EditableAttendanceField[] = [
   'accumulatedOtHours',
 ];
 
-const editableFields: EditableAttendanceField[] = [...editableDayFields, ...editableHourFields];
+const editableFields: EditableAttendanceField[] = [...editableDayFields, ...editableHourFields, 'lateDays'];
 
 const translations = {
   'zh-TW': {
@@ -137,6 +138,7 @@ const translations = {
       sickNoPayDays: '病假 (SL)(No Pay)',
       noPayLeaveDays: '事假 (NPL)',
       noPayStatutoryHolidayDays: 'No Pay 勞工假 (NPSH)',
+      lateDays: '遲到日數',
       prevMonthRemainingHours: '上月剩餘鐘數 (HOUR)',
       makeupHours: '補鐘',
       overtimeHours: 'OT',
@@ -187,6 +189,7 @@ const translations = {
       sickNoPayDays: '病假 (SL)(No Pay)',
       noPayLeaveDays: '事假 (NPL)',
       noPayStatutoryHolidayDays: 'No Pay 劳工假 (NPSH)',
+      lateDays: '迟到日数',
       prevMonthRemainingHours: '上月剩余钟数 (HOUR)',
       makeupHours: '补钟',
       overtimeHours: 'OT',
@@ -237,6 +240,7 @@ const translations = {
       sickNoPayDays: 'SL No Pay',
       noPayLeaveDays: 'NPL',
       noPayStatutoryHolidayDays: 'NPSH',
+      lateDays: 'Late Days',
       prevMonthRemainingHours: 'Prev Hours',
       makeupHours: 'Makeup',
       overtimeHours: 'OT',
@@ -391,6 +395,7 @@ function createDraftRow(
     sickNoPayDays: toDraftNumber(row.record?.sickNoPayDays),
     noPayLeaveDays: toDraftNumber(row.record?.noPayLeaveDays),
     noPayStatutoryHolidayDays: toDraftNumber(row.record?.noPayStatutoryHolidayDays),
+    lateDays: toDraftNumber(row.record?.lateDays),
     prevMonthRemainingHours: toDraftNumber(effectivePrevMonthRemainingHours),
     makeupHours: makeupHours === null || makeupHours === undefined || makeupHours === 0 ? '' : String(normalizeMakeupHours(makeupHours)),
     overtimeHours: toDraftNumber(overtimeHours),
@@ -550,6 +555,7 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
       sickNoPayDays: parseDraftNumber(draft.sickNoPayDays),
       noPayLeaveDays: parseDraftNumber(draft.noPayLeaveDays),
       noPayStatutoryHolidayDays: parseDraftNumber(draft.noPayStatutoryHolidayDays),
+      lateDays: parseDraftNumber(draft.lateDays),
       prevMonthRemainingHours,
       makeupHours,
       overtimeHours,
@@ -582,6 +588,7 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
           noPayLeaveDays: parseDraftNumber(draft.noPayLeaveDays),
           noPayStatutoryHolidayDays: parseDraftNumber(draft.noPayStatutoryHolidayDays),
           noPayDays: Number((parseDraftNumber(draft.sickNoPayDays) + parseDraftNumber(draft.noPayLeaveDays) + parseDraftNumber(draft.noPayStatutoryHolidayDays)).toFixed(2)),
+          lateDays: parseDraftNumber(draft.lateDays),
           deductionBase: row.record?.deductionBase ?? null,
           deductionAmount: row.record?.deductionAmount ?? null,
           packageCommissionAmount: row.record?.packageCommissionAmount ?? null,
@@ -647,6 +654,7 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
     { key: 'sickNoPayDays', label: t.cols.sickNoPayDays, className: 'w-30 min-w-30 bg-white', cellClassName: 'w-30 min-w-30' },
     { key: 'noPayLeaveDays', label: t.cols.noPayLeaveDays, className: 'w-22 min-w-22 bg-white', cellClassName: 'w-22 min-w-22' },
     { key: 'noPayStatutoryHolidayDays', label: t.cols.noPayStatutoryHolidayDays, className: 'w-34 min-w-34 bg-white', cellClassName: 'w-34 min-w-34' },
+    { key: 'lateDays', label: t.cols.lateDays, className: 'w-22 min-w-22 bg-rose-200', cellClassName: 'w-22 min-w-22' },
     { key: 'prevMonthRemainingHours', label: t.cols.prevMonthRemainingHours, className: 'w-34 min-w-34 bg-white', cellClassName: 'w-34 min-w-34' },
     { key: 'makeupHours', label: t.cols.makeupHours, className: 'w-14 min-w-14 bg-white', cellClassName: 'w-14 min-w-14' },
     { key: 'overtimeHours', label: t.cols.overtimeHours, className: 'w-14 min-w-14 bg-white', cellClassName: 'w-14 min-w-14' },

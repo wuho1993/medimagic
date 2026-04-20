@@ -206,7 +206,7 @@ const translations = {
       briefingBonus: 'Briefing 獎金',
       attendanceBonus: '出勤獎金',
       bookingBonus: 'Booking 獎金',
-      manualBonus: '手動輸入當月 Bonus',
+      manualBonus: '手動增加金額',
       manualDeduction: '手動扣減金額',
       countForMpf: '需扣減 MPF',
       shopBonus: '鋪數',
@@ -329,7 +329,7 @@ const translations = {
       briefingBonus: 'Briefing 奖金',
       attendanceBonus: '出勤奖金',
       bookingBonus: 'Booking 奖金',
-      manualBonus: '手动输入当月 Bonus',
+      manualBonus: '手动增加金额',
       manualDeduction: '手动扣减金额',
       countForMpf: '需扣减 MPF',
       shopBonus: '铺数',
@@ -452,7 +452,7 @@ const translations = {
       briefingBonus: 'Briefing Bonus',
       attendanceBonus: 'Attendance Bonus',
       bookingBonus: 'Booking Bonus',
-      manualBonus: 'Manual Monthly Bonus',
+      manualBonus: 'Manual Addition',
       manualDeduction: 'Manual Deduction',
       countForMpf: 'Count For MPF',
       shopBonus: 'Shop Bonus',
@@ -532,6 +532,7 @@ function buildInitialMonthlyBonuses(
   return Object.fromEntries(employees.map((employee) => {
     const saved = savedByCode.get(employee.employeeCode);
     const attendanceRecord = attendanceRecords[employee.employeeCode];
+    const hasLateDays = (attendanceRecord?.lateDays ?? 0) > 0;
     const legacyAutoAttendanceRemainder = Boolean(
       saved?.manualDeductionApplied
       && attendanceRecord
@@ -546,7 +547,7 @@ function buildInitialMonthlyBonuses(
         : employee.briefingBonus > 0
           ? String(employee.briefingBonus)
           : '',
-      attendanceApplied: saved?.attendanceBonusApplied ?? employee.attendanceBonusAmount > 0,
+      attendanceApplied: hasLateDays ? false : (saved?.attendanceBonusApplied ?? employee.attendanceBonusAmount > 0),
       attendanceAmount: saved?.attendanceBonusApplied
         ? String(saved.attendanceBonusAmount)
         : employee.attendanceBonusAmount > 0
@@ -681,11 +682,11 @@ function calculateAttendanceNoPayDeduction(employee: PayrollEmployeeSummary, rec
   return 0;
 }
 
-function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary): EmployeeMonthlyBonusState {
+function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, lateDays = 0): EmployeeMonthlyBonusState {
   return {
     briefingApplied: employee.briefingBonus > 0,
     briefingAmount: employee.briefingBonus > 0 ? String(employee.briefingBonus) : '',
-    attendanceApplied: employee.attendanceBonusAmount > 0,
+    attendanceApplied: lateDays > 0 ? false : employee.attendanceBonusAmount > 0,
     attendanceAmount: employee.attendanceBonusAmount > 0 ? String(employee.attendanceBonusAmount) : '',
     bookingApplied: employee.bookingBonus > 0,
     bookingAmount: employee.bookingBonus > 0 ? String(employee.bookingBonus) : '',
@@ -963,7 +964,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     setWorkUnits((prev) => ({ ...prev, [code]: { ...getWorkUnits(code), [field]: value } }));
     markDirty();
   };
-  const getMonthlyBonus = (code: string, employee: PayrollEmployeeSummary): EmployeeMonthlyBonusState => monthlyBonuses[code] ?? createDefaultMonthlyBonusState(employee);
+  const getMonthlyBonus = (code: string, employee: PayrollEmployeeSummary): EmployeeMonthlyBonusState => monthlyBonuses[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code]?.lateDays ?? 0);
   const setMonthlyBonus = (code: string, employee: PayrollEmployeeSummary, key: keyof EmployeeMonthlyBonusState, value: string | boolean) => {
     setMonthlyBonuses((prev) => ({
       ...prev,
@@ -1007,7 +1008,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     }));
     setMonthlyBonuses((prev) => ({
       ...prev,
-      [employee.employeeCode]: createDefaultMonthlyBonusState(employee),
+      [employee.employeeCode]: createDefaultMonthlyBonusState(employee, attendanceRecords[employee.employeeCode]?.lateDays ?? 0),
     }));
     setMonthlyMpfStates((prev) => ({
       ...prev,
@@ -1115,8 +1116,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     const manualDeductionApplied = monthlyBonus.manualDeductionApplied;
     const manualDeduction = manualDeductionApplied ? Number(monthlyBonus.manualDeductionAmount) || 0 : 0;
     const totalDeduction = attendanceDeductionRemainder + manualDeduction;
-    const manualBonusMpfRelevant = monthlyBonus.manualBonusApplied && monthlyBonus.manualBonusMpfIncluded ? manualBonus : 0;
-    const manualDeductionMpfRelevant = manualDeductionApplied && monthlyBonus.manualDeductionMpfIncluded ? manualDeduction : 0;
+    const manualBonusMpfRelevant = 0;
+    const manualDeductionMpfRelevant = 0;
     const shopTargetAmount = Number(monthlyBonus.shopTargetAmount) || 0;
     const shopActualSalesAmount = Number(monthlyBonus.shopActualSalesAmount) || 0;
     const hasShopAmounts = monthlyBonus.shopTargetAmount !== '' || monthlyBonus.shopActualSalesAmount !== '';
@@ -1952,15 +1953,6 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                                     />
                                     <span>{t.commInput.applyThisMonth}</span>
                                   </label>
-                                  <label className={toggleRowClasses}>
-                                    <input
-                                      type="checkbox"
-                                      checked={monthlyBonus.manualBonusMpfIncluded}
-                                      onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualBonusMpfIncluded', e.target.checked)}
-                                      className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
-                                    />
-                                    <span>{t.commInput.countForMpf}</span>
-                                  </label>
                                 </div>
                               </div>
                               {row.attendanceDeductionRemainder > 0 ? (
@@ -2016,15 +2008,6 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                                       className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                     />
                                     <span>{t.commInput.applyThisMonth}</span>
-                                  </label>
-                                  <label className={toggleRowClasses}>
-                                    <input
-                                      type="checkbox"
-                                      checked={monthlyBonus.manualDeductionMpfIncluded}
-                                      onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualDeductionMpfIncluded', e.target.checked)}
-                                      className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
-                                    />
-                                    <span>{t.commInput.countForMpf}</span>
                                   </label>
                                 </div>
                               </div>

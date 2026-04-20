@@ -21,6 +21,7 @@ type SaveAttendanceInput = {
   sickNoPayDays: number;
   noPayLeaveDays: number;
   noPayStatutoryHolidayDays: number;
+  lateDays: number;
   prevMonthRemainingHours: number;
   makeupHours: number;
   overtimeHours: number;
@@ -81,6 +82,7 @@ export async function saveAttendanceManagementRecord(input: SaveAttendanceInput)
     sick_no_pay_days: sanitizeNumber(input.sickNoPayDays),
     no_pay_leave_days: sanitizeNumber(input.noPayLeaveDays),
     no_pay_statutory_holiday_days: sanitizeNumber(input.noPayStatutoryHolidayDays),
+    late_days: sanitizeNumber(input.lateDays),
     prev_month_remaining_hours: sanitizeSignedNumber(input.prevMonthRemainingHours),
     makeup_hours: sanitizeNegativeNumber(input.makeupHours),
     overtime_hours: sanitizeSignedNumber(input.overtimeHours),
