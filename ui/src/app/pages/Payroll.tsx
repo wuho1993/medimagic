@@ -2679,6 +2679,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
           <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '12px 34px 20px', fontFamily: 'PMingLiU, MingLiU, SimSun, Arial Unicode MS, serif', fontSize: '10pt' }}>
             {(() => {
               const showPackageOnlyCommission = activePayslipPdfEntry.isPackageEmployee && !activePayslipPdfEntry.actualCommissionExceedsPackage;
+              const allowanceTotal = roundMoney(activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance);
               const discretionaryCommission = roundMoney(
                 activePayslipPdfEntry.redeemCommission
                 + activePayslipPdfEntry.salesAmountCommission
@@ -2689,6 +2690,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const extraBonus = roundMoney(activePayslipPdfEntry.payrollBonus + activePayslipPdfEntry.shopBonus);
               const baseIncomeRows: Array<[string, number]> = [
                 ['Basic Salary  底薪', activePayslipPdfEntry.calculatedBaseSalary],
+                ['Allowance  車津貼', allowanceTotal],
                 ['Diligent  勤工獎', activePayslipPdfEntry.attendanceBonus],
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.briefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.bookingBonus],
@@ -2712,8 +2714,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const adjustmentAmount = activePayslipPdfEntry.adjustmentAmount;
               const grandTotal = roundMoney(incomeSubtotal + adjustmentAmount);
               const staffSalaryAfterMpf = roundMoney(grandTotal - activePayslipPdfEntry.mpfEe);
-              const primaryAmount = activePayslipPdfEntry.primaryPayoutGross;
-              const secondaryAmount = activePayslipPdfEntry.secondaryPayoutGross;
+              const primaryAmount = activePayslipPdfEntry.primaryPayoutNet;
+              const secondaryAmount = activePayslipPdfEntry.secondaryPayoutNet;
               const thirdAmount = 0;
               const paymentTotal = roundMoney(primaryAmount + secondaryAmount + thirdAmount);
               const valueCell: React.CSSProperties = { padding: '2px 0', verticalAlign: 'middle', lineHeight: '16px', fontWeight: 400 };
