@@ -2676,14 +2676,13 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
       <div className="pointer-events-none fixed top-0 -z-10" style={{ left: '-9999px' }}>
         {activePayslipPdfEntry ? (
-          <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '12px 34px 20px', fontFamily: 'PMingLiU, MingLiU, SimSun, Arial Unicode MS, serif', fontSize: '10pt' }}>
+          <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '8px 30px 14px', fontFamily: 'Arial Unicode MS, Microsoft JhengHei, PingFang TC, sans-serif', fontSize: '10.5pt' }}>
             {(() => {
               const showPackageOnlyCommission = activePayslipPdfEntry.isPackageEmployee && !activePayslipPdfEntry.actualCommissionExceedsPackage;
               const allowanceTotal = roundMoney(activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance);
               const discretionaryCommission = roundMoney(
                 activePayslipPdfEntry.redeemCommission
                 + activePayslipPdfEntry.salesAmountCommission
-                + activePayslipPdfEntry.jobCommission
                 + activePayslipPdfEntry.streetPromoterCommission
                 + activePayslipPdfEntry.telesalesCommission
               );
@@ -2701,11 +2700,15 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                   ['Shop Commission  店鋪佣金', activePayslipPdfEntry.salesCommission],
                   ['MGM Bonus  介紹獎金', activePayslipPdfEntry.sgmCommission],
                   ['Discretionary Commissionn  酌情佣金', discretionaryCommission],
+                  ['Job Done Commission  手工工錢', activePayslipPdfEntry.jobCommission],
                 ];
+              const specialBonusLabel = showPackageOnlyCommission
+                ? 'Discretionary Special Bonus  酌情特佣'
+                : 'Job Done Special Bonus  手工部酌情特佣';
               const incomeRows: Array<[string, number]> = [
                 ...baseIncomeRows,
                 ...commissionIncomeRows,
-                ['Discretionary Special Bonus  酌情特佣', activePayslipPdfEntry.salesBonus],
+                [specialBonusLabel, activePayslipPdfEntry.salesBonus],
                 ['Extra Bonus ', extraBonus],
                 ['SH/AL Commission  勞工假/大假平均佣金', 0],
                 ['Other 其他', 0],
@@ -2718,9 +2721,9 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const secondaryAmount = activePayslipPdfEntry.secondaryPayoutNet;
               const thirdAmount = 0;
               const paymentTotal = roundMoney(primaryAmount + secondaryAmount + thirdAmount);
-              const valueCell: React.CSSProperties = { padding: '2px 0', verticalAlign: 'middle', lineHeight: '16px', fontWeight: 400 };
+              const valueCell: React.CSSProperties = { padding: '1px 0', verticalAlign: 'middle', lineHeight: '15px', fontWeight: 400 };
               const labelCell: React.CSSProperties = { ...valueCell, whiteSpace: 'nowrap' };
-              const amountCell: React.CSSProperties = { ...valueCell, textAlign: 'right', fontFamily: 'Arial Unicode MS, Arial, sans-serif', whiteSpace: 'nowrap', paddingRight: '6px' };
+              const amountCell: React.CSSProperties = { ...valueCell, textAlign: 'right', fontFamily: 'Arial Unicode MS, Arial, sans-serif', whiteSpace: 'nowrap', paddingRight: '8px' };
               const sectionCell: React.CSSProperties = { ...labelCell, fontWeight: 700, textDecoration: 'underline' };
               const lateLabel = activePayslipPdfEntry.lateDays > 0
                 ? `Late  遲到 (${activePayslipPdfEntry.lateDays}日)`
@@ -2732,8 +2735,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                 ...amountCell,
                 borderBottom: weight === 'medium' ? '2px solid #000' : '1px solid #000',
                 paddingTop: '1px',
-                paddingBottom: '5px',
-                lineHeight: '14px',
+                paddingBottom: '4px',
+                lineHeight: '13px',
               });
               const spacerRow = (height: string): React.ReactNode => (
                 <tr>
@@ -2743,8 +2746,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
               return (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2px' }}>
-                    <img src="/medimagic/medi-magic-logo.png" alt="Medi Magic logo" style={{ width: '90px', height: '90px', objectFit: 'contain' }} />
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0px' }}>
+                    <img src="/medimagic/medi-magic-logo.png" alt="Medi Magic logo" style={{ width: '116px', height: '116px', objectFit: 'contain' }} />
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <colgroup>
@@ -2760,10 +2763,10 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                     </colgroup>
                     <tbody>
                       <tr>
-                        <td colSpan={9} style={{ ...labelCell, fontWeight: 700, padding: '0 0 2px', textAlign: 'left' }}>Monthly Payslip 每月薪金單</td>
+                        <td colSpan={9} style={{ ...labelCell, fontWeight: 700, fontSize: '11pt', padding: '0 0 1px', textAlign: 'left' }}>Monthly Payslip 每月薪金單</td>
                       </tr>
                       <tr>
-                        <td colSpan={9} style={{ ...labelCell, padding: '0 0 4px', textAlign: 'left' }}>(HKD)</td>
+                        <td colSpan={9} style={{ ...labelCell, padding: '0 0 2px', textAlign: 'left' }}>(HKD)</td>
                       </tr>
                       <tr>
                         <td colSpan={2} style={labelCell}>For the month 月份:</td>
@@ -2790,7 +2793,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         <td colSpan={3} style={valueCell}>{activePayslipPdfEntry.employeeTitle ?? ''}</td>
                         <td colSpan={4}></td>
                       </tr>
-                      {spacerRow('16px')}
+                      {spacerRow('8px')}
                       <tr>
                         <td colSpan={6} style={sectionCell}>Income  收入</td>
                         <td colSpan={3}></td>
@@ -2807,7 +2810,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         <td colSpan={7}></td>
                         <td colSpan={2} style={ruleAmountCell()}>{fmtPayslipAmount(incomeSubtotal)}</td>
                       </tr>
-                      {spacerRow('10px')}
+                      {spacerRow('6px')}
                       <tr>
                         <td colSpan={6} style={sectionCell}>Deduction 扣除</td>
                         <td colSpan={3}></td>
@@ -2843,7 +2846,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         <td colSpan={2}></td>
                         <td style={amountCell}>{fmtPayslipAmount(grandTotal)}</td>
                       </tr>
-                      {spacerRow('16px')}
+                      {spacerRow('8px')}
                       <tr>
                         <td colSpan={6} style={labelCell}>Salary Before Deduct MPF Contribution  本月供款前有關入息</td>
                         <td style={amountCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
@@ -2862,13 +2865,13 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         <td></td>
                         <td></td>
                       </tr>
-                      {spacerRow('16px')}
+                      {spacerRow('8px')}
                       <tr>
                         <td colSpan={7} style={labelCell}>Staff Salary After Deduct Staff MPF Contribution  強積金供款後薪金</td>
                         <td colSpan={2} style={ruleAmountCell()}>{fmtPayslipAmount(staffSalaryAfterMpf)}</td>
                       </tr>
                       <tr>
-                        <td colSpan={9} style={{ borderBottom: '2px solid #000', height: '12px' }}></td>
+                        <td colSpan={9} style={{ borderBottom: '2px solid #000', height: '8px' }}></td>
                       </tr>
                       <tr>
                         <td colSpan={6} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Salary Paid On /Before 7th</td>
@@ -2889,7 +2892,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         <td colSpan={8}></td>
                         <td style={{ ...ruleAmountCell(), borderTop: '1px solid #000' }}>{fmtPayslipAmount(paymentTotal)}</td>
                       </tr>
-                      {spacerRow('14px')}
+                      {spacerRow('8px')}
                       <tr>
                         <td colSpan={9} style={labelCell}>Remarks 備註 :  </td>
                       </tr>
