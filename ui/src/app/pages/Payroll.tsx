@@ -2679,10 +2679,17 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                   paddingBottom: '24px',
                 }}
               >
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#9a7b1f' }}>Medi Magic HRMS</div>
-                  <h2 style={{ marginTop: '12px', fontSize: '30px', lineHeight: 1.2, fontWeight: 600, color: '#0f172a' }}>Payslip Details</h2>
-                  <p style={{ marginTop: '8px', fontSize: '14px', color: '#475569' }}>{activePayslipPdfEntry.selectedMonth}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                  <img
+                    src="/medimagic/medi-magic-logo.png"
+                    alt="Medi Magic logo"
+                    style={{ width: '88px', height: '88px', objectFit: 'contain', flexShrink: 0 }}
+                  />
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#9a7b1f' }}>Medi Magic</div>
+                    <h2 style={{ marginTop: '10px', fontSize: '30px', lineHeight: 1.2, fontWeight: 600, color: '#0f172a' }}>Payroll Payslip</h2>
+                    <p style={{ marginTop: '8px', fontSize: '14px', color: '#475569' }}>{activePayslipPdfEntry.selectedMonth}</p>
+                  </div>
                 </div>
                 <div
                   style={{
