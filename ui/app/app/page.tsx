@@ -1,13 +1,11 @@
-import { redirect } from 'next/navigation';
+'use client';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/src/lib/hooks/useAuth';
 import { getDefaultRouteForRole } from '@/src/lib/auth/roles';
-import { getCurrentUser } from '@/src/lib/auth/session';
-
-export default async function AppIndexPage() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect('/');
-  }
-
-  redirect(getDefaultRouteForRole(user.role));
+export default function AppIndexPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  useEffect(() => { if (!loading) { if (!user) router.replace('/'); else router.replace(getDefaultRouteForRole(user.role)); } }, [user, loading, router]);
+  return null;
 }

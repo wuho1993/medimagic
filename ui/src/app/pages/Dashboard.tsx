@@ -150,7 +150,7 @@ export default function Dashboard({ data, userName }: DashboardProps) {
               <div className="px-6 py-6 text-center text-sm text-slate-400">{t.noData}</div>
             ) : (
               data.recentHires.map((hire) => (
-                <Link key={hire.employeeCode} href={`/app/people/${hire.employeeCode}`} className="flex items-center justify-between px-6 py-3 transition-colors hover:bg-slate-50">
+                <Link key={hire.employeeCode} href={`/app/people?id=${hire.employeeCode}`} className="flex items-center justify-between px-6 py-3 transition-colors hover:bg-slate-50">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">{hire.alias || hire.nameZh}</div>
                     <div className="text-xs text-slate-500">{hire.employeeCode} • {hire.branchName ?? '—'}</div>

@@ -2610,7 +2610,7 @@ export default function EmployeeProfile({
         setIsEditing(false);
 
         if (result.employeeCode !== employee.employeeCode) {
-          router.push(`/app/people/${result.employeeCode}`);
+          router.push(`/app/people?id=${result.employeeCode}`);
         }
 
         router.refresh();

@@ -1,9 +1,12 @@
+'use client';
+import { useEffect, useState } from 'react';
 import AttendanceManagement from '@/src/app/pages/Leaves';
-import { requireRouteAccess } from '@/src/lib/auth/authorize';
+import { useAuth } from '@/src/lib/hooks/useAuth';
 import { fetchAttendanceManagementOverview } from '@/src/lib/employees/queries';
-
-export default async function LeavesPage() {
-  const user = await requireRouteAccess('leaves');
-  const overview = await fetchAttendanceManagementOverview(user);
+export default function LeavesPage() {
+  const { user } = useAuth();
+  const [overview, setOverview] = useState<any>(null);
+  useEffect(() => { if (user) fetchAttendanceManagementOverview(user).then(setOverview).catch(console.error); }, [user]);
+  if (!user || !overview) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
   return <AttendanceManagement overview={overview} />;
 }

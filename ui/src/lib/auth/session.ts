@@ -1,4 +1,4 @@
-import 'server-only';
+
 
 import { cache } from 'react';
 import { normalizeAccessScope, type UserAccessScope } from '@/src/lib/auth/access';

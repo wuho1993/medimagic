@@ -1,110 +1,31 @@
-'use server';
+/**
+ * GitHub Pages overlay for admin actions.
+ * Replaces server actions with client-side Supabase calls.
+ * Auth admin operations (createUser, updateUserRole) are not supported
+ * on static export — they require the service role key.
+ */
 
-import { revalidatePath } from 'next/cache';
 import { buildAccessScopeFromFormData, serializeAccessScope } from '@/src/lib/auth/access';
-import { createSupabaseAdminClient } from '@/src/lib/supabase/admin';
-import { canAccessRoute, normalizeRole } from '@/src/lib/auth/roles';
-import { getCurrentUser } from '@/src/lib/auth/session';
+import { createBrowserSupabaseClient } from '@/src/lib/supabase/client';
+import { normalizeRole } from '@/src/lib/auth/roles';
 
 function getValue(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
 }
 
-async function requireSystemManagementAccess() {
-  const currentUser = await getCurrentUser();
-
-  if (!currentUser || !canAccessRoute(currentUser.role, 'admin')) {
-    throw new Error('You do not have permission to manage system settings.');
-  }
-
-  return currentUser;
+function getSupabase() {
+  return createBrowserSupabaseClient();
 }
 
-export async function createAuthUser(formData: FormData) {
-  await requireSystemManagementAccess();
-
-  const email = getValue(formData, 'email').toLowerCase();
-  const password = getValue(formData, 'password');
-  const fullName = getValue(formData, 'fullName');
-  const role = normalizeRole(getValue(formData, 'role'));
-  const accessScope = serializeAccessScope({
-    allCompanies: true,
-    allBranches: true,
-    companyIds: [],
-    branchIds: [],
-  });
-
-  if (!email || !password) {
-    throw new Error('Email and password are required.');
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: {
-      full_name: fullName,
-      role,
-      access_scope: accessScope,
-    },
-    app_metadata: {
-      role,
-      access_scope: accessScope,
-    },
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath('/app/admin');
+export async function createAuthUser(_formData: FormData) {
+  throw new Error('創建帳號功能需要伺服器端支援，靜態部署不支援此操作。');
 }
 
-export async function updateAuthUserRole(formData: FormData) {
-  await requireSystemManagementAccess();
-
-  const userId = getValue(formData, 'userId');
-  const role = normalizeRole(getValue(formData, 'role'));
-  const accessScope = serializeAccessScope(buildAccessScopeFromFormData(formData));
-
-  if (!userId) {
-    throw new Error('User ID is required.');
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const {
-    data: { user },
-    error: getUserError,
-  } = await supabase.auth.admin.getUserById(userId);
-
-  if (getUserError || !user) {
-    throw new Error(getUserError?.message ?? 'User not found.');
-  }
-
-  const { error } = await supabase.auth.admin.updateUserById(userId, {
-    user_metadata: {
-      ...(user.user_metadata ?? {}),
-      role,
-      access_scope: accessScope,
-    },
-    app_metadata: {
-      ...(user.app_metadata ?? {}),
-      role,
-      access_scope: accessScope,
-    },
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath('/app/admin');
+export async function updateAuthUserRole(_formData: FormData) {
+  throw new Error('更新帳號角色功能需要伺服器端支援，靜態部署不支援此操作。');
 }
 
 export async function createSystemFieldConfig(formData: FormData) {
-  await requireSystemManagementAccess();
-
   const fieldKey = getValue(formData, 'fieldKey');
   const labelZh = getValue(formData, 'labelZh');
   const labelEn = getValue(formData, 'labelEn');
@@ -113,7 +34,7 @@ export async function createSystemFieldConfig(formData: FormData) {
     throw new Error('Field key and Chinese label are required.');
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = getSupabase();
   const { error } = await supabase.from('system_field_configs').upsert({
     module_key: 'employee',
     field_key: fieldKey,
@@ -130,20 +51,17 @@ export async function createSystemFieldConfig(formData: FormData) {
     throw new Error(error.message);
   }
 
-  revalidatePath('/app/admin');
-  revalidatePath('/app/people');
+  window.location.reload();
 }
 
 export async function updateSystemFieldConfig(formData: FormData) {
-  await requireSystemManagementAccess();
-
   const id = getValue(formData, 'id');
 
   if (!id) {
     throw new Error('Field config ID is required.');
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = getSupabase();
   const { error } = await supabase
     .from('system_field_configs')
     .update({
@@ -161,40 +79,34 @@ export async function updateSystemFieldConfig(formData: FormData) {
     throw new Error(error.message);
   }
 
-  revalidatePath('/app/admin');
-  revalidatePath('/app/people');
+  window.location.reload();
 }
 
 export async function deleteSystemFieldConfig(formData: FormData) {
-  await requireSystemManagementAccess();
-
   const id = getValue(formData, 'id');
 
   if (!id) {
     throw new Error('Field config ID is required.');
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = getSupabase();
   const { error } = await supabase.from('system_field_configs').delete().eq('id', id);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  revalidatePath('/app/admin');
-  revalidatePath('/app/people');
+  window.location.reload();
 }
 
 export async function updatePayrollSystemSettings(formData: FormData) {
-  await requireSystemManagementAccess();
-
   const packageNoPayDefaultHandling = getValue(formData, 'packageNoPayDefaultHandling');
 
   if (!['no_package', 'pro_rate'].includes(packageNoPayDefaultHandling)) {
     throw new Error('Invalid package no-pay default handling.');
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = getSupabase();
   const { error } = await supabase
     .from('system_settings')
     .upsert({
@@ -207,13 +119,10 @@ export async function updatePayrollSystemSettings(formData: FormData) {
     throw new Error(error.message);
   }
 
-  revalidatePath('/app/admin');
-  revalidatePath('/app/payroll');
+  window.location.reload();
 }
 
 export async function createLookupItem(formData: FormData) {
-  await requireSystemManagementAccess();
-
   const table = getValue(formData, 'table');
   const id = getValue(formData, 'id');
   const companyId = getValue(formData, 'companyId');
@@ -225,7 +134,7 @@ export async function createLookupItem(formData: FormData) {
     throw new Error('Invalid lookup item payload.');
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = getSupabase();
 
   const payload: Record<string, string> = {
     code,
@@ -249,13 +158,10 @@ export async function createLookupItem(formData: FormData) {
     throw new Error(error.message);
   }
 
-  revalidatePath('/app/admin');
-  revalidatePath('/app/people');
+  window.location.reload();
 }
 
 export async function deleteLookupItem(formData: FormData) {
-  await requireSystemManagementAccess();
-
   const table = getValue(formData, 'table');
   const id = getValue(formData, 'id');
 
@@ -263,13 +169,12 @@ export async function deleteLookupItem(formData: FormData) {
     throw new Error('Invalid lookup item payload.');
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = getSupabase();
   const { error } = await supabase.from(table).delete().eq('id', id);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  revalidatePath('/app/admin');
-  revalidatePath('/app/people');
+  window.location.reload();
 }

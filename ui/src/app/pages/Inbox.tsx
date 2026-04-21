@@ -105,7 +105,7 @@ export default function Inbox({ reminders }: InboxProps) {
             const Icon = typeIcons[reminder.type];
             const color = typeColors[reminder.type];
             return (
-              <Link key={`${reminder.employeeCode}-${reminder.type}-${idx}`} href={`/app/people/${reminder.employeeCode}`} className={`flex items-center gap-4 rounded-2xl border p-4 transition-shadow hover:shadow-md ${color}`}>
+              <Link key={`${reminder.employeeCode}-${reminder.type}-${idx}`} href={`/app/people?id=${reminder.employeeCode}`} className={`flex items-center gap-4 rounded-2xl border p-4 transition-shadow hover:shadow-md ${color}`}>
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/60">
                   <Icon className="h-5 w-5" />
                 </div>

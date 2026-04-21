@@ -820,7 +820,7 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
                         if (column.key === 'employeeCode') {
                           return (
                             <td key={column.key} className={`border-b border-r border-slate-200 px-2.5 py-2.5 ${column.cellClassName}`}>
-                              <Link href={`/app/people/${row.employee.employeeCode}`} className="text-[#B8871A] hover:underline">
+                              <Link href={`/app/people?id=${row.employee.employeeCode}`} className="text-[#B8871A] hover:underline">
                                 {row.employee.employeeCode}
                               </Link>
                             </td>

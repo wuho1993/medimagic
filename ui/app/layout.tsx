@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   title: 'Medi Magic HRMS',
   description: 'Medi Magic HRMS admin portal built with Next.js.',
   icons: {
-    icon: '/medi-magic-logo.png',
-    shortcut: '/medi-magic-logo.png',
-    apple: '/medi-magic-logo.png',
+    icon: '/medimagic/medi-magic-logo.png',
+    shortcut: '/medimagic/medi-magic-logo.png',
+    apple: '/medimagic/medi-magic-logo.png',
   },
 };
 

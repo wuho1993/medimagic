@@ -1,7 +1,6 @@
-'use server';
+
 
 import { createServerSupabaseClient } from '@/src/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 
 type SaveAttendanceInput = {
   employeeId: string;
@@ -100,8 +99,8 @@ export async function saveAttendanceManagementRecord(input: SaveAttendanceInput)
     return { success: false, error: error.message };
   }
 
-  revalidatePath('/app/leaves');
-  revalidatePath('/app/attendance');
+  void 0;
+  void 0;
   return { success: true };
 }
 
@@ -153,7 +152,7 @@ export async function approveLeaveRequest(requestId: string, reviewNotes?: strin
       .eq('id', balance.id);
   }
 
-  revalidatePath('/app/leaves');
+  void 0;
   return { success: true };
 }
 
@@ -202,6 +201,6 @@ export async function rejectLeaveRequest(requestId: string, reviewNotes?: string
       .eq('id', balance.id);
   }
 
-  revalidatePath('/app/leaves');
+  void 0;
   return { success: true };
 }

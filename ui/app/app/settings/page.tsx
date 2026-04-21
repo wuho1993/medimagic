@@ -1,7 +1,4 @@
-import { redirect } from 'next/navigation';
-import { requireRouteAccess } from '@/src/lib/auth/authorize';
-
-export default async function SystemSettingsPage() {
-  await requireRouteAccess('settings');
-  redirect('/app/admin');
-}
+'use client';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+export default function SystemSettingsPage() { const r = useRouter(); useEffect(() => { r.replace('/app/admin'); }, [r]); return null; }

@@ -76,7 +76,7 @@ export default function Attendance({ employees }: AttendanceProps) {
               {employees.map((emp) => (
                 <tr key={emp.id} className="transition-colors hover:bg-slate-50">
                   <td className="px-4 py-3">
-                    <Link href={`/app/people/${emp.employeeCode}`} className="font-medium text-[#D4AF37] hover:underline">{emp.employeeCode}</Link>
+                    <Link href={`/app/people?id=${emp.employeeCode}`} className="font-medium text-[#D4AF37] hover:underline">{emp.employeeCode}</Link>
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-900">{emp.alias || emp.nameZh}</td>
                   <td className="px-4 py-3 text-slate-600">{emp.branchNameZh ?? '—'}</td>
