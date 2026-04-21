@@ -37,6 +37,15 @@ function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function formatEnglishPayslipMonth(yearMonth: string) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) {
+    return yearMonth;
+  }
+
+  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(year, month - 1, 1));
+}
+
 function isMpfStatutorilyEligible(
   dateOfBirth: string | null | undefined,
   hireDate: string | null | undefined,
@@ -138,6 +147,8 @@ type EmployeePackageNoPayHandlingState = '' | PackageNoPayHandling;
 type PayslipPdfEntry = {
   employeeCode: string;
   employeeName: string;
+  employeeTitle: string | null;
+  hkid: string | null;
   branchName: string | null;
   selectedMonth: string;
   calculatedBaseSalary: number;
@@ -175,6 +186,8 @@ type PayslipPdfEntry = {
   secondaryMpf: number;
   secondaryPayoutNet: number;
   monthEndMpf: number;
+  noPayLeaveDeduction: number;
+  adjustmentAmount: number;
 };
 
 const translations = {
@@ -937,6 +950,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
   const fmt = (v: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'HKD', maximumFractionDigits: 0 }).format(v);
   const fmtDec = (v: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'HKD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  const fmtPayslipAmount = (v: number) => new Intl.NumberFormat('en-HK', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 }).format(v);
 
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const [isPending, startTransition] = useTransition();
@@ -1416,6 +1430,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const payslipExportEntries = rows.map((row): PayslipPdfEntry => ({
     employeeCode: row.employeeCode,
     employeeName: row.alias || row.nameZh,
+    employeeTitle: row.positionNameZh ?? null,
+    hkid: null,
     branchName: row.branchName ?? null,
     selectedMonth,
     calculatedBaseSalary: row.calculatedBaseSalary,
@@ -1453,6 +1469,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     secondaryMpf: row.secondaryMpf,
     secondaryPayoutNet: row.secondaryPayoutNet,
     monthEndMpf: row.monthEndMpf,
+    noPayLeaveDeduction: row.attendanceDeductionRemainder,
+    adjustmentAmount: roundMoney(row.manualBonus - row.manualDeduction),
   }));
 
   const hasMeaningfulEntries = (entries: ReturnType<typeof buildEntries>) => entries.some((entry) => (
@@ -2651,152 +2669,182 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
       <div className="pointer-events-none fixed top-0 -z-10" style={{ left: '-9999px' }}>
         {activePayslipPdfEntry ? (
-          <div
-            ref={payslipPdfCardRef}
-            style={{
-              width: '794px',
-              backgroundColor: '#ffffff',
-              color: '#0f172a',
-              padding: '40px',
-              fontFamily: 'Arial, Helvetica, sans-serif',
-            }}
-          >
-            <div
-              style={{
-                borderRadius: '28px',
-                border: '1px solid #e7dcc0',
-                background: 'linear-gradient(135deg, #fffdf6 0%, #fff7df 100%)',
-                padding: '32px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  gap: '24px',
-                  borderBottom: '1px solid #e7dcc0',
-                  paddingBottom: '24px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                  <img
-                    src="/medimagic/medi-magic-logo.png"
-                    alt="Medi Magic logo"
-                    style={{ width: '88px', height: '88px', objectFit: 'contain', flexShrink: 0 }}
-                  />
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#9a7b1f' }}>Medi Magic</div>
-                    <h2 style={{ marginTop: '10px', fontSize: '30px', lineHeight: 1.2, fontWeight: 600, color: '#0f172a' }}>Payroll Payslip</h2>
-                    <p style={{ marginTop: '8px', fontSize: '14px', color: '#475569' }}>{activePayslipPdfEntry.selectedMonth}</p>
-                  </div>
-                </div>
-                <div
-                  style={{
-                    minWidth: '220px',
-                    borderRadius: '16px',
-                    backgroundColor: '#ffffff',
-                    padding: '12px 16px',
-                    textAlign: 'right',
-                    border: '1px solid #efe3bd',
-                  }}
-                >
-                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#64748b' }}>Employee</div>
-                  <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>{activePayslipPdfEntry.employeeName}</div>
-                  <div style={{ fontSize: '14px', color: '#64748b' }}>{activePayslipPdfEntry.employeeCode}</div>
-                  <div style={{ marginTop: '4px', fontSize: '14px', color: '#64748b' }}>{activePayslipPdfEntry.branchName ?? '—'}</div>
-                </div>
-              </div>
+          <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '18px 28px 24px', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10pt' }}>
+            {(() => {
+              const discretionaryCommission = roundMoney(
+                activePayslipPdfEntry.redeemCommission
+                + activePayslipPdfEntry.salesAmountCommission
+                + activePayslipPdfEntry.jobCommission
+                + activePayslipPdfEntry.streetPromoterCommission
+                + activePayslipPdfEntry.telesalesCommission
+                + (activePayslipPdfEntry.isPackageEmployee ? activePayslipPdfEntry.packageCommission : 0),
+              );
+              const extraBonus = roundMoney(activePayslipPdfEntry.payrollBonus + activePayslipPdfEntry.shopBonus);
+              const incomeRows: Array<[string, number]> = [
+                ['Basic Salary  底薪', activePayslipPdfEntry.calculatedBaseSalary],
+                ['Diligent  勤工獎', activePayslipPdfEntry.attendanceBonus],
+                ['Briefing Bonus 早會獎金', activePayslipPdfEntry.briefingBonus],
+                ['Booking Bonus 預約獎金', activePayslipPdfEntry.bookingBonus],
+                ['Shop Commission  店鋪佣金', activePayslipPdfEntry.salesCommission],
+                ['MGM Bonus  介紹獎金', activePayslipPdfEntry.sgmCommission],
+                ['Discretionary Commissionn  酌情佣金', discretionaryCommission],
+                ['Discretionary Special Bonus  酌情特佣', activePayslipPdfEntry.salesBonus],
+                ['Extra Bonus ', extraBonus],
+                ['SH/AL Commission  勞工假/大假平均佣金', 0],
+                ['Other 其他', 0],
+              ];
+              const incomeSubtotal = roundMoney(incomeRows.reduce((sum, [, value]) => sum + value, 0));
+              const adjustmentAmount = activePayslipPdfEntry.adjustmentAmount;
+              const grandTotal = roundMoney(incomeSubtotal + adjustmentAmount);
+              const staffSalaryAfterMpf = roundMoney(grandTotal - activePayslipPdfEntry.mpfEe);
+              const primaryAmount = activePayslipPdfEntry.primaryPayoutGross;
+              const secondaryAmount = activePayslipPdfEntry.secondaryPayoutGross;
+              const thirdAmount = 0;
+              const paymentTotal = roundMoney(primaryAmount + secondaryAmount + thirdAmount);
+              const baseCell: React.CSSProperties = { border: '1px solid #000', padding: '3px 6px', verticalAlign: 'middle', lineHeight: 1.2 };
+              const numberCell: React.CSSProperties = { ...baseCell, textAlign: 'right' };
 
-              <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '14px' }}>
-                {[
-                  ['Base Salary', activePayslipPdfEntry.calculatedBaseSalary],
-                  ['Allowance + Transport', activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance],
-                  ['Briefing Bonus', activePayslipPdfEntry.briefingBonus],
-                  ['Attendance Bonus', activePayslipPdfEntry.attendanceBonus],
-                  ['Booking Bonus', activePayslipPdfEntry.bookingBonus],
-                  ['Manual Addition', activePayslipPdfEntry.manualBonus],
-                  ['Shop Bonus', activePayslipPdfEntry.shopBonus],
-                  ['Manual Deduction', activePayslipPdfEntry.manualDeduction],
-                  ['Redeem Commission', activePayslipPdfEntry.redeemCommission],
-                  ['Sales Commission', activePayslipPdfEntry.salesCommission],
-                  ['MGM Bonus', activePayslipPdfEntry.sgmCommission],
-                  ['Sales Amount Commission', activePayslipPdfEntry.salesAmountCommission],
-                  ['Job Commission', activePayslipPdfEntry.jobCommission],
-                  ['Street Promoter', activePayslipPdfEntry.streetPromoterCommission],
-                  ['Telesales', activePayslipPdfEntry.telesalesCommission],
-                  ['Sales Bonus', activePayslipPdfEntry.salesBonus],
-                  ['Bonus', activePayslipPdfEntry.payrollBonus],
-                  ['Package Commission', activePayslipPdfEntry.isPackageEmployee ? activePayslipPdfEntry.packageCommission : 0],
-                ].map(([label, value]) => (
-                  <div
-                    key={String(label)}
-                    style={{
-                      borderRadius: '16px',
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #efe3bd',
-                      padding: '12px 16px',
-                    }}
-                  >
-                    <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#64748b' }}>{label}</div>
-                    <div style={{ marginTop: '8px', fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>{fmtDec(Number(value))}</div>
+              return (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
+                    <img src="/medimagic/medi-magic-logo.png" alt="Medi Magic logo" style={{ width: '96px', height: '96px', objectFit: 'contain' }} />
                   </div>
-                ))}
-              </div>
-
-              <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <div style={{ borderRadius: '16px', backgroundColor: '#0f172a', padding: '16px 20px', color: '#ffffff' }}>
-                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#cbd5e1' }}>Gross Amount</div>
-                  <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 600 }}>{fmtDec(activePayslipPdfEntry.grossAmount)}</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <tbody>
+                      <tr>
+                        <td colSpan={9} style={{ ...baseCell, border: 'none', textAlign: 'center', fontWeight: 700, fontSize: '16pt', padding: '4px 0 8px' }}>Monthly Payslip 每月薪金單</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={9} style={{ ...baseCell, border: 'none', textAlign: 'left', padding: '0 0 10px' }}>(HKD)</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2} style={baseCell}>For the month 月份:</td>
+                        <td colSpan={3} style={baseCell}>{formatEnglishPayslipMonth(activePayslipPdfEntry.selectedMonth)}</td>
+                        <td colSpan={4} style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2} style={baseCell}>Staff Code  職員編號:</td>
+                        <td colSpan={3} style={baseCell}>{activePayslipPdfEntry.employeeCode}</td>
+                        <td colSpan={4} style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2} style={baseCell}>HKID  香港身分證號碼:</td>
+                        <td colSpan={3} style={baseCell}>{activePayslipPdfEntry.hkid ?? ''}</td>
+                        <td colSpan={4} style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2} style={baseCell}>Name  姓名:</td>
+                        <td colSpan={3} style={baseCell}>{activePayslipPdfEntry.employeeName}</td>
+                        <td colSpan={4} style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2} style={baseCell}>Title  職位:</td>
+                        <td colSpan={3} style={baseCell}>{activePayslipPdfEntry.employeeTitle ?? ''}</td>
+                        <td colSpan={4} style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={{ ...baseCell, fontWeight: 700 }}>Income  收入</td>
+                        <td colSpan={3} style={baseCell}></td>
+                      </tr>
+                      {incomeRows.map(([label, value]) => (
+                        <tr key={label}>
+                          <td colSpan={6} style={baseCell}>{label}</td>
+                          <td colSpan={2} style={numberCell}>{fmtPayslipAmount(value)}</td>
+                          <td style={baseCell}></td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td colSpan={6} style={baseCell}></td>
+                        <td colSpan={3} style={{ ...numberCell, fontWeight: 700 }}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={{ ...baseCell, fontWeight: 700 }}>Deduction 扣除</td>
+                        <td colSpan={3} style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>Late  遲到</td>
+                        <td colSpan={2} style={numberCell}>0</td>
+                        <td style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>No Pay Leave  無薪假</td>
+                        <td colSpan={2} style={numberCell}>{fmtPayslipAmount(activePayslipPdfEntry.noPayLeaveDeduction)}</td>
+                        <td style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={8} style={baseCell}></td>
+                        <td style={numberCell}>0</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>This Month Grand Total  總額</td>
+                        <td colSpan={3} style={numberCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>Adjustment</td>
+                        <td colSpan={3} style={numberCell}>{fmtPayslipAmount(adjustmentAmount)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={{ ...baseCell, fontWeight: 700 }}>Grand Total  總額</td>
+                        <td colSpan={3} style={{ ...numberCell, fontWeight: 700 }}>{fmtPayslipAmount(grandTotal)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={9} style={{ ...baseCell, borderLeft: 'none', borderRight: 'none', height: '8px' }}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>Salary Before Deduct MPF Contribution  本月供款前有關入息</td>
+                        <td colSpan={2} style={numberCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                        <td style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}> MPF Contribution  強積金供款(僱主)</td>
+                        <td colSpan={2} style={numberCell}>{fmtPayslipAmount(activePayslipPdfEntry.mpfEr)}</td>
+                        <td style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>Less: MPF Contribution  強積金供款(僱員)</td>
+                        <td colSpan={2} style={numberCell}>{fmtPayslipAmount(activePayslipPdfEntry.mpfEe)}</td>
+                        <td style={baseCell}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={9} style={{ ...baseCell, borderLeft: 'none', borderRight: 'none', height: '8px' }}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={{ ...baseCell, fontWeight: 700 }}>Staff Salary After Deduct Staff MPF Contribution  強積金供款後薪金</td>
+                        <td colSpan={3} style={{ ...numberCell, fontWeight: 700 }}>{fmtPayslipAmount(staffSalaryAfterMpf)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={9} style={{ ...baseCell, borderLeft: 'none', borderRight: 'none', height: '8px' }}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>Salary Paid On /Before 7th</td>
+                        <td colSpan={2} style={baseCell}>Amount:</td>
+                        <td style={numberCell}>{fmtPayslipAmount(primaryAmount)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>Salary Paid On /Before 20th</td>
+                        <td colSpan={2} style={baseCell}>Amount:</td>
+                        <td style={numberCell}>{fmtPayslipAmount(secondaryAmount)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={baseCell}>Salary Paid On /After 20th</td>
+                        <td colSpan={2} style={baseCell}>Amount:</td>
+                        <td style={numberCell}>{fmtPayslipAmount(thirdAmount)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={8} style={baseCell}></td>
+                        <td style={{ ...numberCell, fontWeight: 700 }}>{fmtPayslipAmount(paymentTotal)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={9} style={{ ...baseCell, borderLeft: 'none', borderRight: 'none', height: '10px' }}></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={9} style={baseCell}>Remarks 備註 :  </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-                <div style={{ borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #efe3bd', padding: '16px 20px' }}>
-                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#64748b' }}>MPF Employee</div>
-                  <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 600, color: '#0f172a' }}>{fmtDec(activePayslipPdfEntry.mpfEe)}</div>
-                </div>
-                <div style={{ borderRadius: '16px', backgroundColor: '#D4AF37', padding: '16px 20px', color: '#ffffff' }}>
-                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#fef3c7' }}>Net Amount</div>
-                  <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 600 }}>{fmtDec(activePayslipPdfEntry.netAmount)}</div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div style={{ borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #efe3bd', padding: '16px 20px' }}>
-                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#64748b' }}>Primary Payroll</div>
-                  <div style={{ marginTop: '12px', fontSize: '14px', color: '#334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>Pay Day</span><span>{activePayslipPdfEntry.payDayPrimary ?? '—'}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>Gross</span><span>{fmtDec(activePayslipPdfEntry.primaryPayoutGross)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>MPF</span><span>{fmtDec(activePayslipPdfEntry.primaryMpf)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#0f172a' }}><span>Net</span><span>{fmtDec(activePayslipPdfEntry.primaryPayoutNet)}</span></div>
-                  </div>
-                </div>
-                <div style={{ borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #efe3bd', padding: '16px 20px' }}>
-                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#64748b' }}>Secondary Payroll</div>
-                  <div style={{ marginTop: '12px', fontSize: '14px', color: '#334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>Pay Day</span><span>{activePayslipPdfEntry.payDaySecondary ?? '—'}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>Gross</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryPayoutGross) : '—'}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>MPF</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryMpf) : '—'}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#0f172a' }}><span>Net</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryPayoutNet) : '—'}</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  marginTop: '24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  borderRadius: '16px',
-                  border: '1px dashed #d8c79b',
-                  padding: '16px 20px',
-                  fontSize: '14px',
-                  color: '#475569',
-                }}
-              >
-                <span>Month-end MPF Deduction</span>
-                <span style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>{fmtDec(activePayslipPdfEntry.monthEndMpf)}</span>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         ) : null}
       </div>
