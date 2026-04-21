@@ -2714,23 +2714,27 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));
               const attendanceDeduction = roundMoney(Math.max(activePayslipPdfEntry.displayAttendanceBonus - activePayslipPdfEntry.attendanceBonus, 0));
               const bookingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBookingBonus - activePayslipPdfEntry.bookingBonus, 0));
-              const lateLabel = activePayslipPdfEntry.lateDays > 0
-                ? `Late  遲到 (${activePayslipPdfEntry.lateDays}日)`
-                : 'Late  遲到';
+              const hasLateAttendanceDeduction = activePayslipPdfEntry.lateDays > 0 && attendanceDeduction > 0;
+              const lateLabel = hasLateAttendanceDeduction
+                ? `Late - Diligent  遲到扣勤工獎 (${activePayslipPdfEntry.lateDays}日)`
+                : activePayslipPdfEntry.lateDays > 0
+                  ? `Late  遲到 (${activePayslipPdfEntry.lateDays}日)`
+                  : 'Late  遲到';
               const noPayLabel = activePayslipPdfEntry.noPayDays > 0
                 ? `No Pay Leave  無薪假 (${activePayslipPdfEntry.noPayDays}日)`
                 : 'No Pay Leave  無薪假';
+              const noPayDeductionSuffix = activePayslipPdfEntry.noPayDays > 0
+                ? ` (${activePayslipPdfEntry.noPayDays}日)`
+                : '';
               const attendanceDeductionRows: Array<[string, number]> = [
-                ['No Pay Leave - Basic Salary  無薪假扣底薪', baseSalaryDeduction] as [string, number],
-                ['No Pay Leave - Allowance  無薪假扣津貼', allowanceDeduction] as [string, number],
-                ['No Pay Leave - Briefing Bonus  無薪假扣早會獎金', briefingDeduction] as [string, number],
-                ['No Pay Leave - Booking Bonus  無薪假扣預約獎金', bookingDeduction] as [string, number],
+                [`No Pay Leave - Basic Salary  無薪假扣底薪${noPayDeductionSuffix}`, baseSalaryDeduction] as [string, number],
+                [`No Pay Leave - Allowance  無薪假扣津貼${noPayDeductionSuffix}`, allowanceDeduction] as [string, number],
+                [`No Pay Leave - Briefing Bonus  無薪假扣早會獎金${noPayDeductionSuffix}`, briefingDeduction] as [string, number],
+                [`No Pay Leave - Booking Bonus  無薪假扣預約獎金${noPayDeductionSuffix}`, bookingDeduction] as [string, number],
               ].filter(([, value]) => value > 0);
-              if (attendanceDeduction > 0) {
+              if (attendanceDeduction > 0 && !hasLateAttendanceDeduction) {
                 attendanceDeductionRows.push([
-                  activePayslipPdfEntry.lateDays > 0
-                    ? 'Late - Diligent  遲到扣勤工獎'
-                    : 'No Pay Leave - Diligent  無薪假扣勤工獎',
+                  `No Pay Leave - Diligent  無薪假扣勤工獎${noPayDeductionSuffix}`,
                   attendanceDeduction,
                 ]);
               }
@@ -2762,11 +2766,11 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               ];
               const incomeSubtotal = roundMoney(incomeRows.reduce((sum, [, value]) => sum + value, 0));
               const deductionRows: Array<[string, number]> = [
-                [lateLabel, 0],
+                [lateLabel, hasLateAttendanceDeduction ? attendanceDeduction : 0],
                 ...attendanceDeductionRows,
               ];
               if (activePayslipPdfEntry.noPayLeaveDeduction > 0) {
-                deductionRows.push(['No Pay Leave - Remaining Deduction  無薪假餘額扣減', activePayslipPdfEntry.noPayLeaveDeduction]);
+                deductionRows.push([`No Pay Leave - Remaining Deduction  無薪假餘額扣減${noPayDeductionSuffix}`, activePayslipPdfEntry.noPayLeaveDeduction]);
               }
               if (attendanceDeductionRows.length === 0 && activePayslipPdfEntry.noPayLeaveDeduction <= 0) {
                 deductionRows.push([noPayLabel, activePayslipPdfEntry.noPayLeaveDeduction]);
@@ -2909,7 +2913,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                       {spacerRow('8px')}
                       <tr>
                         <td colSpan={6} style={labelCell}>Salary Before Deduct MPF Contribution  本月供款前有關入息</td>
-                        <td style={amountCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                        <td style={amountCell}>{fmtPayslipAmount(grandTotal)}</td>
                         <td></td>
                         <td></td>
                       </tr>
