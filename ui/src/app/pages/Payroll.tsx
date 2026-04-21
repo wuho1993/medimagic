@@ -149,6 +149,8 @@ type PayslipPdfEntry = {
   employeeName: string;
   employeeTitle: string | null;
   hkid: string | null;
+  lateDays: number;
+  noPayDays: number;
   branchName: string | null;
   selectedMonth: string;
   calculatedBaseSalary: number;
@@ -1303,6 +1305,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
       hasWorkedHours,
       attendanceDrivenWorkedDays,
       hasLateDays,
+      lateDays: attendanceRecord?.lateDays ?? 0,
       attendanceNoPayDays,
       attendanceNoPayDeduction,
       attendanceDeductionRemainder,
@@ -1432,6 +1435,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     employeeName: row.alias || row.nameZh,
     employeeTitle: row.positionNameZh ?? null,
     hkid: row.identityNumber ?? null,
+    lateDays: row.lateDays,
+    noPayDays: row.attendanceNoPayDays,
     branchName: row.branchName ?? null,
     selectedMonth,
     calculatedBaseSalary: row.calculatedBaseSalary,
@@ -2703,12 +2708,20 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const paymentTotal = roundMoney(primaryAmount + secondaryAmount + thirdAmount);
               const valueCell: React.CSSProperties = { padding: '2px 0', verticalAlign: 'middle', lineHeight: '16px', fontWeight: 400 };
               const labelCell: React.CSSProperties = { ...valueCell, whiteSpace: 'nowrap' };
-              const amountCell: React.CSSProperties = { ...valueCell, textAlign: 'right', fontFamily: 'Arial Unicode MS, Arial, sans-serif', whiteSpace: 'nowrap' };
+              const amountCell: React.CSSProperties = { ...valueCell, textAlign: 'right', fontFamily: 'Arial Unicode MS, Arial, sans-serif', whiteSpace: 'nowrap', paddingRight: '6px' };
               const sectionCell: React.CSSProperties = { ...labelCell, fontWeight: 700, textDecoration: 'underline' };
+              const lateLabel = activePayslipPdfEntry.lateDays > 0
+                ? `Late  遲到 (${activePayslipPdfEntry.lateDays}日)`
+                : 'Late  遲到';
+              const noPayLabel = activePayslipPdfEntry.noPayDays > 0
+                ? `No Pay Leave  無薪假 (${activePayslipPdfEntry.noPayDays}日)`
+                : 'No Pay Leave  無薪假';
               const ruleAmountCell = (weight: 'thin' | 'medium' = 'medium'): React.CSSProperties => ({
                 ...amountCell,
                 borderBottom: weight === 'medium' ? '2px solid #000' : '1px solid #000',
-                paddingBottom: '1px',
+                paddingTop: '1px',
+                paddingBottom: '5px',
+                lineHeight: '14px',
               });
               const spacerRow = (height: string): React.ReactNode => (
                 <tr>
@@ -2788,13 +2801,13 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         <td colSpan={3}></td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={labelCell}>Late  遲到</td>
+                        <td colSpan={6} style={labelCell}>{lateLabel}</td>
                         <td style={amountCell}></td>
                         <td style={amountCell}>{fmtPayslipAmount(0)}</td>
                         <td></td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={labelCell}>No Pay Leave  無薪假</td>
+                        <td colSpan={6} style={labelCell}>{noPayLabel}</td>
                         <td style={amountCell}></td>
                         <td style={amountCell}>{fmtPayslipAmount(activePayslipPdfEntry.noPayLeaveDeduction)}</td>
                         <td></td>
