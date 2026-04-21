@@ -1431,7 +1431,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     employeeCode: row.employeeCode,
     employeeName: row.alias || row.nameZh,
     employeeTitle: row.positionNameZh ?? null,
-    hkid: null,
+    hkid: row.identityNumber ?? null,
     branchName: row.branchName ?? null,
     selectedMonth,
     calculatedBaseSalary: row.calculatedBaseSalary,
@@ -2669,7 +2669,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
       <div className="pointer-events-none fixed top-0 -z-10" style={{ left: '-9999px' }}>
         {activePayslipPdfEntry ? (
-          <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '18px 28px 24px', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10pt' }}>
+          <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '12px 34px 20px', fontFamily: 'PMingLiU, MingLiU, SimSun, Arial Unicode MS, serif', fontSize: '10pt' }}>
             {(() => {
               const discretionaryCommission = roundMoney(
                 activePayslipPdfEntry.redeemCommission
@@ -2701,144 +2701,172 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const secondaryAmount = activePayslipPdfEntry.secondaryPayoutGross;
               const thirdAmount = 0;
               const paymentTotal = roundMoney(primaryAmount + secondaryAmount + thirdAmount);
-              const baseCell: React.CSSProperties = { border: '1px solid #000', padding: '3px 6px', verticalAlign: 'middle', lineHeight: 1.2 };
-              const numberCell: React.CSSProperties = { ...baseCell, textAlign: 'right' };
+              const valueCell: React.CSSProperties = { padding: '2px 0', verticalAlign: 'middle', lineHeight: '16px', fontWeight: 400 };
+              const labelCell: React.CSSProperties = { ...valueCell, whiteSpace: 'nowrap' };
+              const amountCell: React.CSSProperties = { ...valueCell, textAlign: 'right', fontFamily: 'Arial Unicode MS, Arial, sans-serif', whiteSpace: 'nowrap' };
+              const sectionCell: React.CSSProperties = { ...labelCell, fontWeight: 700, textDecoration: 'underline' };
+              const ruleAmountCell = (weight: 'thin' | 'medium' = 'medium'): React.CSSProperties => ({
+                ...amountCell,
+                borderBottom: weight === 'medium' ? '2px solid #000' : '1px solid #000',
+                paddingBottom: '1px',
+              });
+              const spacerRow = (height: string): React.ReactNode => (
+                <tr>
+                  <td colSpan={9} style={{ height, fontSize: 0, lineHeight: 0 }}></td>
+                </tr>
+              );
 
               return (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
-                    <img src="/medimagic/medi-magic-logo.png" alt="Medi Magic logo" style={{ width: '96px', height: '96px', objectFit: 'contain' }} />
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2px' }}>
+                    <img src="/medimagic/medi-magic-logo.png" alt="Medi Magic logo" style={{ width: '90px', height: '90px', objectFit: 'contain' }} />
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: '11.8%' }} />
+                      <col style={{ width: '11.8%' }} />
+                      <col style={{ width: '11.8%' }} />
+                      <col style={{ width: '11.8%' }} />
+                      <col style={{ width: '11.8%' }} />
+                      <col style={{ width: '11.8%' }} />
+                      <col style={{ width: '12.4%' }} />
+                      <col style={{ width: '11.8%' }} />
+                      <col style={{ width: '12.4%' }} />
+                    </colgroup>
                     <tbody>
                       <tr>
-                        <td colSpan={9} style={{ ...baseCell, border: 'none', textAlign: 'center', fontWeight: 700, fontSize: '16pt', padding: '4px 0 8px' }}>Monthly Payslip 每月薪金單</td>
+                        <td colSpan={9} style={{ ...labelCell, fontWeight: 700, padding: '0 0 2px', textAlign: 'left' }}>Monthly Payslip 每月薪金單</td>
                       </tr>
                       <tr>
-                        <td colSpan={9} style={{ ...baseCell, border: 'none', textAlign: 'left', padding: '0 0 10px' }}>(HKD)</td>
+                        <td colSpan={9} style={{ ...labelCell, padding: '0 0 4px', textAlign: 'left' }}>(HKD)</td>
                       </tr>
                       <tr>
-                        <td colSpan={2} style={baseCell}>For the month 月份:</td>
-                        <td colSpan={3} style={baseCell}>{formatEnglishPayslipMonth(activePayslipPdfEntry.selectedMonth)}</td>
-                        <td colSpan={4} style={baseCell}></td>
+                        <td colSpan={2} style={labelCell}>For the month 月份:</td>
+                        <td colSpan={3} style={valueCell}>{formatEnglishPayslipMonth(activePayslipPdfEntry.selectedMonth)}</td>
+                        <td colSpan={4}></td>
                       </tr>
                       <tr>
-                        <td colSpan={2} style={baseCell}>Staff Code  職員編號:</td>
-                        <td colSpan={3} style={baseCell}>{activePayslipPdfEntry.employeeCode}</td>
-                        <td colSpan={4} style={baseCell}></td>
+                        <td colSpan={2} style={labelCell}>Staff Code  職員編號:</td>
+                        <td colSpan={3} style={valueCell}>{activePayslipPdfEntry.employeeCode}</td>
+                        <td colSpan={4}></td>
                       </tr>
                       <tr>
-                        <td colSpan={2} style={baseCell}>HKID  香港身分證號碼:</td>
-                        <td colSpan={3} style={baseCell}>{activePayslipPdfEntry.hkid ?? ''}</td>
-                        <td colSpan={4} style={baseCell}></td>
+                        <td colSpan={2} style={labelCell}>HKID  香港身分證號碼:</td>
+                        <td colSpan={3} style={valueCell}>{activePayslipPdfEntry.hkid ?? ''}</td>
+                        <td colSpan={4}></td>
                       </tr>
                       <tr>
-                        <td colSpan={2} style={baseCell}>Name  姓名:</td>
-                        <td colSpan={3} style={baseCell}>{activePayslipPdfEntry.employeeName}</td>
-                        <td colSpan={4} style={baseCell}></td>
+                        <td colSpan={2} style={labelCell}>Name  姓名:</td>
+                        <td colSpan={3} style={valueCell}>{activePayslipPdfEntry.employeeName}</td>
+                        <td colSpan={4}></td>
                       </tr>
                       <tr>
-                        <td colSpan={2} style={baseCell}>Title  職位:</td>
-                        <td colSpan={3} style={baseCell}>{activePayslipPdfEntry.employeeTitle ?? ''}</td>
-                        <td colSpan={4} style={baseCell}></td>
+                        <td colSpan={2} style={labelCell}>Title  職位:</td>
+                        <td colSpan={3} style={valueCell}>{activePayslipPdfEntry.employeeTitle ?? ''}</td>
+                        <td colSpan={4}></td>
                       </tr>
+                      {spacerRow('16px')}
                       <tr>
-                        <td colSpan={6} style={{ ...baseCell, fontWeight: 700 }}>Income  收入</td>
-                        <td colSpan={3} style={baseCell}></td>
+                        <td colSpan={6} style={sectionCell}>Income  收入</td>
+                        <td colSpan={3}></td>
                       </tr>
                       {incomeRows.map(([label, value]) => (
                         <tr key={label}>
-                          <td colSpan={6} style={baseCell}>{label}</td>
-                          <td colSpan={2} style={numberCell}>{fmtPayslipAmount(value)}</td>
-                          <td style={baseCell}></td>
+                          <td colSpan={6} style={labelCell}>{label}</td>
+                          <td style={amountCell}></td>
+                          <td style={amountCell}>{fmtPayslipAmount(value)}</td>
+                          <td></td>
                         </tr>
                       ))}
                       <tr>
-                        <td colSpan={6} style={baseCell}></td>
-                        <td colSpan={3} style={{ ...numberCell, fontWeight: 700 }}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                        <td colSpan={7}></td>
+                        <td colSpan={2} style={ruleAmountCell()}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                      </tr>
+                      {spacerRow('10px')}
+                      <tr>
+                        <td colSpan={6} style={sectionCell}>Deduction 扣除</td>
+                        <td colSpan={3}></td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={{ ...baseCell, fontWeight: 700 }}>Deduction 扣除</td>
-                        <td colSpan={3} style={baseCell}></td>
+                        <td colSpan={6} style={labelCell}>Late  遲到</td>
+                        <td style={amountCell}></td>
+                        <td style={amountCell}>{fmtPayslipAmount(0)}</td>
+                        <td></td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={baseCell}>Late  遲到</td>
-                        <td colSpan={2} style={numberCell}>0</td>
-                        <td style={baseCell}></td>
+                        <td colSpan={6} style={labelCell}>No Pay Leave  無薪假</td>
+                        <td style={amountCell}></td>
+                        <td style={amountCell}>{fmtPayslipAmount(activePayslipPdfEntry.noPayLeaveDeduction)}</td>
+                        <td></td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={baseCell}>No Pay Leave  無薪假</td>
-                        <td colSpan={2} style={numberCell}>{fmtPayslipAmount(activePayslipPdfEntry.noPayLeaveDeduction)}</td>
-                        <td style={baseCell}></td>
+                        <td colSpan={8}></td>
+                        <td style={ruleAmountCell()}>{fmtPayslipAmount(0)}</td>
                       </tr>
                       <tr>
-                        <td colSpan={8} style={baseCell}></td>
-                        <td style={numberCell}>0</td>
+                        <td colSpan={6} style={labelCell}>This Month Grand Total  總額</td>
+                        <td colSpan={2}></td>
+                        <td style={amountCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={baseCell}>This Month Grand Total  總額</td>
-                        <td colSpan={3} style={numberCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                        <td colSpan={6} style={labelCell}>Adjustment</td>
+                        <td colSpan={2}></td>
+                        <td style={amountCell}>{fmtPayslipAmount(adjustmentAmount)}</td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={baseCell}>Adjustment</td>
-                        <td colSpan={3} style={numberCell}>{fmtPayslipAmount(adjustmentAmount)}</td>
+                        <td colSpan={6} style={labelCell}>Grand Total  總額</td>
+                        <td colSpan={2}></td>
+                        <td style={amountCell}>{fmtPayslipAmount(grandTotal)}</td>
+                      </tr>
+                      {spacerRow('16px')}
+                      <tr>
+                        <td colSpan={6} style={labelCell}>Salary Before Deduct MPF Contribution  本月供款前有關入息</td>
+                        <td style={amountCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                        <td></td>
+                        <td></td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={{ ...baseCell, fontWeight: 700 }}>Grand Total  總額</td>
-                        <td colSpan={3} style={{ ...numberCell, fontWeight: 700 }}>{fmtPayslipAmount(grandTotal)}</td>
+                        <td colSpan={6} style={labelCell}> MPF Contribution  強積金供款(僱主)</td>
+                        <td style={amountCell}>{fmtPayslipAmount(activePayslipPdfEntry.mpfEr)}</td>
+                        <td></td>
+                        <td></td>
                       </tr>
                       <tr>
-                        <td colSpan={9} style={{ ...baseCell, borderLeft: 'none', borderRight: 'none', height: '8px' }}></td>
+                        <td colSpan={6} style={labelCell}>Less: MPF Contribution  強積金供款(僱員)</td>
+                        <td style={amountCell}>{fmtPayslipAmount(activePayslipPdfEntry.mpfEe)}</td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                      {spacerRow('16px')}
+                      <tr>
+                        <td colSpan={7} style={labelCell}>Staff Salary After Deduct Staff MPF Contribution  強積金供款後薪金</td>
+                        <td colSpan={2} style={ruleAmountCell()}>{fmtPayslipAmount(staffSalaryAfterMpf)}</td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={baseCell}>Salary Before Deduct MPF Contribution  本月供款前有關入息</td>
-                        <td colSpan={2} style={numberCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
-                        <td style={baseCell}></td>
+                        <td colSpan={9} style={{ borderBottom: '2px solid #000', height: '12px' }}></td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={baseCell}> MPF Contribution  強積金供款(僱主)</td>
-                        <td colSpan={2} style={numberCell}>{fmtPayslipAmount(activePayslipPdfEntry.mpfEr)}</td>
-                        <td style={baseCell}></td>
+                        <td colSpan={6} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Salary Paid On /Before 7th</td>
+                        <td colSpan={2} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Amount:</td>
+                        <td style={amountCell}>{fmtPayslipAmount(primaryAmount)}</td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={baseCell}>Less: MPF Contribution  強積金供款(僱員)</td>
-                        <td colSpan={2} style={numberCell}>{fmtPayslipAmount(activePayslipPdfEntry.mpfEe)}</td>
-                        <td style={baseCell}></td>
+                        <td colSpan={6} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Salary Paid On /Before 20th</td>
+                        <td colSpan={2} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Amount:</td>
+                        <td style={amountCell}>{fmtPayslipAmount(secondaryAmount)}</td>
                       </tr>
                       <tr>
-                        <td colSpan={9} style={{ ...baseCell, borderLeft: 'none', borderRight: 'none', height: '8px' }}></td>
+                        <td colSpan={6} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Salary Paid On /After 20th</td>
+                        <td colSpan={2} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Amount:</td>
+                        <td style={{ ...ruleAmountCell('thin') }}>{fmtPayslipAmount(thirdAmount)}</td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={{ ...baseCell, fontWeight: 700 }}>Staff Salary After Deduct Staff MPF Contribution  強積金供款後薪金</td>
-                        <td colSpan={3} style={{ ...numberCell, fontWeight: 700 }}>{fmtPayslipAmount(staffSalaryAfterMpf)}</td>
+                        <td colSpan={8}></td>
+                        <td style={{ ...ruleAmountCell(), borderTop: '1px solid #000' }}>{fmtPayslipAmount(paymentTotal)}</td>
                       </tr>
+                      {spacerRow('14px')}
                       <tr>
-                        <td colSpan={9} style={{ ...baseCell, borderLeft: 'none', borderRight: 'none', height: '8px' }}></td>
-                      </tr>
-                      <tr>
-                        <td colSpan={6} style={baseCell}>Salary Paid On /Before 7th</td>
-                        <td colSpan={2} style={baseCell}>Amount:</td>
-                        <td style={numberCell}>{fmtPayslipAmount(primaryAmount)}</td>
-                      </tr>
-                      <tr>
-                        <td colSpan={6} style={baseCell}>Salary Paid On /Before 20th</td>
-                        <td colSpan={2} style={baseCell}>Amount:</td>
-                        <td style={numberCell}>{fmtPayslipAmount(secondaryAmount)}</td>
-                      </tr>
-                      <tr>
-                        <td colSpan={6} style={baseCell}>Salary Paid On /After 20th</td>
-                        <td colSpan={2} style={baseCell}>Amount:</td>
-                        <td style={numberCell}>{fmtPayslipAmount(thirdAmount)}</td>
-                      </tr>
-                      <tr>
-                        <td colSpan={8} style={baseCell}></td>
-                        <td style={{ ...numberCell, fontWeight: 700 }}>{fmtPayslipAmount(paymentTotal)}</td>
-                      </tr>
-                      <tr>
-                        <td colSpan={9} style={{ ...baseCell, borderLeft: 'none', borderRight: 'none', height: '10px' }}></td>
-                      </tr>
-                      <tr>
-                        <td colSpan={9} style={baseCell}>Remarks 備註 :  </td>
+                        <td colSpan={9} style={labelCell}>Remarks 備註 :  </td>
                       </tr>
                     </tbody>
                   </table>

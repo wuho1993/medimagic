@@ -986,6 +986,7 @@ export type PayrollEmployeeSummary = {
   employeeCode: string;
   nameZh: string;
   alias: string | null;
+  identityNumber: string | null;
   branchName: string | null;
   positionCode: string | null;
   positionNameZh: string | null;
@@ -1027,7 +1028,7 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
   const supabase = await createServerSupabaseClient();
   const buildQuery = (profileSelect: string) => supabase
     .from('employees')
-    .select(`employee_code, name_zh, alias, hire_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
+    .select(`employee_code, name_zh, alias, identity_number, hire_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
     .eq('employment_status', 'active')
     .order('employee_code');
 
@@ -1048,6 +1049,7 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
     employee_code: string;
     name_zh: string;
     alias: string | null;
+    identity_number: string | null;
     hire_date: string;
     date_of_birth: string | null;
     position: { code: string | null; name_zh: string | null } | { code: string | null; name_zh: string | null }[] | null;
@@ -1065,6 +1067,7 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
       employeeCode: row.employee_code,
       nameZh: row.name_zh,
       alias: row.alias,
+      identityNumber: row.identity_number,
       branchName: normalizeLookupValue(row.branch).nameZh,
       positionCode: Array.isArray(row.position) ? (row.position[0]?.code ?? null) : (row.position?.code ?? null),
       positionNameZh: Array.isArray(row.position) ? (row.position[0]?.name_zh ?? null) : (row.position?.name_zh ?? null),
