@@ -153,11 +153,17 @@ type PayslipPdfEntry = {
   noPayDays: number;
   branchName: string | null;
   selectedMonth: string;
+  rawBaseSalary: number;
+  rawAllowanceAmount: number;
+  rawTransportAllowance: number;
   calculatedBaseSalary: number;
   allowanceAmount: number;
   transportAllowance: number;
+  rawBriefingBonus: number;
   briefingBonus: number;
+  rawAttendanceBonus: number;
   attendanceBonus: number;
+  rawBookingBonus: number;
   bookingBonus: number;
   manualBonus: number;
   manualDeduction: number;
@@ -255,6 +261,7 @@ const translations = {
       attendanceNoPayRemainder: '出勤管理無薪剩餘扣減',
       attendanceNoPayRemainderDescription: 'No Pay 已先按比例扣減底薪、津貼及獎金，以下是仍需另外扣減的餘額。',
       attendanceNoPayDays: '無薪日數',
+      attendanceRecordSourceNote: '以上出勤扣減資料來自 Attendance Record。',
       packageNoPayTitle: '包佣 No Pay 處理',
       packageNoPayDescription: '此包佣員工本月有 No Pay，而按比率計算佣金未超過包佣，請選擇今月包佣處理方式。',
       packageNoPayNeedsSelection: '請選擇本月包佣處理方式',
@@ -385,6 +392,7 @@ const translations = {
       attendanceNoPayRemainder: '出勤管理无薪剩余扣减',
       attendanceNoPayRemainderDescription: 'No Pay 已先按比例扣减底薪、津贴及奖金，以下是仍需另外扣减的余额。',
       attendanceNoPayDays: '无薪日数',
+      attendanceRecordSourceNote: '以上出勤扣减资料来自 Attendance Record。',
       packageNoPayTitle: '包佣 No Pay 处理',
       packageNoPayDescription: '此包佣员工本月有 No Pay，而按比率计算佣金未超过包佣，请选择今月包佣处理方式。',
       packageNoPayNeedsSelection: '请选择本月包佣处理方式',
@@ -515,6 +523,7 @@ const translations = {
       attendanceNoPayRemainder: 'Remaining Attendance No-Pay Deduction',
       attendanceNoPayRemainderDescription: 'No-pay has already been applied proportionally across base salary, allowances, and bonuses. This is only the remaining amount that still needs an extra deduction line.',
       attendanceNoPayDays: 'No-Pay Days',
+      attendanceRecordSourceNote: 'The attendance-related deductions above are sourced from the attendance record.',
       packageNoPayTitle: 'Package No-Pay Handling',
       packageNoPayDescription: 'This package-commission employee has no-pay attendance this month, and the calculated commission does not exceed the package amount. Choose how the package should be handled this month.',
       packageNoPayNeedsSelection: 'Select this month\'s package handling',
@@ -1300,6 +1309,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     return {
       ...emp,
       rawCalculatedBaseSalary,
+      rawAllowanceAmount: emp.allowanceAmount,
+      rawTransportAllowance: emp.transportAllowance,
       workedDays,
       workedHours,
       hasWorkedDays,
@@ -1440,11 +1451,17 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     noPayDays: row.attendanceNoPayDays,
     branchName: row.branchName ?? null,
     selectedMonth,
+    rawBaseSalary: row.rawCalculatedBaseSalary,
+    rawAllowanceAmount: row.rawAllowanceAmount,
+    rawTransportAllowance: row.rawTransportAllowance,
     calculatedBaseSalary: row.calculatedBaseSalary,
     allowanceAmount: row.allowanceAmount,
     transportAllowance: row.transportAllowance,
+    rawBriefingBonus: row.rawBriefingBonus,
     briefingBonus: row.briefingBonus,
+    rawAttendanceBonus: row.rawAttendanceBonus,
     attendanceBonus: row.attendanceBonus,
+    rawBookingBonus: row.rawBookingBonus,
     bookingBonus: row.bookingBonus,
     manualBonus: row.manualBonus,
     manualDeduction: row.totalDeduction,
@@ -2128,6 +2145,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.attendanceNoPayRemainder}</div>
                                   <div className="text-xs text-slate-500">{t.commInput.attendanceNoPayRemainderDescription}</div>
+                                  <div className="mt-1 text-xs text-amber-700">{t.commInput.attendanceRecordSourceNote}</div>
                                 </div>
                                 <input
                                   type="number"
@@ -2679,7 +2697,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
           <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '8px 30px 14px', fontFamily: 'Arial Unicode MS, Microsoft JhengHei, PingFang TC, sans-serif', fontSize: '10.5pt' }}>
             {(() => {
               const showPackageOnlyCommission = activePayslipPdfEntry.isPackageEmployee && !activePayslipPdfEntry.actualCommissionExceedsPackage;
-              const allowanceTotal = roundMoney(activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance);
+              const allowanceTotal = roundMoney(activePayslipPdfEntry.rawAllowanceAmount + activePayslipPdfEntry.rawTransportAllowance);
               const discretionaryCommission = roundMoney(
                 activePayslipPdfEntry.redeemCommission
                 + activePayslipPdfEntry.salesAmountCommission
@@ -2687,12 +2705,30 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                 + activePayslipPdfEntry.telesalesCommission
               );
               const extraBonus = roundMoney(activePayslipPdfEntry.payrollBonus + activePayslipPdfEntry.shopBonus);
+              const baseSalaryDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBaseSalary - activePayslipPdfEntry.calculatedBaseSalary, 0));
+              const allowanceDeduction = roundMoney(Math.max(allowanceTotal - (activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance), 0));
+              const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));
+              const attendanceDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawAttendanceBonus - activePayslipPdfEntry.attendanceBonus, 0));
+              const bookingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBookingBonus - activePayslipPdfEntry.bookingBonus, 0));
+              const lateLabel = activePayslipPdfEntry.lateDays > 0
+                ? `Late  遲到 (${activePayslipPdfEntry.lateDays}日)`
+                : 'Late  遲到';
+              const noPayLabel = activePayslipPdfEntry.noPayDays > 0
+                ? `No Pay Leave  無薪假 (${activePayslipPdfEntry.noPayDays}日)`
+                : 'No Pay Leave  無薪假';
+              const attendanceDeductionRows: Array<[string, number]> = [
+                ['No Pay Leave - Basic Salary  無薪假扣底薪', baseSalaryDeduction] as [string, number],
+                ['No Pay Leave - Allowance  無薪假扣津貼', allowanceDeduction] as [string, number],
+                ['No Pay Leave - Briefing Bonus  無薪假扣早會獎金', briefingDeduction] as [string, number],
+                ['No Pay Leave - Diligent  無薪假扣勤工獎', attendanceDeduction] as [string, number],
+                ['No Pay Leave - Booking Bonus  無薪假扣預約獎金', bookingDeduction] as [string, number],
+              ].filter(([, value]) => value > 0);
               const baseIncomeRows: Array<[string, number]> = [
-                ['Basic Salary  底薪', activePayslipPdfEntry.calculatedBaseSalary],
+                ['Basic Salary  底薪', activePayslipPdfEntry.rawBaseSalary],
                 ['Allowance  車津貼', allowanceTotal],
-                ['Diligent  勤工獎', activePayslipPdfEntry.attendanceBonus],
-                ['Briefing Bonus 早會獎金', activePayslipPdfEntry.briefingBonus],
-                ['Booking Bonus 預約獎金', activePayslipPdfEntry.bookingBonus],
+                ['Diligent  勤工獎', activePayslipPdfEntry.rawAttendanceBonus],
+                ['Briefing Bonus 早會獎金', activePayslipPdfEntry.rawBriefingBonus],
+                ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
               ];
               const commissionIncomeRows: Array<[string, number]> = showPackageOnlyCommission
                 ? [['Package Commission  包佣金額', activePayslipPdfEntry.packageCommission]]
@@ -2714,8 +2750,19 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                 ['Other 其他', 0],
               ];
               const incomeSubtotal = roundMoney(incomeRows.reduce((sum, [, value]) => sum + value, 0));
+              const deductionRows: Array<[string, number]> = [
+                [lateLabel, 0],
+                ...attendanceDeductionRows,
+              ];
+              if (activePayslipPdfEntry.noPayLeaveDeduction > 0) {
+                deductionRows.push(['No Pay Leave - Remaining Deduction  無薪假餘額扣減', activePayslipPdfEntry.noPayLeaveDeduction]);
+              }
+              if (attendanceDeductionRows.length === 0 && activePayslipPdfEntry.noPayLeaveDeduction <= 0) {
+                deductionRows.push([noPayLabel, activePayslipPdfEntry.noPayLeaveDeduction]);
+              }
+              const deductionSubtotal = roundMoney(deductionRows.reduce((sum, [, value]) => sum + value, 0));
               const adjustmentAmount = activePayslipPdfEntry.adjustmentAmount;
-              const grandTotal = roundMoney(incomeSubtotal + adjustmentAmount);
+              const grandTotal = roundMoney(incomeSubtotal - deductionSubtotal + adjustmentAmount);
               const staffSalaryAfterMpf = roundMoney(grandTotal - activePayslipPdfEntry.mpfEe);
               const primaryAmount = activePayslipPdfEntry.primaryPayoutNet;
               const secondaryAmount = activePayslipPdfEntry.secondaryPayoutNet;
@@ -2725,12 +2772,6 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const labelCell: React.CSSProperties = { ...valueCell, whiteSpace: 'nowrap' };
               const amountCell: React.CSSProperties = { ...valueCell, textAlign: 'right', fontFamily: 'Arial Unicode MS, Arial, sans-serif', whiteSpace: 'nowrap', paddingRight: '8px' };
               const sectionCell: React.CSSProperties = { ...labelCell, fontWeight: 700, textDecoration: 'underline' };
-              const lateLabel = activePayslipPdfEntry.lateDays > 0
-                ? `Late  遲到 (${activePayslipPdfEntry.lateDays}日)`
-                : 'Late  遲到';
-              const noPayLabel = activePayslipPdfEntry.noPayDays > 0
-                ? `No Pay Leave  無薪假 (${activePayslipPdfEntry.noPayDays}日)`
-                : 'No Pay Leave  無薪假';
               const ruleAmountCell = (): React.CSSProperties => ({
                 ...amountCell,
                 paddingTop: '0',
@@ -2822,26 +2863,22 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         <td colSpan={6} style={sectionCell}>Deduction 扣除</td>
                         <td colSpan={3}></td>
                       </tr>
-                      <tr>
-                        <td colSpan={6} style={labelCell}>{lateLabel}</td>
-                        <td style={amountCell}></td>
-                        <td style={amountCell}>{fmtPayslipAmount(0)}</td>
-                        <td></td>
-                      </tr>
-                      <tr>
-                        <td colSpan={6} style={labelCell}>{noPayLabel}</td>
-                        <td style={amountCell}></td>
-                        <td style={amountCell}>{fmtPayslipAmount(activePayslipPdfEntry.noPayLeaveDeduction)}</td>
-                        <td></td>
-                      </tr>
+                      {deductionRows.map(([label, value]) => (
+                        <tr key={label}>
+                          <td colSpan={6} style={labelCell}>{label}</td>
+                          <td style={amountCell}></td>
+                          <td style={amountCell}>{fmtPayslipAmount(value)}</td>
+                          <td></td>
+                        </tr>
+                      ))}
                       <tr>
                         <td colSpan={8}></td>
-                        <td style={ruleAmountCell()}><div style={ruledAmountStyle()}>{fmtPayslipAmount(0)}</div></td>
+                        <td style={ruleAmountCell()}><div style={ruledAmountStyle()}>{fmtPayslipAmount(deductionSubtotal)}</div></td>
                       </tr>
                       <tr>
                         <td colSpan={6} style={labelCell}>This Month Grand Total  總額</td>
                         <td colSpan={2}></td>
-                        <td style={amountCell}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                        <td style={amountCell}>{fmtPayslipAmount(roundMoney(incomeSubtotal - deductionSubtotal))}</td>
                       </tr>
                       <tr>
                         <td colSpan={6} style={labelCell}>Adjustment</td>
