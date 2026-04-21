@@ -180,6 +180,7 @@ type PayslipPdfEntry = {
   telesalesCommission: number;
   salesBonus: number;
   payrollBonus: number;
+  packageCommissionAmount: number;
   packageCommission: number;
   isPackageEmployee: boolean;
   actualCommissionExceedsPackage: boolean;
@@ -1481,6 +1482,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     telesalesCommission: row.telesalesCommission,
     salesBonus: row.commResult.salesBonus,
     payrollBonus: row.commResult.payrollBonus,
+    packageCommissionAmount: row.packageCommissionAmount,
     packageCommission: row.packageCommission,
     isPackageEmployee: row.isPackageEmployee,
     actualCommissionExceedsPackage: row.actualCommissionExceedsPackage,
@@ -2714,6 +2716,9 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));
               const attendanceDeduction = roundMoney(Math.max(activePayslipPdfEntry.displayAttendanceBonus - activePayslipPdfEntry.attendanceBonus, 0));
               const bookingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBookingBonus - activePayslipPdfEntry.bookingBonus, 0));
+              const packageCommissionDeduction = showPackageOnlyCommission
+                ? roundMoney(Math.max(activePayslipPdfEntry.packageCommissionAmount - activePayslipPdfEntry.packageCommission, 0))
+                : 0;
               const hasLateAttendanceDeduction = activePayslipPdfEntry.lateDays > 0 && attendanceDeduction > 0;
               const lateLabel = hasLateAttendanceDeduction
                 ? `Late - Diligent  遲到扣勤工獎 (${activePayslipPdfEntry.lateDays}日)`
@@ -2738,6 +2743,12 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                   attendanceDeduction,
                 ]);
               }
+              if (packageCommissionDeduction > 0) {
+                attendanceDeductionRows.push([
+                  `No Pay Leave - Package Commission  無薪假扣包佣金額${noPayDeductionSuffix}`,
+                  packageCommissionDeduction,
+                ]);
+              }
               const baseIncomeRows: Array<[string, number]> = [
                 ['Basic Salary  底薪', activePayslipPdfEntry.rawBaseSalary],
                 ['Allowance  車津貼', allowanceTotal],
@@ -2746,7 +2757,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
               ];
               const commissionIncomeRows: Array<[string, number]> = showPackageOnlyCommission
-                ? [['Package Commission  包佣金額', activePayslipPdfEntry.packageCommission]]
+                ? [['Package Commission  包佣金額', activePayslipPdfEntry.packageCommissionAmount]]
                 : [
                   ['Shop Commission  店鋪佣金', activePayslipPdfEntry.salesCommission],
                   ['MGM Bonus  介紹獎金', activePayslipPdfEntry.sgmCommission],
