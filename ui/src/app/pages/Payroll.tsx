@@ -2773,11 +2773,14 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const specialBonusLabel = showPackageOnlyCommission
                 ? 'Discretionary Special Bonus  酌情特佣'
                 : 'Job Done Special Bonus  手工部酌情特佣';
+              const extraBonusLabel = showPackageOnlyCommission
+                ? 'Extra Bonus '
+                : 'Discretionary Special Bonus  酌情特佣';
               const incomeRows: Array<[string, number]> = [
                 ...baseIncomeRows,
                 ...commissionIncomeRows,
                 [specialBonusLabel, activePayslipPdfEntry.salesBonus],
-                ['Extra Bonus ', extraBonus],
+                [extraBonusLabel, extraBonus],
                 ['SH/AL Commission  勞工假/大假平均佣金', 0],
                 ['Other 其他', 0],
               ];
