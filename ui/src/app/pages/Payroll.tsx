@@ -2779,10 +2779,16 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const secondaryAmount = activePayslipPdfEntry.secondaryPayoutNet;
               const thirdAmount = 0;
               const paymentTotal = roundMoney(primaryAmount + secondaryAmount + thirdAmount);
+              const underlineGap = '8px';
               const valueCell: React.CSSProperties = { padding: '1px 0', verticalAlign: 'middle', lineHeight: '15px', fontWeight: 400 };
               const labelCell: React.CSSProperties = { ...valueCell, whiteSpace: 'nowrap' };
               const amountCell: React.CSSProperties = { ...valueCell, textAlign: 'right', fontFamily: 'Arial Unicode MS, Arial, sans-serif', whiteSpace: 'nowrap', paddingRight: '8px' };
-              const sectionCell: React.CSSProperties = { ...labelCell, fontWeight: 700, textDecoration: 'underline' };
+              const sectionCell: React.CSSProperties = {
+                ...labelCell,
+                fontWeight: 700,
+                borderBottom: '2px solid #000',
+                paddingBottom: underlineGap,
+              };
               const ruleAmountCell = (): React.CSSProperties => ({
                 ...amountCell,
                 paddingTop: '0',
@@ -2793,7 +2799,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                 width: '100%',
                 borderBottom: weight === 'medium' ? '2px solid #000' : '1px solid #000',
                 borderTop: topBorder ? '1px solid #000' : 'none',
-                padding: '0 0 8px',
+                padding: topBorder ? `${underlineGap} 0 ${underlineGap}` : `0 0 ${underlineGap}`,
                 lineHeight: '15px',
               });
               const spacerRow = (height: string): React.ReactNode => (
@@ -2925,7 +2931,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         <td colSpan={2} style={ruleAmountCell()}><div style={ruledAmountStyle()}>{fmtPayslipAmount(staffSalaryAfterMpf)}</div></td>
                       </tr>
                       <tr>
-                        <td colSpan={9} style={{ borderBottom: '2px solid #000', height: '8px' }}></td>
+                        <td colSpan={9} style={{ borderBottom: '2px solid #000', height: underlineGap }}></td>
                       </tr>
                       <tr>
                         <td colSpan={6} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Salary Paid On /Before 7th</td>
