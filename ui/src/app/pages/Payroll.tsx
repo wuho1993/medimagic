@@ -953,7 +953,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
   const fmt = (v: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'HKD', maximumFractionDigits: 0 }).format(v);
   const fmtDec = (v: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'HKD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
-  const fmtPayslipAmount = (v: number) => new Intl.NumberFormat('en-HK', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 }).format(v);
+  const fmtPayslipAmount = (v: number) => new Intl.NumberFormat('en-HK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const [isPending, startTransition] = useTransition();
@@ -2731,12 +2731,19 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const noPayLabel = activePayslipPdfEntry.noPayDays > 0
                 ? `No Pay Leave  無薪假 (${activePayslipPdfEntry.noPayDays}日)`
                 : 'No Pay Leave  無薪假';
-              const ruleAmountCell = (weight: 'thin' | 'medium' = 'medium'): React.CSSProperties => ({
+              const ruleAmountCell = (): React.CSSProperties => ({
                 ...amountCell,
+                paddingTop: '0',
+                paddingBottom: '0',
+              });
+              const ruledAmountStyle = (weight: 'thin' | 'medium' = 'medium', topBorder = false): React.CSSProperties => ({
+                display: 'block',
+                width: '100%',
                 borderBottom: weight === 'medium' ? '2px solid #000' : '1px solid #000',
-                paddingTop: '1px',
-                paddingBottom: '4px',
-                lineHeight: '13px',
+                borderTop: topBorder ? '1px solid #000' : 'none',
+                padding: '0 0 5px',
+                lineHeight: '14px',
+                transform: 'translateY(-1px)',
               });
               const spacerRow = (height: string): React.ReactNode => (
                 <tr>
@@ -2808,7 +2815,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                       ))}
                       <tr>
                         <td colSpan={7}></td>
-                        <td colSpan={2} style={ruleAmountCell()}>{fmtPayslipAmount(incomeSubtotal)}</td>
+                        <td colSpan={2} style={ruleAmountCell()}><div style={ruledAmountStyle()}>{fmtPayslipAmount(incomeSubtotal)}</div></td>
                       </tr>
                       {spacerRow('6px')}
                       <tr>
@@ -2829,7 +2836,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                       </tr>
                       <tr>
                         <td colSpan={8}></td>
-                        <td style={ruleAmountCell()}>{fmtPayslipAmount(0)}</td>
+                        <td style={ruleAmountCell()}><div style={ruledAmountStyle()}>{fmtPayslipAmount(0)}</div></td>
                       </tr>
                       <tr>
                         <td colSpan={6} style={labelCell}>This Month Grand Total  總額</td>
@@ -2868,7 +2875,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                       {spacerRow('8px')}
                       <tr>
                         <td colSpan={7} style={labelCell}>Staff Salary After Deduct Staff MPF Contribution  強積金供款後薪金</td>
-                        <td colSpan={2} style={ruleAmountCell()}>{fmtPayslipAmount(staffSalaryAfterMpf)}</td>
+                        <td colSpan={2} style={ruleAmountCell()}><div style={ruledAmountStyle()}>{fmtPayslipAmount(staffSalaryAfterMpf)}</div></td>
                       </tr>
                       <tr>
                         <td colSpan={9} style={{ borderBottom: '2px solid #000', height: '8px' }}></td>
@@ -2886,11 +2893,11 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                       <tr>
                         <td colSpan={6} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Salary Paid On /After 20th</td>
                         <td colSpan={2} style={{ ...labelCell, fontFamily: 'Arial Unicode MS, Arial, sans-serif' }}>Amount:</td>
-                        <td style={{ ...ruleAmountCell('thin') }}>{fmtPayslipAmount(thirdAmount)}</td>
+                        <td style={ruleAmountCell()}><div style={ruledAmountStyle('thin')}>{fmtPayslipAmount(thirdAmount)}</div></td>
                       </tr>
                       <tr>
                         <td colSpan={8}></td>
-                        <td style={{ ...ruleAmountCell(), borderTop: '1px solid #000' }}>{fmtPayslipAmount(paymentTotal)}</td>
+                        <td style={ruleAmountCell()}><div style={ruledAmountStyle('medium', true)}>{fmtPayslipAmount(paymentTotal)}</div></td>
                       </tr>
                       {spacerRow('8px')}
                       <tr>
