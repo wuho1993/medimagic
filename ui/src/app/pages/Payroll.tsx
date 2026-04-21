@@ -175,6 +175,7 @@ type PayslipPdfEntry = {
   payrollBonus: number;
   packageCommission: number;
   isPackageEmployee: boolean;
+  actualCommissionExceedsPackage: boolean;
   grossAmount: number;
   mpfEe: number;
   mpfEr: number;
@@ -1461,6 +1462,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     payrollBonus: row.commResult.payrollBonus,
     packageCommission: row.packageCommission,
     isPackageEmployee: row.isPackageEmployee,
+    actualCommissionExceedsPackage: row.actualCommissionExceedsPackage,
     grossAmount: roundMoney(row.grossBase + row.displayedCommission),
     mpfEe: row.mpfEe,
     mpfEr: row.mpfEr,
@@ -2676,23 +2678,31 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
         {activePayslipPdfEntry ? (
           <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '12px 34px 20px', fontFamily: 'PMingLiU, MingLiU, SimSun, Arial Unicode MS, serif', fontSize: '10pt' }}>
             {(() => {
+              const showPackageOnlyCommission = activePayslipPdfEntry.isPackageEmployee && !activePayslipPdfEntry.actualCommissionExceedsPackage;
               const discretionaryCommission = roundMoney(
                 activePayslipPdfEntry.redeemCommission
                 + activePayslipPdfEntry.salesAmountCommission
                 + activePayslipPdfEntry.jobCommission
                 + activePayslipPdfEntry.streetPromoterCommission
                 + activePayslipPdfEntry.telesalesCommission
-                + (activePayslipPdfEntry.isPackageEmployee ? activePayslipPdfEntry.packageCommission : 0),
               );
               const extraBonus = roundMoney(activePayslipPdfEntry.payrollBonus + activePayslipPdfEntry.shopBonus);
-              const incomeRows: Array<[string, number]> = [
+              const baseIncomeRows: Array<[string, number]> = [
                 ['Basic Salary  底薪', activePayslipPdfEntry.calculatedBaseSalary],
                 ['Diligent  勤工獎', activePayslipPdfEntry.attendanceBonus],
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.briefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.bookingBonus],
-                ['Shop Commission  店鋪佣金', activePayslipPdfEntry.salesCommission],
-                ['MGM Bonus  介紹獎金', activePayslipPdfEntry.sgmCommission],
-                ['Discretionary Commissionn  酌情佣金', discretionaryCommission],
+              ];
+              const commissionIncomeRows: Array<[string, number]> = showPackageOnlyCommission
+                ? [['Package Commission  包佣金額', activePayslipPdfEntry.packageCommission]]
+                : [
+                  ['Shop Commission  店鋪佣金', activePayslipPdfEntry.salesCommission],
+                  ['MGM Bonus  介紹獎金', activePayslipPdfEntry.sgmCommission],
+                  ['Discretionary Commissionn  酌情佣金', discretionaryCommission],
+                ];
+              const incomeRows: Array<[string, number]> = [
+                ...baseIncomeRows,
+                ...commissionIncomeRows,
                 ['Discretionary Special Bonus  酌情特佣', activePayslipPdfEntry.salesBonus],
                 ['Extra Bonus ', extraBonus],
                 ['SH/AL Commission  勞工假/大假平均佣金', 0],
