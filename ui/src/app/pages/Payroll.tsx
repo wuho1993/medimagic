@@ -2793,9 +2793,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                 width: '100%',
                 borderBottom: weight === 'medium' ? '2px solid #000' : '1px solid #000',
                 borderTop: topBorder ? '1px solid #000' : 'none',
-                padding: '0 0 5px',
-                lineHeight: '14px',
-                transform: 'translateY(-1px)',
+                padding: '0 0 8px',
+                lineHeight: '15px',
               });
               const spacerRow = (height: string): React.ReactNode => (
                 <tr>
