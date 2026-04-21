@@ -1,6 +1,6 @@
-'use server';
 
-import { revalidatePath } from 'next/cache';
+"use server";
+
 import { canAccessRoute } from '@/src/lib/auth/roles';
 import { getCurrentUser } from '@/src/lib/auth/session';
 import { createSupabaseAdminClient } from '@/src/lib/supabase/admin';
@@ -121,7 +121,7 @@ export async function uploadEmployeeDocument(formData: FormData) {
     throw new Error(insertError.message);
   }
 
-  revalidatePath(`/app/people/${employee.employee_code}`);
+  void 0;
 }
 
 export async function deleteEmployeeDocument(formData: FormData) {
@@ -157,5 +157,5 @@ export async function deleteEmployeeDocument(formData: FormData) {
     throw new Error(deleteError.message);
   }
 
-  revalidatePath(`/app/people/${employee.employee_code}`);
+  void 0;
 }

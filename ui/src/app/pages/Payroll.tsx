@@ -2651,23 +2651,57 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
       <div className="pointer-events-none fixed top-0 -z-10" style={{ left: '-9999px' }}>
         {activePayslipPdfEntry ? (
-          <div ref={payslipPdfCardRef} className="bg-white p-10 text-slate-900" style={{ width: '794px' }}>
-            <div className="rounded-[28px] border border-[#e7dcc0] bg-[linear-gradient(135deg,#fffdf6_0%,#fff7df_100%)] p-8 shadow-sm">
-              <div className="flex items-start justify-between gap-6 border-b border-[#e7dcc0] pb-6">
+          <div
+            ref={payslipPdfCardRef}
+            style={{
+              width: '794px',
+              backgroundColor: '#ffffff',
+              color: '#0f172a',
+              padding: '40px',
+              fontFamily: 'Arial, Helvetica, sans-serif',
+            }}
+          >
+            <div
+              style={{
+                borderRadius: '28px',
+                border: '1px solid #e7dcc0',
+                background: 'linear-gradient(135deg, #fffdf6 0%, #fff7df 100%)',
+                padding: '32px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: '24px',
+                  borderBottom: '1px solid #e7dcc0',
+                  paddingBottom: '24px',
+                }}
+              >
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9a7b1f]">Medi Magic HRMS</div>
-                  <h2 className="mt-3 text-3xl font-semibold text-slate-900">Payslip Details</h2>
-                  <p className="mt-2 text-sm text-slate-600">{activePayslipPdfEntry.selectedMonth}</p>
+                  <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#9a7b1f' }}>Medi Magic HRMS</div>
+                  <h2 style={{ marginTop: '12px', fontSize: '30px', lineHeight: 1.2, fontWeight: 600, color: '#0f172a' }}>Payslip Details</h2>
+                  <p style={{ marginTop: '8px', fontSize: '14px', color: '#475569' }}>{activePayslipPdfEntry.selectedMonth}</p>
                 </div>
-                <div className="rounded-2xl bg-white/80 px-4 py-3 text-right shadow-sm ring-1 ring-[#efe3bd]">
-                  <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Employee</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-900">{activePayslipPdfEntry.employeeName}</div>
-                  <div className="text-sm text-slate-500">{activePayslipPdfEntry.employeeCode}</div>
-                  <div className="mt-1 text-sm text-slate-500">{activePayslipPdfEntry.branchName ?? '—'}</div>
+                <div
+                  style={{
+                    minWidth: '220px',
+                    borderRadius: '16px',
+                    backgroundColor: '#ffffff',
+                    padding: '12px 16px',
+                    textAlign: 'right',
+                    border: '1px solid #efe3bd',
+                  }}
+                >
+                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#64748b' }}>Employee</div>
+                  <div style={{ marginTop: '4px', fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>{activePayslipPdfEntry.employeeName}</div>
+                  <div style={{ fontSize: '14px', color: '#64748b' }}>{activePayslipPdfEntry.employeeCode}</div>
+                  <div style={{ marginTop: '4px', fontSize: '14px', color: '#64748b' }}>{activePayslipPdfEntry.branchName ?? '—'}</div>
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
+              <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '14px' }}>
                 {[
                   ['Base Salary', activePayslipPdfEntry.calculatedBaseSalary],
                   ['Allowance + Transport', activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance],
@@ -2688,52 +2722,72 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                   ['Bonus', activePayslipPdfEntry.payrollBonus],
                   ['Package Commission', activePayslipPdfEntry.isPackageEmployee ? activePayslipPdfEntry.packageCommission : 0],
                 ].map(([label, value]) => (
-                  <div key={String(label)} className="rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-[#efe3bd]">
-                    <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</div>
-                    <div className="mt-2 text-lg font-semibold text-slate-900">{fmtDec(Number(value))}</div>
+                  <div
+                    key={String(label)}
+                    style={{
+                      borderRadius: '16px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #efe3bd',
+                      padding: '12px 16px',
+                    }}
+                  >
+                    <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#64748b' }}>{label}</div>
+                    <div style={{ marginTop: '8px', fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>{fmtDec(Number(value))}</div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 grid grid-cols-3 gap-3">
-                <div className="rounded-2xl bg-slate-900 px-5 py-4 text-white">
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-300">Gross Amount</div>
-                  <div className="mt-2 text-2xl font-semibold">{fmtDec(activePayslipPdfEntry.grossAmount)}</div>
+              <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div style={{ borderRadius: '16px', backgroundColor: '#0f172a', padding: '16px 20px', color: '#ffffff' }}>
+                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#cbd5e1' }}>Gross Amount</div>
+                  <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 600 }}>{fmtDec(activePayslipPdfEntry.grossAmount)}</div>
                 </div>
-                <div className="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-[#efe3bd]">
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">MPF Employee</div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{fmtDec(activePayslipPdfEntry.mpfEe)}</div>
+                <div style={{ borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #efe3bd', padding: '16px 20px' }}>
+                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#64748b' }}>MPF Employee</div>
+                  <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 600, color: '#0f172a' }}>{fmtDec(activePayslipPdfEntry.mpfEe)}</div>
                 </div>
-                <div className="rounded-2xl bg-[#D4AF37] px-5 py-4 text-white shadow-sm">
-                  <div className="text-xs uppercase tracking-[0.18em] text-amber-100">Net Amount</div>
-                  <div className="mt-2 text-2xl font-semibold">{fmtDec(activePayslipPdfEntry.netAmount)}</div>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-4">
-                <div className="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-[#efe3bd]">
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Primary Payroll</div>
-                  <div className="mt-3 space-y-2 text-sm text-slate-700">
-                    <div className="flex items-center justify-between"><span>Pay Day</span><span>{activePayslipPdfEntry.payDayPrimary ?? '—'}</span></div>
-                    <div className="flex items-center justify-between"><span>Gross</span><span>{fmtDec(activePayslipPdfEntry.primaryPayoutGross)}</span></div>
-                    <div className="flex items-center justify-between"><span>MPF</span><span>{fmtDec(activePayslipPdfEntry.primaryMpf)}</span></div>
-                    <div className="flex items-center justify-between font-semibold text-slate-900"><span>Net</span><span>{fmtDec(activePayslipPdfEntry.primaryPayoutNet)}</span></div>
-                  </div>
-                </div>
-                <div className="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-[#efe3bd]">
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Secondary Payroll</div>
-                  <div className="mt-3 space-y-2 text-sm text-slate-700">
-                    <div className="flex items-center justify-between"><span>Pay Day</span><span>{activePayslipPdfEntry.payDaySecondary ?? '—'}</span></div>
-                    <div className="flex items-center justify-between"><span>Gross</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryPayoutGross) : '—'}</span></div>
-                    <div className="flex items-center justify-between"><span>MPF</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryMpf) : '—'}</span></div>
-                    <div className="flex items-center justify-between font-semibold text-slate-900"><span>Net</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryPayoutNet) : '—'}</span></div>
-                  </div>
+                <div style={{ borderRadius: '16px', backgroundColor: '#D4AF37', padding: '16px 20px', color: '#ffffff' }}>
+                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#fef3c7' }}>Net Amount</div>
+                  <div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 600 }}>{fmtDec(activePayslipPdfEntry.netAmount)}</div>
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center justify-between rounded-2xl border border-dashed border-[#d8c79b] px-5 py-4 text-sm text-slate-600">
+              <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #efe3bd', padding: '16px 20px' }}>
+                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#64748b' }}>Primary Payroll</div>
+                  <div style={{ marginTop: '12px', fontSize: '14px', color: '#334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>Pay Day</span><span>{activePayslipPdfEntry.payDayPrimary ?? '—'}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>Gross</span><span>{fmtDec(activePayslipPdfEntry.primaryPayoutGross)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>MPF</span><span>{fmtDec(activePayslipPdfEntry.primaryMpf)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#0f172a' }}><span>Net</span><span>{fmtDec(activePayslipPdfEntry.primaryPayoutNet)}</span></div>
+                  </div>
+                </div>
+                <div style={{ borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #efe3bd', padding: '16px 20px' }}>
+                  <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.18em', color: '#64748b' }}>Secondary Payroll</div>
+                  <div style={{ marginTop: '12px', fontSize: '14px', color: '#334155' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>Pay Day</span><span>{activePayslipPdfEntry.payDaySecondary ?? '—'}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>Gross</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryPayoutGross) : '—'}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span>MPF</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryMpf) : '—'}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#0f172a' }}><span>Net</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryPayoutNet) : '—'}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderRadius: '16px',
+                  border: '1px dashed #d8c79b',
+                  padding: '16px 20px',
+                  fontSize: '14px',
+                  color: '#475569',
+                }}
+              >
                 <span>Month-end MPF Deduction</span>
-                <span className="text-base font-semibold text-slate-900">{fmtDec(activePayslipPdfEntry.monthEndMpf)}</span>
+                <span style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>{fmtDec(activePayslipPdfEntry.monthEndMpf)}</span>
               </div>
             </div>
           </div>

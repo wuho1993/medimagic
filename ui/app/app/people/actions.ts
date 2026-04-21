@@ -1,6 +1,6 @@
-'use server';
 
-import { revalidatePath } from 'next/cache';
+"use server";
+
 import { hasBranchAccess, hasCompanyAccess } from '@/src/lib/auth/access';
 import { createSupabaseAdminClient } from '@/src/lib/supabase/admin';
 import { canAccessRoute } from '@/src/lib/auth/roles';
@@ -339,7 +339,7 @@ export async function createEmployee(formData: FormData) {
     throw new Error(error.message);
   }
 
-  revalidatePath('/app/people');
+  void 0;
 }
 
 export async function updateEmployee(formData: FormData) {
@@ -580,12 +580,12 @@ export async function updateEmployee(formData: FormData) {
   }
 
   if (originalEmployeeCode) {
-    revalidatePath(`/app/people/${originalEmployeeCode}`);
+    void 0;
   }
 
-  revalidatePath(`/app/people/${normalizedEmployeeCode}`);
-  revalidatePath('/app/people');
-  revalidatePath('/app/payroll');
+  void 0;
+  void 0;
+  void 0;
 
   return { employeeCode: normalizedEmployeeCode };
 }
