@@ -161,6 +161,7 @@ type PayslipPdfEntry = {
   transportAllowance: number;
   rawBriefingBonus: number;
   briefingBonus: number;
+  displayAttendanceBonus: number;
   rawAttendanceBonus: number;
   attendanceBonus: number;
   rawBookingBonus: number;
@@ -1186,6 +1187,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     const hasSalesAmountCommission = (emp.salesAmountRatePercent ?? 0) > 0;
     const packageCommissionAmount = isPackageEmployee ? emp.packageCommissionAmount : 0;
     const rawBriefingBonus = monthlyBonus.briefingApplied ? Number(monthlyBonus.briefingAmount) || 0 : 0;
+    const displayAttendanceBonus = Number(monthlyBonus.attendanceAmount) || 0;
     const attendanceBonusApplied = hasLateDays ? false : monthlyBonus.attendanceApplied;
     const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
@@ -1332,6 +1334,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
       transportAllowance: scaledTransportAllowance,
       rawBriefingBonus: rawBriefingBonus,
       briefingBonus,
+      displayAttendanceBonus,
       rawAttendanceBonus: rawAttendanceBonus,
       attendanceBonus,
       rawBookingBonus: rawBookingBonus,
@@ -1459,6 +1462,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     transportAllowance: row.transportAllowance,
     rawBriefingBonus: row.rawBriefingBonus,
     briefingBonus: row.briefingBonus,
+    displayAttendanceBonus: row.displayAttendanceBonus,
     rawAttendanceBonus: row.rawAttendanceBonus,
     attendanceBonus: row.attendanceBonus,
     rawBookingBonus: row.rawBookingBonus,
@@ -2708,7 +2712,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
               const baseSalaryDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBaseSalary - activePayslipPdfEntry.calculatedBaseSalary, 0));
               const allowanceDeduction = roundMoney(Math.max(allowanceTotal - (activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance), 0));
               const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));
-              const attendanceDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawAttendanceBonus - activePayslipPdfEntry.attendanceBonus, 0));
+              const attendanceDeduction = roundMoney(Math.max(activePayslipPdfEntry.displayAttendanceBonus - activePayslipPdfEntry.attendanceBonus, 0));
               const bookingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBookingBonus - activePayslipPdfEntry.bookingBonus, 0));
               const lateLabel = activePayslipPdfEntry.lateDays > 0
                 ? `Late  遲到 (${activePayslipPdfEntry.lateDays}日)`
@@ -2720,13 +2724,20 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                 ['No Pay Leave - Basic Salary  無薪假扣底薪', baseSalaryDeduction] as [string, number],
                 ['No Pay Leave - Allowance  無薪假扣津貼', allowanceDeduction] as [string, number],
                 ['No Pay Leave - Briefing Bonus  無薪假扣早會獎金', briefingDeduction] as [string, number],
-                ['No Pay Leave - Diligent  無薪假扣勤工獎', attendanceDeduction] as [string, number],
                 ['No Pay Leave - Booking Bonus  無薪假扣預約獎金', bookingDeduction] as [string, number],
               ].filter(([, value]) => value > 0);
+              if (attendanceDeduction > 0) {
+                attendanceDeductionRows.push([
+                  activePayslipPdfEntry.lateDays > 0
+                    ? 'Late - Diligent  遲到扣勤工獎'
+                    : 'No Pay Leave - Diligent  無薪假扣勤工獎',
+                  attendanceDeduction,
+                ]);
+              }
               const baseIncomeRows: Array<[string, number]> = [
                 ['Basic Salary  底薪', activePayslipPdfEntry.rawBaseSalary],
                 ['Allowance  車津貼', allowanceTotal],
-                ['Diligent  勤工獎', activePayslipPdfEntry.rawAttendanceBonus],
+                ['Diligent  勤工獎', activePayslipPdfEntry.displayAttendanceBonus],
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.rawBriefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
               ];
