@@ -17,6 +17,8 @@
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.4",
     "exceljs": "^4.4.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.542.0",
     "motion": "^12.23.24",
     "next": "^15.5.2",

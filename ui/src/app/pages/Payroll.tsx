@@ -1,7 +1,9 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type WheelEvent } from 'react';
-import { Calculator, ChevronDown, ChevronUp, CreditCard, Download, Save, TrendingUp } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+import { Calculator, ChevronDown, ChevronUp, CreditCard, Download, Save, TrendingUp, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -10,7 +12,7 @@ import { calculateStreetPromoterCommission, calculateTelesalesCommission, calcul
 import { calculateCustomCommission, normalizeCustomCommissionName } from '@/src/lib/employees/custom-commission';
 import { calculatePayrollBonus, calculateShopBonus, calculateShopTargetPercent, type PayrollBonusConfigCatalog } from '@/src/lib/employees/payroll-bonus';
 import { getMonthEndDate, isMpfContributionEligible } from '@/src/lib/employees/employment';
-import { exportPayslipWorkbook, fetchLatestPayrollEmployeeDefaults, saveMonthlyCommission } from '@/app/app/payroll/actions';
+import { fetchLatestPayrollEmployeeDefaults, saveMonthlyCommission } from '@/app/app/payroll/actions';
 
 type PayrollProps = {
   employees: PayrollEmployeeSummary[];
@@ -133,6 +135,48 @@ type EmployeeMonthlyBonusState = {
 };
 type EmployeePackageNoPayHandlingState = '' | PackageNoPayHandling;
 
+type PayslipPdfEntry = {
+  employeeCode: string;
+  employeeName: string;
+  branchName: string | null;
+  selectedMonth: string;
+  calculatedBaseSalary: number;
+  allowanceAmount: number;
+  transportAllowance: number;
+  briefingBonus: number;
+  attendanceBonus: number;
+  bookingBonus: number;
+  manualBonus: number;
+  manualDeduction: number;
+  shopBonus: number;
+  redeemCommission: number;
+  salesCommission: number;
+  sgmCommission: number;
+  salesAmountTotal: number;
+  salesAmountRatePercent: number;
+  salesAmountCommission: number;
+  jobCommission: number;
+  streetPromoterCommission: number;
+  telesalesCommission: number;
+  salesBonus: number;
+  payrollBonus: number;
+  packageCommission: number;
+  isPackageEmployee: boolean;
+  grossAmount: number;
+  mpfEe: number;
+  mpfEr: number;
+  netAmount: number;
+  payDayPrimary: number | null;
+  payDaySecondary: number | null;
+  primaryPayoutGross: number;
+  primaryMpf: number;
+  primaryPayoutNet: number;
+  secondaryPayoutGross: number;
+  secondaryMpf: number;
+  secondaryPayoutNet: number;
+  monthEndMpf: number;
+};
+
 const translations = {
   'zh-TW': {
     title: '薪資月結總覽',
@@ -147,6 +191,13 @@ const translations = {
     exportPayslip: '匯出出糧單明細',
     exportingPayslip: '匯出中...',
     exportPayslipFail: '匯出失敗',
+    exportPayslipSelectTitle: '選擇要匯出的員工',
+    exportPayslipSelectDescription: '可剔選一位或多位員工；如選擇多位，系統會分開下載 PDF。',
+    exportPayslipCancel: '取消',
+    exportPayslipConfirm: '下載已選 PDF',
+    exportPayslipSelectAll: '全選',
+    exportPayslipClearAll: '清除',
+    exportPayslipEmpty: '請先選擇至少一位員工。',
     resyncMonthlySettings: '從員工預設重新同步本月設定',
     month: '月份',
     avg365: '365天平均佣金',
@@ -270,6 +321,13 @@ const translations = {
     exportPayslip: '导出出粮单明细',
     exportingPayslip: '导出中...',
     exportPayslipFail: '导出失败',
+    exportPayslipSelectTitle: '选择要导出的员工',
+    exportPayslipSelectDescription: '可勾选一位或多位员工；如果选择多位，系统会分别下载 PDF。',
+    exportPayslipCancel: '取消',
+    exportPayslipConfirm: '下载所选 PDF',
+    exportPayslipSelectAll: '全选',
+    exportPayslipClearAll: '清除',
+    exportPayslipEmpty: '请先选择至少一位员工。',
     resyncMonthlySettings: '从员工预设重新同步本月设定',
     month: '月份',
     avg365: '365天平均佣金',
@@ -393,6 +451,13 @@ const translations = {
     exportPayslip: 'Export Payslip Details',
     exportingPayslip: 'Exporting...',
     exportPayslipFail: 'Export Failed',
+    exportPayslipSelectTitle: 'Choose Employees To Export',
+    exportPayslipSelectDescription: 'Tick one or more employees. If you choose multiple employees, separate PDF files will be downloaded.',
+    exportPayslipCancel: 'Cancel',
+    exportPayslipConfirm: 'Download Selected PDFs',
+    exportPayslipSelectAll: 'Select All',
+    exportPayslipClearAll: 'Clear',
+    exportPayslipEmpty: 'Select at least one employee first.',
     resyncMonthlySettings: 'Resync This Month From Employee Defaults',
     month: 'Month',
     avg365: '365-Day Avg Commission',
@@ -877,6 +942,9 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
+  const [isPayslipModalOpen, setIsPayslipModalOpen] = useState(false);
+  const [selectedPayslipCodes, setSelectedPayslipCodes] = useState<string[]>([]);
+  const [activePayslipPdfEntry, setActivePayslipPdfEntry] = useState<PayslipPdfEntry | null>(null);
   const [editVersion, setEditVersion] = useState(0);
   const payrollReferenceDate = useMemo(
     () => getMonthEndDate(selectedMonth) ?? new Date(),
@@ -885,6 +953,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const latestEditVersionRef = useRef(0);
   const saveStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exportStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const payslipPdfCardRef = useRef<HTMLDivElement | null>(null);
 
   const [empVolumes, setEmpVolumes] = useState<Record<string, EmployeeVolumes>>(() => buildInitialVolumes(savedRecords));
   const [workUnits, setWorkUnits] = useState<Record<string, EmployeeWorkUnits>>(() => buildInitialWorkUnits(savedRecords, attendanceRecords));
@@ -1063,6 +1132,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     const emp = liveEmployeeDefaults[sourceEmployee.employeeCode] ?? sourceEmployee;
     const savedRecord = savedRecordByCode.get(emp.employeeCode);
     const attendanceRecord = attendanceRecords[emp.employeeCode];
+    const hasLateDays = (attendanceRecord?.lateDays ?? 0) > 0;
     const vol = getVolumes(emp.employeeCode);
     const unitInput = getWorkUnits(emp.employeeCode);
     const monthlyBonus = getMonthlyBonus(emp.employeeCode, emp);
@@ -1090,7 +1160,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     const hasSalesAmountCommission = (emp.salesAmountRatePercent ?? 0) > 0;
     const packageCommissionAmount = isPackageEmployee ? emp.packageCommissionAmount : 0;
     const rawBriefingBonus = monthlyBonus.briefingApplied ? Number(monthlyBonus.briefingAmount) || 0 : 0;
-    const rawAttendanceBonus = monthlyBonus.attendanceApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
+    const attendanceBonusApplied = hasLateDays ? false : monthlyBonus.attendanceApplied;
+    const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
@@ -1217,6 +1288,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
       hasWorkedDays,
       hasWorkedHours,
       attendanceDrivenWorkedDays,
+      hasLateDays,
       attendanceNoPayDays,
       attendanceNoPayDeduction,
       attendanceDeductionRemainder,
@@ -1341,7 +1413,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     };
   });
 
-  const buildPayslipExportEntries = () => rows.map((row) => ({
+  const payslipExportEntries = rows.map((row): PayslipPdfEntry => ({
     employeeCode: row.employeeCode,
     employeeName: row.alias || row.nameZh,
     branchName: row.branchName ?? null,
@@ -1446,23 +1518,81 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     }, 3000);
   };
 
-  const downloadBase64File = (base64: string, fileName: string, mimeType: string) => {
-    const binary = window.atob(base64);
-    const bytes = new Uint8Array(binary.length);
+  const togglePayslipEmployee = (employeeCode: string) => {
+    setSelectedPayslipCodes((current) => (
+      current.includes(employeeCode)
+        ? current.filter((code) => code !== employeeCode)
+        : [...current, employeeCode]
+    ));
+  };
 
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
+  const openPayslipModal = () => {
+    setSelectedPayslipCodes(payslipExportEntries.map((entry) => entry.employeeCode));
+    setIsPayslipModalOpen(true);
+  };
+
+  const closePayslipModal = () => {
+    if (exportStatus === 'exporting') {
+      return;
+    }
+    setIsPayslipModalOpen(false);
+    setActivePayslipPdfEntry(null);
+  };
+
+  const waitForNextPaint = async () => {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  };
+
+  const sanitizePdfFilePart = (value: string) => value
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  const savePayslipPdf = async (entry: PayslipPdfEntry) => {
+    setActivePayslipPdfEntry(entry);
+    await waitForNextPaint();
+
+    const target = payslipPdfCardRef.current;
+    if (!target) {
+      throw new Error('Payslip preview is unavailable.');
     }
 
-    const blob = new Blob([bytes], { type: mimeType });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+    });
+
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 10;
+    const renderWidth = pageWidth - (margin * 2);
+    const renderHeight = (canvas.height * renderWidth) / canvas.width;
+    const pageContentHeight = pageHeight - (margin * 2);
+    const image = canvas.toDataURL('image/png');
+
+    let remainingHeight = renderHeight;
+    let offsetY = 0;
+
+    pdf.addImage(image, 'PNG', margin, offsetY + margin, renderWidth, renderHeight, undefined, 'FAST');
+    remainingHeight -= pageContentHeight;
+
+    while (remainingHeight > 0) {
+      offsetY -= pageContentHeight;
+      pdf.addPage();
+      pdf.addImage(image, 'PNG', margin, offsetY + margin, renderWidth, renderHeight, undefined, 'FAST');
+      remainingHeight -= pageContentHeight;
+    }
+
+    const safeName = sanitizePdfFilePart(entry.employeeName || entry.employeeCode) || entry.employeeCode;
+    pdf.save(`payslip-${entry.selectedMonth}-${entry.employeeCode}-${safeName}.pdf`);
   };
 
   const persistEntries = (version: number, trigger: 'manual' | 'auto') => {
@@ -1497,22 +1627,30 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   };
 
   const handleExportPayslip = async () => {
+    if (selectedPayslipCodes.length === 0) {
+      setExportStatus('error');
+      queueExportStatusReset();
+      return;
+    }
+
     setExportStatus('exporting');
     try {
-      const result = await exportPayslipWorkbook(selectedMonth, buildPayslipExportEntries());
+      const selectedEntries = payslipExportEntries.filter((entry) => selectedPayslipCodes.includes(entry.employeeCode));
 
-      if (result.success) {
-        downloadBase64File(result.base64, result.fileName, result.mimeType);
-        setExportStatus('idle');
-        return;
+      for (const entry of selectedEntries) {
+        await savePayslipPdf(entry);
       }
 
-      console.error('[payroll export]', result.error);
-      setExportStatus('error');
+      setActivePayslipPdfEntry(null);
+      setIsPayslipModalOpen(false);
+      setExportStatus('idle');
+      return;
     } catch (error) {
       console.error('[payroll export] unhandled:', error);
       setExportStatus('error');
     }
+
+    setActivePayslipPdfEntry(null);
     queueExportStatusReset();
   };
 
@@ -1578,7 +1716,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
           </button>
           <button
             type="button"
-            onClick={() => void handleExportPayslip()}
+            onClick={openPayslipModal}
             disabled={exportStatus === 'exporting'}
             className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
               exportStatus === 'exporting' ? 'bg-slate-500 text-white' :
@@ -1636,7 +1774,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                         </button>
                       </td>
                       <td className="px-3 py-3">
-                        <Link href={`/app/people/${row.employeeCode}`} className="font-medium text-[#D4AF37] hover:underline">{row.employeeCode}</Link>
+                        <Link href={`/app/people?id=${row.employeeCode}`} className="font-medium text-[#D4AF37] hover:underline">{row.employeeCode}</Link>
                       </td>
                       <td className="px-3 py-3 font-medium text-slate-900">{row.alias || row.nameZh}</td>
                       <td className="px-3 py-3 text-slate-600">{row.branchName ?? '—'}</td>
@@ -1884,14 +2022,19 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                                 <label className={`${toggleRowClasses} justify-start md:justify-end`}>
                                   <input
                                     type="checkbox"
-                                    checked={monthlyBonus.attendanceApplied}
+                                    checked={row.hasLateDays ? false : monthlyBonus.attendanceApplied}
                                     onChange={(e) => {
+                                      if (row.hasLateDays) {
+                                        setMonthlyBonus(row.employeeCode, row, 'attendanceApplied', false);
+                                        return;
+                                      }
                                       const nextApplied = e.target.checked;
                                       setMonthlyBonus(row.employeeCode, row, 'attendanceApplied', nextApplied);
                                       if (nextApplied && !monthlyBonus.attendanceAmount) {
                                         setMonthlyBonus(row.employeeCode, row, 'attendanceAmount', row.rawAttendanceBonus > 0 ? String(row.rawAttendanceBonus) : '0');
                                       }
                                     }}
+                                    disabled={row.hasLateDays}
                                     className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                   />
                                   <span>{t.commInput.applyThisMonth}</span>
@@ -2415,6 +2558,187 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
           </div>
         </div>
       )}
+
+      {isPayslipModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">{t.exportPayslipSelectTitle}</h2>
+                <p className="mt-1 text-sm text-slate-500">{t.exportPayslipSelectDescription}</p>
+                {exportStatus === 'error' ? <p className="mt-2 text-sm font-medium text-rose-600">{t.exportPayslipEmpty}</p> : null}
+              </div>
+              <button
+                type="button"
+                onClick={closePayslipModal}
+                disabled={exportStatus === 'exporting'}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:text-slate-800 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between gap-3 px-6 py-4">
+              <div className="text-sm font-medium text-slate-600">{selectedPayslipCodes.length} / {payslipExportEntries.length}</div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPayslipCodes(payslipExportEntries.map((entry) => entry.employeeCode))}
+                  className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-[#D4AF37] hover:text-[#B38E18]"
+                >
+                  {t.exportPayslipSelectAll}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPayslipCodes([])}
+                  className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-[#D4AF37] hover:text-[#B38E18]"
+                >
+                  {t.exportPayslipClearAll}
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto px-6 pb-4">
+              {payslipExportEntries.map((entry) => {
+                const checked = selectedPayslipCodes.includes(entry.employeeCode);
+                return (
+                  <label
+                    key={entry.employeeCode}
+                    className={`flex cursor-pointer items-center justify-between gap-4 rounded-2xl border px-4 py-3 transition ${
+                      checked ? 'border-[#D4AF37] bg-amber-50/60' : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePayslipEmployee(entry.employeeCode)}
+                        className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
+                      />
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{entry.employeeName}</div>
+                        <div className="text-xs text-slate-500">{entry.employeeCode} · {entry.branchName ?? '—'}</div>
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-slate-500">
+                      <div>{fmtDec(entry.netAmount)}</div>
+                      <div>{selectedMonth}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-5">
+              <button
+                type="button"
+                onClick={closePayslipModal}
+                disabled={exportStatus === 'exporting'}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 disabled:opacity-50"
+              >
+                {t.exportPayslipCancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExportPayslip()}
+                disabled={exportStatus === 'exporting' || selectedPayslipCodes.length === 0}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                {exportStatus === 'exporting' ? t.exportingPayslip : t.exportPayslipConfirm}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="pointer-events-none fixed top-0 -z-10" style={{ left: '-9999px' }}>
+        {activePayslipPdfEntry ? (
+          <div ref={payslipPdfCardRef} className="bg-white p-10 text-slate-900" style={{ width: '794px' }}>
+            <div className="rounded-[28px] border border-[#e7dcc0] bg-[linear-gradient(135deg,#fffdf6_0%,#fff7df_100%)] p-8 shadow-sm">
+              <div className="flex items-start justify-between gap-6 border-b border-[#e7dcc0] pb-6">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9a7b1f]">Medi Magic HRMS</div>
+                  <h2 className="mt-3 text-3xl font-semibold text-slate-900">Payslip Details</h2>
+                  <p className="mt-2 text-sm text-slate-600">{activePayslipPdfEntry.selectedMonth}</p>
+                </div>
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-right shadow-sm ring-1 ring-[#efe3bd]">
+                  <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Employee</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">{activePayslipPdfEntry.employeeName}</div>
+                  <div className="text-sm text-slate-500">{activePayslipPdfEntry.employeeCode}</div>
+                  <div className="mt-1 text-sm text-slate-500">{activePayslipPdfEntry.branchName ?? '—'}</div>
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
+                {[
+                  ['Base Salary', activePayslipPdfEntry.calculatedBaseSalary],
+                  ['Allowance + Transport', activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance],
+                  ['Briefing Bonus', activePayslipPdfEntry.briefingBonus],
+                  ['Attendance Bonus', activePayslipPdfEntry.attendanceBonus],
+                  ['Booking Bonus', activePayslipPdfEntry.bookingBonus],
+                  ['Manual Addition', activePayslipPdfEntry.manualBonus],
+                  ['Shop Bonus', activePayslipPdfEntry.shopBonus],
+                  ['Manual Deduction', activePayslipPdfEntry.manualDeduction],
+                  ['Redeem Commission', activePayslipPdfEntry.redeemCommission],
+                  ['Sales Commission', activePayslipPdfEntry.salesCommission],
+                  ['MGM Bonus', activePayslipPdfEntry.sgmCommission],
+                  ['Sales Amount Commission', activePayslipPdfEntry.salesAmountCommission],
+                  ['Job Commission', activePayslipPdfEntry.jobCommission],
+                  ['Street Promoter', activePayslipPdfEntry.streetPromoterCommission],
+                  ['Telesales', activePayslipPdfEntry.telesalesCommission],
+                  ['Sales Bonus', activePayslipPdfEntry.salesBonus],
+                  ['Bonus', activePayslipPdfEntry.payrollBonus],
+                  ['Package Commission', activePayslipPdfEntry.isPackageEmployee ? activePayslipPdfEntry.packageCommission : 0],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-[#efe3bd]">
+                    <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</div>
+                    <div className="mt-2 text-lg font-semibold text-slate-900">{fmtDec(Number(value))}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 grid grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-slate-900 px-5 py-4 text-white">
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-300">Gross Amount</div>
+                  <div className="mt-2 text-2xl font-semibold">{fmtDec(activePayslipPdfEntry.grossAmount)}</div>
+                </div>
+                <div className="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-[#efe3bd]">
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">MPF Employee</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-900">{fmtDec(activePayslipPdfEntry.mpfEe)}</div>
+                </div>
+                <div className="rounded-2xl bg-[#D4AF37] px-5 py-4 text-white shadow-sm">
+                  <div className="text-xs uppercase tracking-[0.18em] text-amber-100">Net Amount</div>
+                  <div className="mt-2 text-2xl font-semibold">{fmtDec(activePayslipPdfEntry.netAmount)}</div>
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-2 gap-4">
+                <div className="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-[#efe3bd]">
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Primary Payroll</div>
+                  <div className="mt-3 space-y-2 text-sm text-slate-700">
+                    <div className="flex items-center justify-between"><span>Pay Day</span><span>{activePayslipPdfEntry.payDayPrimary ?? '—'}</span></div>
+                    <div className="flex items-center justify-between"><span>Gross</span><span>{fmtDec(activePayslipPdfEntry.primaryPayoutGross)}</span></div>
+                    <div className="flex items-center justify-between"><span>MPF</span><span>{fmtDec(activePayslipPdfEntry.primaryMpf)}</span></div>
+                    <div className="flex items-center justify-between font-semibold text-slate-900"><span>Net</span><span>{fmtDec(activePayslipPdfEntry.primaryPayoutNet)}</span></div>
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-[#efe3bd]">
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Secondary Payroll</div>
+                  <div className="mt-3 space-y-2 text-sm text-slate-700">
+                    <div className="flex items-center justify-between"><span>Pay Day</span><span>{activePayslipPdfEntry.payDaySecondary ?? '—'}</span></div>
+                    <div className="flex items-center justify-between"><span>Gross</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryPayoutGross) : '—'}</span></div>
+                    <div className="flex items-center justify-between"><span>MPF</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryMpf) : '—'}</span></div>
+                    <div className="flex items-center justify-between font-semibold text-slate-900"><span>Net</span><span>{activePayslipPdfEntry.secondaryPayoutGross > 0 ? fmtDec(activePayslipPdfEntry.secondaryPayoutNet) : '—'}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-between rounded-2xl border border-dashed border-[#d8c79b] px-5 py-4 text-sm text-slate-600">
+                <span>Month-end MPF Deduction</span>
+                <span className="text-base font-semibold text-slate-900">{fmtDec(activePayslipPdfEntry.monthEndMpf)}</span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
