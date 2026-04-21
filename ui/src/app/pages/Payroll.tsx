@@ -279,6 +279,7 @@ const translations = {
       monthlyBonusTitle: '當月獎金選擇',
       applyThisMonth: '當月發放',
       defaultAmount: '預設金額',
+      attendanceLateDisabledNote: '因為出勤記錄有遲到',
       briefingBonus: 'Briefing 獎金',
       attendanceBonus: '出勤獎金',
       bookingBonus: 'Booking 獎金',
@@ -410,6 +411,7 @@ const translations = {
       monthlyBonusTitle: '当月奖金选择',
       applyThisMonth: '当月发放',
       defaultAmount: '预设金额',
+      attendanceLateDisabledNote: '因为出勤记录有迟到',
       briefingBonus: 'Briefing 奖金',
       attendanceBonus: '出勤奖金',
       bookingBonus: 'Booking 奖金',
@@ -541,6 +543,7 @@ const translations = {
       monthlyBonusTitle: 'Monthly Bonus Selection',
       applyThisMonth: 'Apply This Month',
       defaultAmount: 'Default Amount',
+      attendanceLateDisabledNote: 'Disabled because the attendance record has late days',
       briefingBonus: 'Briefing Bonus',
       attendanceBonus: 'Attendance Bonus',
       bookingBonus: 'Booking Bonus',
@@ -2065,7 +2068,10 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
                               <div className="grid gap-2 border-t border-slate-100 py-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-center">
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.attendanceBonus}</div>
-                                  <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(row.attendanceBonus)}</div>
+                                  <div className="text-xs text-slate-500">
+                                    {t.commInput.defaultAmount}: {fmt(row.attendanceBonus)}
+                                    {row.hasLateDays ? <span className="ml-1 text-amber-600">{t.commInput.attendanceLateDisabledNote}</span> : null}
+                                  </div>
                                 </div>
                                 <label className={`${toggleRowClasses} justify-start md:justify-end`}>
                                   <input
