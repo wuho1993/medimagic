@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { Building2, Expand, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Building2, ChevronDown, ChevronRight, ExternalLink, ZoomIn, ZoomOut, SaveAll, X } from 'lucide-react';
 import Link from 'next/link';
 import { saveAttendanceManagementRecord } from '@/app/app/leaves/actions';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -14,6 +14,9 @@ import type {
 
 type AttendanceManagementProps = {
   overview: AttendanceManagementOverview;
+  focusMode?: boolean;
+  initialMonth?: string | null;
+  initialScale?: number | null;
 };
 
 type CombinedAttendanceRow = {
@@ -29,7 +32,7 @@ type GroupedAttendanceRows = {
 };
 
 type ColumnDefinition = {
-  key: keyof AttendanceManagementMonthlyRecord | 'employeeCode' | 'displayName' | 'remarks';
+  key: keyof AttendanceManagementMonthlyRecord | 'employeeCode' | 'displayName' | 'remarks' | 'updated_at';
   label: string;
   className: string;
   cellClassName: string;
@@ -105,8 +108,10 @@ const translations = {
     groups: '分店數',
     matching: '關聯規則',
     matchingValue: '員工編號為主，譯名 / 英文名 / 別名只作核對；分店分類以員工 Profile 為準。',
-    enterFullscreen: '放大表格',
-    exitFullscreen: '還原表格',
+    closeTab: '關閉分頁',
+    openFocusView: '開新分頁',
+    collapseBranch: '收合分店',
+    expandBranch: '展開分店',
     zoomOut: '縮小',
     zoomReset: '重設',
     zoomIn: '放大',
@@ -146,6 +151,7 @@ const translations = {
       accumulatedOtHours: '累積OT時數 (Hours)',
       totalDays: '總日數',
       remarks: '備註',
+      updatedAt: '上次修改',
     },
   },
   'zh-CN': {
@@ -156,8 +162,10 @@ const translations = {
     groups: '分店数',
     matching: '关联规则',
     matchingValue: '员工编号为主，译名 / 英文名 / 别名只作核对；分店分类以员工 Profile 为准。',
-    enterFullscreen: '放大表格',
-    exitFullscreen: '还原表格',
+    closeTab: '关闭分页',
+    openFocusView: '开新分页',
+    collapseBranch: '收合分店',
+    expandBranch: '展开分店',
     zoomOut: '缩小',
     zoomReset: '重设',
     zoomIn: '放大',
@@ -197,6 +205,7 @@ const translations = {
       accumulatedOtHours: '累计OT时数 (Hours)',
       totalDays: '总日数',
       remarks: '备注',
+      updatedAt: '上次修改',
     },
   },
   en: {
@@ -207,8 +216,10 @@ const translations = {
     groups: 'Branches',
     matching: 'Matching Rule',
     matchingValue: 'Primary: employee code. Secondary: translated names / alias. Branch grouping comes from the employee profile.',
-    enterFullscreen: 'Expand Table',
-    exitFullscreen: 'Restore Table',
+    closeTab: 'Close Tab',
+    openFocusView: 'Open New Tab',
+    collapseBranch: 'Collapse Branch',
+    expandBranch: 'Expand Branch',
     zoomOut: 'Zoom Out',
     zoomReset: 'Reset',
     zoomIn: 'Zoom In',
@@ -248,6 +259,7 @@ const translations = {
       accumulatedOtHours: 'Accumulated OT',
       totalDays: 'Total Days',
       remarks: 'Remarks',
+      updatedAt: 'Last Modified',
     },
   },
 } as const;
@@ -267,9 +279,13 @@ function groupLabelFor(employee: EmployeeDirectoryRecord) {
   return employee.branchNameZh || employee.branchCode || employee.branchNameEn || 'UNASSIGNED';
 }
 
-function formatValue(value: number | null) {
-  if (value === null || value === 0) return '—';
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+function formatValue(value: number | string | null) {
+  if (value === null || value === '') return '—';
+
+  const numericValue = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isFinite(numericValue) || numericValue === 0) return '—';
+
+  return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(1).replace(/\.0$/, '');
 }
 
 function getDaysInMonth(yearMonth: string) {
@@ -461,13 +477,13 @@ function clampScale(value: number) {
   return Math.min(1.15, Math.max(0.6, Number(value.toFixed(2))));
 }
 
-export default function AttendanceManagement({ overview }: AttendanceManagementProps) {
+export default function AttendanceManagement({ overview, focusMode = false, initialMonth = null, initialScale = null }: AttendanceManagementProps) {
   const { lang } = useLanguage();
   const t = translations[lang] ?? translations.en;
   const locale = lang === 'en' ? 'en-HK' : lang === 'zh-CN' ? 'zh-CN' : 'zh-HK';
-  const [selectedMonth, setSelectedMonth] = useState(overview.defaultMonth);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [tableScale, setTableScale] = useState(0.65);
+  const monthFromUrl = initialMonth && overview.months.includes(initialMonth) ? initialMonth : overview.defaultMonth;
+  const [selectedMonth, setSelectedMonth] = useState(monthFromUrl);
+  const [tableScale, setTableScale] = useState(() => clampScale(initialScale ?? 0.65));
   const [records, setRecords] = useState(overview.records);
   const selectedMonthDays = getDaysInMonth(selectedMonth);
   const recordMap = useMemo(() => buildMonthlyRecordMap(records), [records]);
@@ -481,16 +497,125 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
   const [drafts, setDrafts] = useState<Record<string, AttendanceDraftRow>>({});
   const [savingRows, setSavingRows] = useState<Record<string, boolean>>({});
   const [rowFeedback, setRowFeedback] = useState<Record<string, RowFeedback>>({});
+  const [dirtyRows, setDirtyRows] = useState<Set<string>>(new Set());
+  const scaledTableRefs = useRef<Record<string, HTMLDivElement>>({});
+  const [tableHeights, setTableHeights] = useState<Record<string, number>>({});
+  const [supportsCssZoom, setSupportsCssZoom] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setRecords(overview.records);
   }, [overview.records]);
 
   useEffect(() => {
+    setSupportsCssZoom(typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('zoom', '1'));
+  }, []);
+
+  useEffect(() => {
     setDrafts(Object.fromEntries(rows.map((row) => [row.employee.id, createDraftRow(row, selectedMonthDays, selectedMonth, historyMap)])));
     setSavingRows({});
     setRowFeedback({});
+    setDirtyRows(new Set());
   }, [historyMap, overview.employees, recordMap, rows, selectedMonth, selectedMonthDays]);
+
+  useEffect(() => {
+    setCollapsedGroups((current) => {
+      const activeGroupLabels = new Set(groupedRows.map((group) => group.groupLabel));
+      let changed = false;
+      const next = new Set<string>();
+
+      for (const groupLabel of current) {
+        if (activeGroupLabels.has(groupLabel)) {
+          next.add(groupLabel);
+        } else {
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, [groupedRows]);
+
+  useEffect(() => {
+    const activeGroupLabels = new Set(groupedRows.map((group) => group.groupLabel));
+
+    setTableHeights((current) => {
+      let changed = false;
+      const next: Record<string, number> = {};
+
+      for (const [groupLabel, height] of Object.entries(current)) {
+        if (activeGroupLabels.has(groupLabel)) {
+          next[groupLabel] = height;
+        } else {
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, [groupedRows]);
+
+  const setScaledTableRef = useCallback((groupLabel: string, node: HTMLDivElement | null) => {
+    if (node) {
+      scaledTableRefs.current[groupLabel] = node;
+      return;
+    }
+
+    delete scaledTableRefs.current[groupLabel];
+  }, []);
+
+  useEffect(() => {
+    const tableNodes = groupedRows
+      .map((group) => ({
+        groupLabel: group.groupLabel,
+        node: scaledTableRefs.current[group.groupLabel],
+      }))
+      .filter((entry): entry is { groupLabel: string; node: HTMLDivElement } => entry.node instanceof HTMLDivElement);
+
+    if (tableNodes.length === 0) {
+      return;
+    }
+
+    let frameId = 0;
+
+    const measureHeights = () => {
+      cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        setTableHeights((current) => {
+          let changed = false;
+          const next = { ...current };
+
+          for (const { groupLabel, node } of tableNodes) {
+            const measuredHeight = Math.ceil(node.getBoundingClientRect().height);
+            if (next[groupLabel] !== measuredHeight) {
+              next[groupLabel] = measuredHeight;
+              changed = true;
+            }
+          }
+
+          return changed ? next : current;
+        });
+      });
+    };
+
+    measureHeights();
+
+    const resizeObserver = new ResizeObserver(() => {
+      measureHeights();
+    });
+
+    for (const { node } of tableNodes) {
+      resizeObserver.observe(node);
+    }
+
+    window.addEventListener('resize', measureHeights);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', measureHeights);
+    };
+  }, [groupedRows, tableScale]);
 
   const updateDraft = (employeeId: string, field: EditableAttendanceField | 'remarks', value: string) => {
     setDrafts((current) => {
@@ -501,8 +626,10 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
         [field]: value,
       };
 
+      setDirtyRows((prev) => new Set(prev).add(employeeId));
+
       const prevMonthRemainingHours = parseSignedDraftNumber(nextDraft.prevMonthRemainingHours);
-      const makeupHours = parseSignedDraftNumber(nextDraft.makeupHours);
+      const makeupHours = normalizeMakeupHours(parseSignedDraftNumber(nextDraft.makeupHours));
       const overtimeHours = parseSignedDraftNumber(nextDraft.overtimeHours);
       const leaveToHoursConversion = parseDraftNumber(nextDraft.leaveToHoursConversion);
       const accumulatedOtHours = calculateAccumulatedOtHours(
@@ -521,6 +648,26 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
       };
     });
     setRowFeedback((current) => ({ ...current, [employeeId]: { tone: 'idle', message: null } }));
+  };
+
+  const toggleGroup = (groupLabel: string) => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupLabel)) {
+        next.delete(groupLabel);
+      } else {
+        next.add(groupLabel);
+      }
+      return next;
+    });
+  };
+
+  const openFocusView = () => {
+    const params = new URLSearchParams({
+      month: selectedMonth,
+      scale: tableScale.toFixed(2),
+    });
+    window.open(`/app/attendance/focus?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleSaveRow = async (row: CombinedAttendanceRow) => {
@@ -564,60 +711,73 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
       remarks: draft.remarks,
     });
     setSavingRows((current) => ({ ...current, [row.employee.id]: false }));
-    if (result.success) {
-      setRecords((current) => {
-        const nextRecord: AttendanceManagementMonthlyRecord = {
-          employeeId: row.employee.id,
-          employeeCode: row.employee.employeeCode,
-          yearMonth: selectedMonth,
-          salaryType: row.record?.salaryType ?? null,
-          branchSection: row.record?.branchSection ?? row.employee.branchCode ?? row.employee.branchNameZh ?? null,
-          calendarDays: draft.calendarDays,
-          workedDays: parseDraftNumber(draft.workedDays),
-          offDays: parseDraftNumber(draft.offDays),
-          statutoryHolidayDays: parseDraftNumber(draft.statutoryHolidayDays),
-          totalDays: Number(calculateDraftTotal(draft).toFixed(2)),
-          birthdayLeaveDays: parseDraftNumber(draft.birthdayLeaveDays),
-          tb8Days: parseDraftNumber(draft.tb8Days),
-          sickLeaveDays: parseDraftNumber(draft.sickLeaveDays),
-          maternityLeaveDays: parseDraftNumber(draft.maternityLeaveDays),
-          rewardLeaveDays: parseDraftNumber(draft.rewardLeaveDays),
-          annualLeaveDays: parseDraftNumber(draft.annualLeaveDays),
-          compassionateLeaveDays: parseDraftNumber(draft.compassionateLeaveDays),
-          sickNoPayDays: parseDraftNumber(draft.sickNoPayDays),
-          noPayLeaveDays: parseDraftNumber(draft.noPayLeaveDays),
-          noPayStatutoryHolidayDays: parseDraftNumber(draft.noPayStatutoryHolidayDays),
-          noPayDays: Number((parseDraftNumber(draft.sickNoPayDays) + parseDraftNumber(draft.noPayLeaveDays) + parseDraftNumber(draft.noPayStatutoryHolidayDays)).toFixed(2)),
-          lateDays: parseDraftNumber(draft.lateDays),
-          deductionBase: row.record?.deductionBase ?? null,
-          deductionAmount: row.record?.deductionAmount ?? null,
-          packageCommissionAmount: row.record?.packageCommissionAmount ?? null,
-          proratedPackageCommission: row.record?.proratedPackageCommission ?? null,
-          prevMonthRemainingHours,
-          makeupHours,
-          overtimeHours,
-          leaveToHoursConversion,
-          accumulatedOtHours,
-          remarks: draft.remarks.trim() || null,
-        };
 
-        const next = [...current];
-        const recordIndex = next.findIndex((entry) => entry.employeeId === row.employee.id && entry.yearMonth === selectedMonth);
-        if (recordIndex >= 0) {
-          next[recordIndex] = nextRecord;
-        } else {
-          next.push(nextRecord);
+    if (result.success && result.record) {
+      const serverRecord = result.record;
+      const mappedRecord: AttendanceManagementMonthlyRecord = {
+        employeeId: serverRecord.employee_id,
+        employeeCode: serverRecord.employee_code,
+        yearMonth: serverRecord.year_month,
+        salaryType: serverRecord.salary_type,
+        branchSection: serverRecord.branch_section,
+        calendarDays: serverRecord.calendar_days,
+        workedDays: serverRecord.worked_days,
+        offDays: serverRecord.off_days,
+        statutoryHolidayDays: serverRecord.statutory_holiday_days,
+        totalDays: serverRecord.total_days,
+        birthdayLeaveDays: serverRecord.birthday_leave_days,
+        tb8Days: serverRecord.tb8_days,
+        sickLeaveDays: serverRecord.sick_leave_days,
+        maternityLeaveDays: serverRecord.maternity_leave_days,
+        rewardLeaveDays: serverRecord.reward_leave_days,
+        annualLeaveDays: serverRecord.annual_leave_days,
+        compassionateLeaveDays: serverRecord.compassionate_leave_days,
+        sickNoPayDays: serverRecord.sick_no_pay_days,
+        noPayLeaveDays: serverRecord.no_pay_leave_days,
+        noPayStatutoryHolidayDays: serverRecord.no_pay_statutory_holiday_days,
+        noPayDays: serverRecord.no_pay_days,
+        lateDays: serverRecord.late_days,
+        deductionBase: serverRecord.deduction_base,
+        deductionAmount: serverRecord.deduction_amount,
+        packageCommissionAmount: serverRecord.package_commission_amount,
+        proratedPackageCommission: serverRecord.prorated_package_commission,
+        prevMonthRemainingHours: serverRecord.prev_month_remaining_hours,
+        makeupHours: serverRecord.makeup_hours,
+        overtimeHours: serverRecord.overtime_hours,
+        leaveToHoursConversion: serverRecord.leave_to_hours_conversion,
+        accumulatedOtHours: serverRecord.accumulated_ot_hours,
+        remarks: serverRecord.remarks,
+        updated_at: serverRecord.updated_at ?? row.record?.updated_at ?? null,
+      };
+
+      setRecords((current) => {
+        const index = current.findIndex(r => r.employeeId === mappedRecord.employeeId && r.yearMonth === mappedRecord.yearMonth);
+        if (index >= 0) {
+          const next = [...current];
+          next[index] = mappedRecord;
+          return next;
         }
+        return [mappedRecord, ...current];
+      });
+
+      setRowFeedback((current) => ({ ...current, [row.employee.id]: { tone: 'saved', message: t.saved } }));
+      setDirtyRows((prev) => {
+        const next = new Set(prev);
+        next.delete(row.employee.id);
         return next;
       });
+      setTimeout(() => {
+        setRowFeedback((current) => ({ ...current, [row.employee.id]: { tone: 'idle', message: null } }));
+      }, 3000);
+    } else {
+      setRowFeedback((current) => ({
+        ...current,
+        [row.employee.id]: {
+          tone: result.success ? 'saved' : 'error',
+          message: result.success ? t.saved : (result.error ?? t.saveError),
+        },
+      }));
     }
-    setRowFeedback((current) => ({
-      ...current,
-      [row.employee.id]: {
-        tone: result.success ? 'saved' : 'error',
-        message: result.success ? t.saved : (result.error ?? t.saveError),
-      },
-    }));
   };
 
   const columns: ColumnDefinition[] = useMemo(() => [
@@ -662,21 +822,43 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
     { key: 'accumulatedOtHours', label: t.cols.accumulatedOtHours, className: 'w-30 min-w-30 bg-white', cellClassName: 'w-30 min-w-30' },
     { key: 'totalDays', label: t.cols.totalDays, className: 'w-18 min-w-18 bg-white', cellClassName: 'w-18 min-w-18 font-semibold' },
     { key: 'remarks', label: t.cols.remarks, className: 'w-44 min-w-44 bg-white', cellClassName: 'w-44 min-w-44 text-left text-slate-600' },
+    { key: 'updated_at', label: t.cols.updatedAt, className: 'w-36 min-w-36 bg-slate-50', cellClassName: 'w-36 min-w-36 text-left text-[10px] text-slate-500' },
   ], [t]);
 
-  const panelClassName = isExpanded
-    ? 'fixed inset-4 z-50 flex flex-col rounded-[2rem] border border-slate-200 bg-[#f8f6f1] p-4 shadow-2xl'
+  const panelClassName = focusMode
+    ? 'min-h-screen space-y-4 bg-[#f8f6f1] p-4'
     : 'mx-auto space-y-6 max-w-[1900px] bg-[#f8f6f1]';
 
-  const tableScaleStyle = {
+  const transformTableScaleStyle = {
     transform: `scale(${tableScale})`,
     transformOrigin: 'top left',
     width: `${100 / tableScale}%`,
   };
+  const zoomTableScaleStyle = {
+    zoom: tableScale,
+    width: `${100 / tableScale}%`,
+  } as React.CSSProperties;
+  const estimatedScaledTableHeight = (rowCount: number) => {
+    const headerHeight = 52;
+    const rowHeight = 88;
+    const verticalPadding = 16;
+    return Math.ceil((headerHeight + rowCount * rowHeight + verticalPadding) * tableScale);
+  };
+
+  const visibleTableHeight = (rowCount: number) => {
+    const maxVisibleRows = focusMode ? 20 : 10;
+    return estimatedScaledTableHeight(Math.min(rowCount, maxVisibleRows));
+  };
+
+  const handleSaveAll = async () => {
+    const rowsToSave = rows.filter(row => dirtyRows.has(row.employee.id));
+    if (rowsToSave.length === 0) return;
+
+    await Promise.all(rowsToSave.map(row => handleSaveRow(row)));
+  };
 
   return (
     <>
-      {isExpanded ? <div className="fixed inset-0 z-40 bg-slate-950/25 backdrop-blur-[2px]" /> : null}
       <div className={panelClassName}>
       <div className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -685,7 +867,7 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
             <p className="mt-2 text-sm leading-6 text-slate-500">{t.subtitle}</p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             <label className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="text-xs font-semibold text-slate-500">{t.month}</div>
               <select
@@ -742,12 +924,33 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
 
             <button
               type="button"
-              onClick={() => setIsExpanded((current) => !current)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[#D4AF37] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#bf9a24]"
+              onClick={() => void handleSaveAll()}
+              disabled={dirtyRows.size === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[#B8871A] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
-              {isExpanded ? t.exitFullscreen : t.enterFullscreen}
+              <SaveAll className="h-4 w-4" />
+              {t.save} {dirtyRows.size > 0 ? `(${dirtyRows.size})` : ''}
             </button>
+
+            {!focusMode ? (
+              <button
+                type="button"
+                onClick={openFocusView}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[#D4AF37] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#bf9a24]"
+              >
+                <ExternalLink className="h-4 w-4" />
+                {t.openFocusView}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => window.close()}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700"
+              >
+                <X className="h-4 w-4" />
+                {t.closeTab}
+              </button>
+            )}
           </div>
         </div>
 
@@ -769,18 +972,188 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
           <p className="text-sm text-slate-500">{t.empty}</p>
         </div>
       ) : (
-        groupedRows.map((group) => (
-          <section key={group.groupLabel} className="overflow-hidden rounded-4xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-linear-to-r from-[#fff5d6] via-[#fff8e8] to-[#fff1c2] px-5 py-3">
+        groupedRows.map((group) => {
+          const isGroupCollapsed = collapsedGroups.has(group.groupLabel);
+
+          return (
+          <section
+            key={group.groupLabel}
+            className="relative isolate rounded-4xl border border-slate-200 bg-white shadow-sm"
+          >
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.groupLabel)}
+              className="flex w-full items-center justify-between border-b border-slate-200 bg-linear-to-r from-[#fff5d6] via-[#fff8e8] to-[#fff1c2] px-5 py-3 text-left transition hover:brightness-[0.99]"
+              aria-expanded={!isGroupCollapsed}
+              aria-label={isGroupCollapsed ? t.expandBranch : t.collapseBranch}
+            >
               <div className="flex items-center gap-2 text-lg font-bold text-slate-900">
                 <Building2 className="h-5 w-5 text-[#B8871A]" />
                 {group.groupLabel}
               </div>
-              <div className="rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-slate-600 shadow-sm">{group.rows.length}</div>
-            </div>
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-slate-600 shadow-sm">{group.rows.length}</div>
+                {isGroupCollapsed ? (
+                  <ChevronRight className="h-5 w-5 text-slate-600" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-slate-600" />
+                )}
+              </div>
+            </button>
 
-            <div className="overflow-auto p-2">
-              <div style={tableScaleStyle}>
+            {!isGroupCollapsed ? (
+            <div className="overflow-x-auto p-2">
+              {supportsCssZoom ? (
+                <div style={zoomTableScaleStyle}>
+                <table className="border-separate border-spacing-0 text-[13px] text-slate-800">
+                  <thead>
+                    <tr className="text-center text-[11px] font-semibold text-slate-900">
+                      {columns.map((column) => (
+                        <th
+                          key={column.key}
+                          className={`border-b border-r border-slate-300 px-2 py-3 align-middle whitespace-normal wrap-break-word leading-4 ${column.className}`}
+                        >
+                          {column.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                  {group.rows.map((row) => (
+                    <tr key={row.employee.id} className="hover:bg-amber-50/40">
+                      {columns.map((column) => {
+                        const draft = drafts[row.employee.id] ?? createDraftRow(row, selectedMonthDays, selectedMonth, historyMap);
+                        const totalDays = Number(calculateDraftTotal(draft).toFixed(2));
+                        const hasMismatch = Math.abs(totalDays - draft.calendarDays) > 0.001;
+                        const deductionBasis: AttendanceDeductionBasis | undefined = overview.deductionBasisByEmployeeCode[row.employee.employeeCode];
+                        const noPayDays = parseDraftNumber(draft.sickNoPayDays) + parseDraftNumber(draft.noPayLeaveDays) + parseDraftNumber(draft.noPayStatutoryHolidayDays);
+                        const deductionBase = row.record?.deductionBase ?? deductionBasis?.deductionBase ?? 0;
+                        const deductionAmount = draft.calendarDays > 0 ? (deductionBase / draft.calendarDays) * noPayDays : 0;
+                        const historicalAttendanceRecord = getLatestHistoricalAttendanceRecord(historyMap, row.employee.id, selectedMonth);
+                        const isPrevMonthRemainingHoursAuto = isPrevMonthRemainingHoursAutoMonth(selectedMonth)
+                          && historicalAttendanceRecord !== null;
+                        const accumulatedOtHours = calculateAccumulatedOtHours(
+                          parseSignedDraftNumber(draft.prevMonthRemainingHours),
+                          normalizeMakeupHours(parseSignedDraftNumber(draft.makeupHours)),
+                          parseSignedDraftNumber(draft.overtimeHours),
+                          parseDraftNumber(draft.leaveToHoursConversion),
+                        );
+                        let content: string | number = '—';
+
+                        if (column.key === 'employeeCode') {
+                          return (
+                            <td key={column.key} className={`border-b border-r border-slate-200 px-2.5 py-2.5 ${column.cellClassName}`}>
+                              <Link href={`/app/people?id=${row.employee.employeeCode}`} className="text-[#B8871A] hover:underline">
+                                {row.employee.employeeCode}
+                              </Link>
+                            </td>
+                          );
+                        }
+
+                        if (column.key === 'displayName') {
+                          return (
+                            <td
+                              key={column.key}
+                              className={`border-b border-r border-slate-200 px-2.5 py-2.5 text-left align-middle ${column.cellClassName}`}
+                            >
+                              <div>{row.displayName}</div>
+                              <div className="mt-1 text-[10px] leading-4 text-slate-500">
+                                {t.deductionBase}: {formatCurrency(deductionBase, locale)}
+                              </div>
+                              {noPayDays > 0 ? (
+                                <div className="text-[10px] leading-4 text-rose-600">
+                                  {t.deduction}: {formatCurrency(deductionAmount, locale)} ({t.noPayDays}: {formatValue(noPayDays)})
+                                </div>
+                              ) : null}
+                            </td>
+                          );
+                        } else if (column.key === 'remarks') {
+                          return (
+                            <td
+                              key={column.key}
+                              className={`border-b border-r border-slate-200 px-2.5 py-2.5 align-top ${column.cellClassName}`}
+                            >
+                              <textarea
+                                value={draft.remarks}
+                                onChange={(event) => updateDraft(row.employee.id, 'remarks', event.target.value)}
+                                placeholder={t.remarksPlaceholder}
+                                rows={2}
+                                className="min-h-14 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 outline-none transition focus:border-[#B8871A]"
+                              />
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSaveRow(row)}
+                                  disabled={Boolean(savingRows[row.employee.id])}
+                                  className="inline-flex items-center rounded-lg bg-[#B8871A] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {savingRows[row.employee.id] ? t.saving : t.save}
+                                </button>
+                                {rowFeedback[row.employee.id]?.message ? (
+                                  <span className={`text-[10px] ${rowFeedback[row.employee.id]?.tone === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                    {rowFeedback[row.employee.id]?.message}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
+                          );
+                        } else if (column.key === 'calendarDays') {
+                          content = formatValue(draft.calendarDays);
+                        } else if (editableFields.includes(column.key as EditableAttendanceField)) {
+                          const fieldKey = column.key as EditableAttendanceField;
+                          const isReadOnlyAutoField = fieldKey === 'accumulatedOtHours'
+                            || (fieldKey === 'prevMonthRemainingHours' && isPrevMonthRemainingHoursAuto);
+                          const displayValue = fieldKey === 'accumulatedOtHours'
+                            ? (accumulatedOtHours === 0 ? '' : String(accumulatedOtHours))
+                            : draft[fieldKey];
+                          return (
+                            <td
+                              key={column.key}
+                              className={`border-b border-r border-slate-200 px-1.5 py-1.5 text-center align-middle ${column.cellClassName}`}
+                            >
+                              <input
+                                inputMode="decimal"
+                                value={displayValue}
+                                onChange={(event) => updateDraft(row.employee.id, fieldKey, event.target.value)}
+                                className={`w-full rounded-md border border-slate-200 px-1 py-1 text-center text-[11px] font-medium text-slate-800 outline-none transition focus:border-[#B8871A] ${isReadOnlyAutoField ? 'cursor-not-allowed bg-slate-100 text-slate-500' : 'bg-white'}`}
+                                disabled={isReadOnlyAutoField}
+                                readOnly={isReadOnlyAutoField}
+                              />
+                            </td>
+                          );
+                        } else if (column.key === 'totalDays') {
+                          return (
+                            <td
+                              key={column.key}
+                              className={`border-b border-r border-slate-200 px-2.5 py-2.5 text-center align-middle ${column.cellClassName} ${hasMismatch ? 'bg-rose-50 text-rose-600' : ''}`}
+                            >
+                              <div>{formatValue(totalDays)}</div>
+                              {hasMismatch ? <div className="mt-1 text-[10px] leading-4">{t.totalMismatch}</div> : null}</td>
+                          );
+                        } else if (column.key === 'updated_at') {
+                          const updatedAtStr = row.record?.updated_at;
+                          content = updatedAtStr ? new Date(updatedAtStr).toLocaleString(lang === 'en' ? 'en-US' : 'zh-HK', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+                        } else {
+                          content = formatValue(row.record?.[column.key] ?? null);
+                        }
+
+                        return (
+                          <td
+                            key={column.key}
+                            className={`border-b border-r border-slate-200 px-2.5 py-2.5 text-center align-middle ${column.cellClassName}`}
+                          >
+                            {content}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  </tbody>
+                </table>
+                </div>
+              ) : (
+              <div style={{ height: `${tableHeights[group.groupLabel] ?? estimatedScaledTableHeight(group.rows.length)}px` }}>
+              <div ref={(node) => setScaledTableRef(group.groupLabel, node)} style={transformTableScaleStyle}>
                 <table className="border-separate border-spacing-0 text-[13px] text-slate-800">
                   <thead>
                     <tr className="text-center text-[11px] font-semibold text-slate-900">
@@ -907,6 +1280,9 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
                               <div>{formatValue(totalDays)}</div>
                               {hasMismatch ? <div className="mt-1 text-[10px] leading-4">{t.totalMismatch}</div> : null}</td>
                           );
+                        } else if (column.key === 'updated_at') {
+                          const updatedAtStr = row.record?.updated_at;
+                          content = updatedAtStr ? new Date(updatedAtStr).toLocaleString(lang === 'en' ? 'en-US' : 'zh-HK', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
                         } else {
                           content = formatValue(row.record?.[column.key] ?? null);
                         }
@@ -925,9 +1301,13 @@ export default function AttendanceManagement({ overview }: AttendanceManagementP
                   </tbody>
                 </table>
               </div>
+              </div>
+              )}
             </div>
+            ) : null}
           </section>
-        ))
+        );
+        })
       )}
       </div>
     </>

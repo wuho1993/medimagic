@@ -15,7 +15,6 @@ import {
   Menu,
   Globe,
   ChevronDown,
-  Inbox,
   LayoutDashboard,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -87,7 +86,6 @@ const layoutTranslations = {
 const navigationMap: Array<{ key: NavRouteKey; href: string; icon: typeof Users }> = [
   { key: 'dashboard', href: '/app/dashboard', icon: LayoutDashboard },
   { key: 'people', href: '/app/people', icon: Users },
-  { key: 'inbox', href: '/app/inbox', icon: Inbox },
   { key: 'payroll', href: '/app/payroll', icon: CreditCard },
   { key: 'leaves', href: '/app/leaves', icon: FileText },
   { key: 'admin', href: '/app/admin', icon: Settings },

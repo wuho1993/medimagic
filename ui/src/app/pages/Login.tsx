@@ -67,7 +67,7 @@ function getDefaultRoute(role: string) {
   const normalizedRole = normalizeRole(role);
 
   if (normalizedRole === 'employee') {
-    return '/app/inbox';
+    return '/app/dashboard';
   }
 
   return '/app/people';

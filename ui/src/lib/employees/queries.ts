@@ -1483,6 +1483,7 @@ export type AttendanceManagementMonthlyRecord = {
   leaveToHoursConversion: number | null;
   accumulatedOtHours: number | null;
   remarks: string | null;
+  updated_at?: string | null;
 };
 
 export type AttendanceDeductionBasis = {
@@ -1550,7 +1551,7 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
   const employeeIds = employees.map((employee) => employee.id);
   const { data, error } = await supabase
     .from('attendance_management_records')
-    .select('employee_id, employee_code, year_month, salary_type, branch_section, calendar_days, worked_days, off_days, statutory_holiday_days, total_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, deduction_base, deduction_amount, package_commission_amount, prorated_package_commission, prev_month_remaining_hours, makeup_hours, overtime_hours, leave_to_hours_conversion, accumulated_ot_hours, remarks')
+    .select('employee_id, employee_code, year_month, salary_type, branch_section, calendar_days, worked_days, off_days, statutory_holiday_days, total_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, deduction_base, deduction_amount, package_commission_amount, prorated_package_commission, prev_month_remaining_hours, makeup_hours, overtime_hours, leave_to_hours_conversion, accumulated_ot_hours, remarks, updated_at')
     .in('employee_id', employeeIds)
     .order('year_month', { ascending: false })
     .order('employee_code', { ascending: true });
@@ -1606,6 +1607,7 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
     leave_to_hours_conversion: number | string | null;
     accumulated_ot_hours: number | string | null;
     remarks: string | null;
+    updated_at: string | null;
   }[]).map((row) => ({
     employeeId: row.employee_id,
     employeeCode: row.employee_code,
@@ -1639,6 +1641,7 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
     leaveToHoursConversion: row.leave_to_hours_conversion === null ? null : Number(row.leave_to_hours_conversion),
     accumulatedOtHours: row.accumulated_ot_hours === null ? null : Number(row.accumulated_ot_hours),
     remarks: row.remarks,
+    updated_at: row.updated_at,
   }));
 
   const months = Array.from(new Set(records.map((record) => record.yearMonth))).sort((left, right) => right.localeCompare(left));

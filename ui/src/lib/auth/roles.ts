@@ -101,7 +101,7 @@ export function canAccessRoute(role: AppRole, routeKey: AppRouteKey) {
 }
 
 export function getDefaultRouteForRole(role: AppRole) {
-  const routeOrder: AppRouteKey[] = ['dashboard', 'people', 'inbox', 'attendance', 'leaves', 'payroll', 'admin', 'settings', 'onboarding', 'offboarding'];
+  const routeOrder: AppRouteKey[] = ['dashboard', 'people', 'attendance', 'leaves', 'payroll', 'admin', 'settings', 'onboarding', 'offboarding'];
 
   for (const route of routeOrder) {
     if (canAccessRoute(role, route)) {

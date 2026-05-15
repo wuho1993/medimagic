@@ -91,17 +91,17 @@ export async function saveAttendanceManagementRecord(input: SaveAttendanceInput)
     remarks: input.remarks?.trim() || null,
   };
 
-  const { error } = await supabase
-    .from('monthly_attendance_records')
-    .upsert(payload, { onConflict: 'employee_id,year_month' });
+  const { data, error } = await supabase
+    .from('attendance_management_records')
+    .upsert(payload, { onConflict: 'employee_id,year_month' })
+    .select('*')
+    .single();
 
   if (error) {
     return { success: false, error: error.message };
   }
 
-  void 0;
-  void 0;
-  return { success: true };
+  return { success: true, record: data };
 }
 
 export async function approveLeaveRequest(requestId: string, reviewNotes?: string) {
