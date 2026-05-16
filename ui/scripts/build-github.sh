@@ -33,22 +33,24 @@ cp "$OVERLAY_DIR/app/app/layout.tsx" "$UI_DIR/app/app/layout.tsx"
 cp "$OVERLAY_DIR/app/app/page.tsx" "$UI_DIR/app/app/page.tsx"
 
 for dir in dashboard people payroll attendance leaves admin inbox onboarding offboarding settings; do
-  src="$OVERLAY_DIR/app/app/$dir/page.tsx"
-  if [ -f "$src" ]; then
-    cp "$src" "$UI_DIR/app/app/$dir/page.tsx"
-  fi
-  # Copy action overlays if they exist
-  src_actions="$OVERLAY_DIR/app/app/$dir/actions.ts"
-  if [ -f "$src_actions" ]; then
-    cp "$src_actions" "$UI_DIR/app/app/$dir/actions.ts"
-  fi
-  # Copy any additional overlay components (e.g. ClientUserManagementPanel.tsx)
-  find "$OVERLAY_DIR/app/app/$dir" -maxdepth 1 -name '*.tsx' -o -name '*.ts' 2>/dev/null | while read -r extra; do
-    basename_f="$(basename "$extra")"
-    if [ "$basename_f" != "page.tsx" ] && [ "$basename_f" != "actions.ts" ]; then
-      cp "$extra" "$UI_DIR/app/app/$dir/$basename_f"
+  if [ -d "$OVERLAY_DIR/app/app/$dir" ]; then
+    src="$OVERLAY_DIR/app/app/$dir/page.tsx"
+    if [ -f "$src" ]; then
+      cp "$src" "$UI_DIR/app/app/$dir/page.tsx"
     fi
-  done
+    # Copy action overlays if they exist
+    src_actions="$OVERLAY_DIR/app/app/$dir/actions.ts"
+    if [ -f "$src_actions" ]; then
+      cp "$src_actions" "$UI_DIR/app/app/$dir/actions.ts"
+    fi
+    # Copy any additional overlay components (e.g. ClientUserManagementPanel.tsx)
+    find "$OVERLAY_DIR/app/app/$dir" -maxdepth 1 \( -name '*.tsx' -o -name '*.ts' \) 2>/dev/null | while read -r extra; do
+      basename_f="$(basename "$extra")"
+      if [ "$basename_f" != "page.tsx" ] && [ "$basename_f" != "actions.ts" ]; then
+        cp "$extra" "$UI_DIR/app/app/$dir/$basename_f"
+      fi
+    done
+  fi
 done
 
 # 3b. Remove dynamic routes (using query params instead for static export)
