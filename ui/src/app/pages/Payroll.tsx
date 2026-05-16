@@ -1253,7 +1253,10 @@ Table rows:
 ${tablePreview}`;
 
       // 3. Call Gemini
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || 'AIzaSyD5iJ0f4FoGt0YSaYUsl__07KPDODj8nLE';
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+      if (!apiKey || apiKey === 'AIzaSyD5iJ0f4FoGt0YSaYUsl__07KPDODj8nLE') {
+        throw new Error('Google API key is missing or invalid. Please add your own NEXT_PUBLIC_GOOGLE_API_KEY to your .env.local file.');
+      }
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
       const aiResponse = await fetch(endpoint, {
