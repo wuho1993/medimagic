@@ -1254,7 +1254,7 @@ ${tablePreview}`;
 
       // 3. Call Gemini
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || 'AIzaSyD5iJ0f4FoGt0YSaYUsl__07KPDODj8nLE';
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
       const aiResponse = await fetch(endpoint, {
         method: 'POST',
