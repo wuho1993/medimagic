@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
+  output: 'export',
   trailingSlash: true,
   images: { unoptimized: true },
-  basePath: process.env.NODE_ENV === 'production' ? '/medimagic' : undefined,
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/medimagic/' : undefined,
+  basePath: '/medimagic',
+  assetPrefix: '/medimagic/',
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   webpack: (config) => {

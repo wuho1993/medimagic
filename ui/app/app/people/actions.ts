@@ -1,10 +1,4 @@
-
-"use server";
-
-import { hasBranchAccess, hasCompanyAccess } from '@/src/lib/auth/access';
-import { createSupabaseAdminClient } from '@/src/lib/supabase/admin';
-import { canAccessRoute } from '@/src/lib/auth/roles';
-import { getCurrentUser } from '@/src/lib/auth/session';
+import { createBrowserSupabaseClient } from '@/src/lib/supabase/client';
 import { normalizeCustomCommissionName, normalizeCustomCommissionTiers } from '@/src/lib/employees/custom-commission';
 import { calculateProbationEndDate } from '@/src/lib/employees/employment';
 import { normalizePayrollBonusCustomName, normalizePayrollBonusTiers, normalizeShopBonusTiers } from '@/src/lib/employees/payroll-bonus';
@@ -117,15 +111,12 @@ function extractPresetId(value: string | null) {
 }
 
 async function upsertSavedCommissionPreset(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createBrowserSupabaseClient>,
   name: string,
   tiers: ReturnType<typeof normalizeCustomCommissionTiers>,
   presetId: string | null,
 ) {
-  const payload = {
-    name,
-    tiers,
-  };
+  const payload = { name, tiers };
 
   if (presetId) {
     const { data, error } = await supabase
@@ -179,15 +170,12 @@ async function upsertSavedCommissionPreset(
 }
 
 async function upsertSavedPayrollBonusPreset(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createBrowserSupabaseClient>,
   name: string,
   tiers: ReturnType<typeof normalizePayrollBonusTiers>,
   presetId: string | null,
 ) {
-  const payload = {
-    name,
-    tiers,
-  };
+  const payload = { name, tiers };
 
   if (presetId) {
     const { data, error } = await supabase
@@ -245,14 +233,14 @@ async function resolveCompanyType(companyId: string | null) {
     throw new Error('Company is required.');
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createBrowserSupabaseClient();
   const { data, error } = await supabase.from('companies').select('code').eq('id', companyId).maybeSingle();
 
   if (error || !data?.code) {
     throw new Error(error?.message ?? 'Company not found.');
   }
 
-  return data.code;
+  return data.code as string;
 }
 
 async function resolveCompanyTypeOrDefault(companyId: string | null, fallback: string = 'ASA') {
@@ -263,27 +251,7 @@ async function resolveCompanyTypeOrDefault(companyId: string | null, fallback: s
   return resolveCompanyType(companyId);
 }
 
-function assertScopedEmployeeAccess(
-  currentUser: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
-  companyId: string | null,
-  branchId: string | null
-) {
-  if (!hasCompanyAccess(currentUser.accessScope, companyId)) {
-    throw new Error('You do not have access to the selected company.');
-  }
-
-  if (!hasBranchAccess(currentUser.accessScope, branchId)) {
-    throw new Error('You do not have access to the selected branch.');
-  }
-}
-
 export async function createEmployee(formData: FormData) {
-  const currentUser = await getCurrentUser();
-
-  if (!currentUser || !canAccessRoute(currentUser.role, 'people')) {
-    throw new Error('You do not have permission to create employees.');
-  }
-
   const employeeCode = getValue(formData, 'employeeCode');
   const nameZh = getValue(formData, 'nameZh');
   const nameEn = getValue(formData, 'nameEn');
@@ -299,12 +267,10 @@ export async function createEmployee(formData: FormData) {
     throw new Error('Missing required employee fields.');
   }
 
-  assertScopedEmployeeAccess(currentUser, companyId, branchId);
-
   const companyType = await resolveCompanyTypeOrDefault(companyId);
   const probationMonths = getNullableNumber(formData, 'probationMonths');
   const probationEndDate = calculateProbationEndDate(hireDate, probationMonths);
-  const supabase = createSupabaseAdminClient();
+  const supabase = createBrowserSupabaseClient();
   const payload = {
     employee_code: employeeCode || generateTemporaryEmployeeCode(),
     name_zh: nameZh,
@@ -338,17 +304,9 @@ export async function createEmployee(formData: FormData) {
   if (error) {
     throw new Error(error.message);
   }
-
-  void 0;
 }
 
 export async function updateEmployee(formData: FormData) {
-  const currentUser = await getCurrentUser();
-
-  if (!currentUser || !canAccessRoute(currentUser.role, 'people_detail')) {
-    throw new Error('You do not have permission to update employees.');
-  }
-
   const employeeId = getValue(formData, 'employeeId');
   const originalEmployeeCode = getValue(formData, 'originalEmployeeCode');
   const employeeCode = getValue(formData, 'employeeCode');
@@ -367,7 +325,7 @@ export async function updateEmployee(formData: FormData) {
     throw new Error('Missing required employee fields.');
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createBrowserSupabaseClient();
   const { data: existingEmployee, error: existingEmployeeError } = await supabase
     .from('employees')
     .select('employee_code, company_type, company_id, branch_id, employment_type, employment_status, gender, identity_type')
@@ -378,14 +336,12 @@ export async function updateEmployee(formData: FormData) {
     throw new Error(existingEmployeeError?.message ?? 'Employee not found.');
   }
 
-  assertScopedEmployeeAccess(currentUser, companyId ?? existingEmployee.company_id, branchId ?? existingEmployee.branch_id);
-
-  const normalizedEmployeeCode = employeeCode || originalEmployeeCode || existingEmployee.employee_code || generateTemporaryEmployeeCode();
-  const normalizedEmploymentType = employmentType || existingEmployee.employment_type || '全職';
-  const normalizedEmploymentStatus = employmentStatus || existingEmployee.employment_status || 'active';
-  const normalizedGender = gender || existingEmployee.gender || 'other';
-  const normalizedIdentityType = identityType || existingEmployee.identity_type || 'hkid';
-  const companyType = await resolveCompanyTypeOrDefault(companyId, existingEmployee.company_type || 'ASA');
+  const normalizedEmployeeCode = employeeCode || originalEmployeeCode || String(existingEmployee.employee_code ?? '') || generateTemporaryEmployeeCode();
+  const normalizedEmploymentType = employmentType || String(existingEmployee.employment_type ?? '') || '全職';
+  const normalizedEmploymentStatus = employmentStatus || String(existingEmployee.employment_status ?? '') || 'active';
+  const normalizedGender = gender || String(existingEmployee.gender ?? '') || 'other';
+  const normalizedIdentityType = identityType || String(existingEmployee.identity_type ?? '') || 'hkid';
+  const companyType = await resolveCompanyTypeOrDefault(companyId, String(existingEmployee.company_type ?? 'ASA') || 'ASA');
   const probationMonths = getNullableNumber(formData, 'probationMonths');
   const probationEndDate = calculateProbationEndDate(hireDate, probationMonths);
   const employeePayload = {
@@ -578,14 +534,6 @@ export async function updateEmployee(formData: FormData) {
       throw new Error(salaryDeleteError.message);
     }
   }
-
-  if (originalEmployeeCode) {
-    void 0;
-  }
-
-  void 0;
-  void 0;
-  void 0;
 
   return { employeeCode: normalizedEmployeeCode };
 }

@@ -52,6 +52,7 @@ for dir in dashboard people payroll attendance leaves admin inbox onboarding off
 done
 
 # 3b. Remove dynamic routes (using query params instead for static export)
+rm -rf "$UI_DIR/app/app/people/[employeeCode]"
 rm -rf "$UI_DIR/app/app/people/[id]"
 
 # 3c. Rewrite employee profile links: /app/people/${code} → /app/people?id=${code}

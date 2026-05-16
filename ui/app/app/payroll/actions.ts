@@ -1,5 +1,5 @@
 
-"use server";
+
 
 import { createSupabaseAdminClient } from '@/src/lib/supabase/admin';
 import { getCurrentUser } from '@/src/lib/auth/session';

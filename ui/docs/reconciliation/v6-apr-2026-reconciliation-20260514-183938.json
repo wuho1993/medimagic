@@ -1,0 +1,998 @@
+{
+  "generatedAt": "2026-05-14T10:39:38.030Z",
+  "mode": "dry-run",
+  "backupPath": "/Users/joecheung/Kojin Ai Solution/Medi Magic HRMS/ui/supabase/manual/backups/employees-before-v6-apr-2026-20260514-183938.json",
+  "counts": {
+    "dbEmployees": 84,
+    "v6Records": 84,
+    "plannedUpdates": 28,
+    "unresolvedV6": 0,
+    "appliedUpdates": 0,
+    "salaryRowsChecked": 85,
+    "attendanceRowsChecked": 75
+  },
+  "updatePlan": [
+    {
+      "source": {
+        "v6Row": 2,
+        "officialCode": "SF182",
+        "tempCode": "V6TMP202603R002",
+        "v6Name": "Po Yi"
+      },
+      "employeeId": "62f44071-061f-4d52-9848-112087315fa1",
+      "before": {
+        "employee_code": "SF182",
+        "name_zh": "陳家寶",
+        "name_en": "Chan Ka Po",
+        "alias": "BoYi / Po Yi / 寶兒",
+        "notes": "V6 匯入 2026-03；來源 row 2。已對到員工資料。\nV6 official code: SF182。\nAlternative names: 寶兒。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "62f44071-061f-4d52-9848-112087315fa1",
+        "employee_code": "SF182",
+        "employment_status": "active",
+        "alias": "BoYi / Po Yi / 寶兒 / BoYi / Po Yi / 寶兒",
+        "name_zh": "陳家寶",
+        "name_en": "Chan Ka Po",
+        "notes": "V6 匯入 2026-03；來源 row 2。已對到員工資料。 V6 official code: SF182。 Alternative names: 寶兒。\nV6 official code: SF182。\nAlternative names: 寶兒。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 12,
+        "officialCode": "SF282",
+        "tempCode": "V6TMP202603R012",
+        "v6Name": "Wincci"
+      },
+      "employeeId": "26e61872-3434-456f-a5cd-7815ef2bd877",
+      "before": {
+        "employee_code": "SF282",
+        "name_zh": "黃惠燕",
+        "name_en": "Wong Wai Yin",
+        "alias": "Vincci / Wincci",
+        "notes": "V6 匯入 2026-03；來源 row 12。已對到員工資料。\nV6 official code: SF282。\nAlternative names: Vincci。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "26e61872-3434-456f-a5cd-7815ef2bd877",
+        "employee_code": "SF282",
+        "employment_status": "active",
+        "alias": "Vincci / Wincci / Vincci / Wincci",
+        "name_zh": "黃惠燕",
+        "name_en": "Wong Wai Yin",
+        "notes": "V6 匯入 2026-03；來源 row 12。已對到員工資料。 V6 official code: SF282。 Alternative names: Vincci。\nV6 official code: SF282。\nAlternative names: Vincci。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 29,
+        "officialCode": "SF249",
+        "tempCode": "V6TMP202603R029",
+        "v6Name": "May"
+      },
+      "employeeId": "16cc3370-ff88-4936-b434-7722a8c84220",
+      "before": {
+        "employee_code": "SF249",
+        "name_zh": "Tai Mei Mei",
+        "name_en": "Tai Mei Mei",
+        "alias": "Maymay / May",
+        "notes": "V6 匯入 2026-03；來源 row 29。已對到員工資料。\nV6 official code: SF249。\nAlternative names: Maymay。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "16cc3370-ff88-4936-b434-7722a8c84220",
+        "employee_code": "SF249",
+        "employment_status": "active",
+        "alias": "Maymay / May / Maymay / May",
+        "name_zh": "Tai Mei Mei",
+        "name_en": "Tai Mei Mei",
+        "notes": "V6 匯入 2026-03；來源 row 29。已對到員工資料。 V6 official code: SF249。 Alternative names: Maymay。\nV6 official code: SF249。\nAlternative names: Maymay。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 34,
+        "officialCode": "SF065",
+        "tempCode": "V6TMP202603R034",
+        "v6Name": "Chun Chun"
+      },
+      "employeeId": "b7cd6ca3-02ee-40cf-866b-99cdb61fd2b4",
+      "before": {
+        "employee_code": "SF065",
+        "name_zh": "班秀珍",
+        "name_en": "Ban Xiuzhen",
+        "alias": "珍珍 / Chun Chun",
+        "notes": "V6 匯入 2026-03；來源 row 34。已對到員工資料。\nV6 official code: SF065。\nAlternative names: 珍珍。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "b7cd6ca3-02ee-40cf-866b-99cdb61fd2b4",
+        "employee_code": "SF065",
+        "employment_status": "active",
+        "alias": "珍珍 / Chun Chun / 珍珍 / Chun Chun",
+        "name_zh": "班秀珍",
+        "name_en": "Ban Xiuzhen",
+        "notes": "V6 匯入 2026-03；來源 row 34。已對到員工資料。 V6 official code: SF065。 Alternative names: 珍珍。\nV6 official code: SF065。\nAlternative names: 珍珍。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 40,
+        "officialCode": "SF164",
+        "tempCode": "V6TMP202603R040",
+        "v6Name": "LY"
+      },
+      "employeeId": "e99b5a57-5daa-4ef7-ad87-2f2b2829be73",
+      "before": {
+        "employee_code": "SF164",
+        "name_zh": "楊樂兒",
+        "name_en": "Yeung Lok Yi",
+        "alias": "Lok Yi / LY",
+        "notes": "V6 匯入 2026-03；來源 row 40。已對到員工資料。\nV6 official code: SF164。\nAlternative names: Lok Yi。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "e99b5a57-5daa-4ef7-ad87-2f2b2829be73",
+        "employee_code": "SF164",
+        "employment_status": "active",
+        "alias": "Lok Yi / LY / Lok Yi / LY",
+        "name_zh": "楊樂兒",
+        "name_en": "Yeung Lok Yi",
+        "notes": "V6 匯入 2026-03；來源 row 40。已對到員工資料。 V6 official code: SF164。 Alternative names: Lok Yi。\nV6 official code: SF164。\nAlternative names: Lok Yi。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 43,
+        "officialCode": "SF196",
+        "tempCode": "V6TMP202603R043",
+        "v6Name": "Ting"
+      },
+      "employeeId": "fae78ece-578c-430e-a57b-74f3e23d300c",
+      "before": {
+        "employee_code": "SF196",
+        "name_zh": "李迎迎",
+        "name_en": "Li Ying Ying",
+        "alias": "(B)婷婷 / Ting / 婷婷",
+        "notes": "V6 匯入 2026-03；來源 row 43。已對到員工資料。\nV6 official code: SF196。\nAlternative names: 婷婷。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "fae78ece-578c-430e-a57b-74f3e23d300c",
+        "employee_code": "SF196",
+        "employment_status": "active",
+        "alias": "(B)婷婷 / Ting / 婷婷 / (B)婷婷 / Ting / 婷婷",
+        "name_zh": "李迎迎",
+        "name_en": "Li Ying Ying",
+        "notes": "V6 匯入 2026-03；來源 row 43。已對到員工資料。 V6 official code: SF196。 Alternative names: 婷婷。\nV6 official code: SF196。\nAlternative names: 婷婷。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 44,
+        "officialCode": "SF146",
+        "tempCode": "V6TMP202603R044",
+        "v6Name": "Emily"
+      },
+      "employeeId": "0a8b4223-3557-40da-8afb-f723cf47a6a4",
+      "before": {
+        "employee_code": "SF146",
+        "name_zh": "陳潔湘",
+        "name_en": "Chan Kit Sheung",
+        "alias": "Emily / KIKI (CWB)",
+        "notes": "V6 匯入 2026-03；來源 row 44。已對到員工資料。\nV6 official code: SF146。\nAlternative names: KIKI (CWB)。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "0a8b4223-3557-40da-8afb-f723cf47a6a4",
+        "employee_code": "SF146",
+        "employment_status": "active",
+        "alias": "Emily / KIKI (CWB) / Emily / KIKI (CWB)",
+        "name_zh": "陳潔湘",
+        "name_en": "Chan Kit Sheung",
+        "notes": "V6 匯入 2026-03；來源 row 44。已對到員工資料。 V6 official code: SF146。 Alternative names: KIKI (CWB)。\nV6 official code: SF146。\nAlternative names: KIKI (CWB)。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 67,
+        "officialCode": "SF170",
+        "tempCode": "V6TMP202603R067",
+        "v6Name": "Body Moon"
+      },
+      "employeeId": "e2065f93-65bb-4197-b266-c87c4d225cda",
+      "before": {
+        "employee_code": "SF170",
+        "name_zh": "李佩英",
+        "name_en": "Lee Pui Ying",
+        "alias": "Moon(B) / Body Moon / MOON(Bm)",
+        "notes": "V6 匯入 2026-03；來源 row 67。已對到員工資料。\nV6 official code: SF170。\nAlternative names: MOON(Bm)。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "e2065f93-65bb-4197-b266-c87c4d225cda",
+        "employee_code": "SF170",
+        "employment_status": "active",
+        "alias": "Moon(B) / Body Moon / MOON(Bm) / Moon(B) / Body Moon / MOON(Bm)",
+        "name_zh": "李佩英",
+        "name_en": "Lee Pui Ying",
+        "notes": "V6 匯入 2026-03；來源 row 67。已對到員工資料。 V6 official code: SF170。 Alternative names: MOON(Bm)。\nV6 official code: SF170。\nAlternative names: MOON(Bm)。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 69,
+        "officialCode": "SF199",
+        "tempCode": "V6TMP202603R069",
+        "v6Name": "晴"
+      },
+      "employeeId": "bac1a9bb-f355-418f-a676-b8ff428abcf9",
+      "before": {
+        "employee_code": "SF199",
+        "name_zh": "梁玉嬋",
+        "name_en": "Leung Yuk Sim",
+        "alias": "呀晴 / 晴",
+        "notes": "V6 匯入 2026-03；來源 row 69。已對到員工資料。\nV6 official code: SF199。\nAlternative names: 呀晴。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "bac1a9bb-f355-418f-a676-b8ff428abcf9",
+        "employee_code": "SF199",
+        "employment_status": "active",
+        "alias": "呀晴 / 晴 / 呀晴 / 晴",
+        "name_zh": "梁玉嬋",
+        "name_en": "Leung Yuk Sim",
+        "notes": "V6 匯入 2026-03；來源 row 69。已對到員工資料。 V6 official code: SF199。 Alternative names: 呀晴。\nV6 official code: SF199。\nAlternative names: 呀晴。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 70,
+        "officialCode": "SF334",
+        "tempCode": "V6TMP202603R070",
+        "v6Name": "May Tsui"
+      },
+      "employeeId": "c9e3e46e-908e-4f1e-af5f-aab47330c963",
+      "before": {
+        "employee_code": "SF334",
+        "name_zh": "徐狄美",
+        "name_en": "Tsui Tik Mei",
+        "alias": "Maymay / May Tsui / May May",
+        "notes": "V6 匯入 2026-03；來源 row 70。已對到員工資料。\nV6 official code: SF334。\nAlternative names: May May。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "c9e3e46e-908e-4f1e-af5f-aab47330c963",
+        "employee_code": "SF334",
+        "employment_status": "active",
+        "alias": "Maymay / May Tsui / May May / Maymay / May Tsui / May May",
+        "name_zh": "徐狄美",
+        "name_en": "Tsui Tik Mei",
+        "notes": "V6 匯入 2026-03；來源 row 70。已對到員工資料。 V6 official code: SF334。 Alternative names: May May。\nV6 official code: SF334。\nAlternative names: May May。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 71,
+        "officialCode": "SF220",
+        "tempCode": "V6TMP202603R071",
+        "v6Name": "Pinky"
+      },
+      "employeeId": "38a137db-482d-4a70-85dd-666e29ad0c93",
+      "before": {
+        "employee_code": "SF220",
+        "name_zh": "郭麗萍",
+        "name_en": "Guo LiPing",
+        "alias": "Pinky / Pinky(BM)",
+        "notes": "V6 匯入 2026-03；來源 row 71。已對到員工資料。\nV6 official code: SF220。\nAlternative names: Pinky(BM)。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "38a137db-482d-4a70-85dd-666e29ad0c93",
+        "employee_code": "SF220",
+        "employment_status": "active",
+        "alias": "Pinky / Pinky(BM) / Pinky / Pinky(BM)",
+        "name_zh": "郭麗萍",
+        "name_en": "Guo LiPing",
+        "notes": "V6 匯入 2026-03；來源 row 71。已對到員工資料。 V6 official code: SF220。 Alternative names: Pinky(BM)。\nV6 official code: SF220。\nAlternative names: Pinky(BM)。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 17,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R017",
+        "v6Name": "Tammy"
+      },
+      "employeeId": "766eafec-a504-42ca-805b-d9c6d0908be5",
+      "before": {
+        "employee_code": "V6TMP202603R017",
+        "name_zh": "Tammy",
+        "name_en": "Tammy",
+        "alias": "Tammy",
+        "notes": "V6 匯入 2026-03；來源 row 17。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "766eafec-a504-42ca-805b-d9c6d0908be5",
+        "employee_code": "V6TMP202603R017",
+        "employment_status": "active",
+        "alias": "Tammy",
+        "name_zh": "Tammy",
+        "name_en": "Tammy",
+        "notes": "V6 匯入 2026-03；來源 row 17。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：兼職。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 18,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R018",
+        "v6Name": "Hebe"
+      },
+      "employeeId": "25894e28-0aa4-4400-962a-57ea79152311",
+      "before": {
+        "employee_code": "V6TMP202603R018",
+        "name_zh": "Hebe",
+        "name_en": "Hebe",
+        "alias": "Hebe",
+        "notes": "V6 匯入 2026-03；來源 row 18。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "25894e28-0aa4-4400-962a-57ea79152311",
+        "employee_code": "V6TMP202603R018",
+        "employment_status": "active",
+        "alias": "Hebe",
+        "name_zh": "Hebe",
+        "name_en": "Hebe",
+        "notes": "V6 匯入 2026-03；來源 row 18。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：兼職。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 19,
+        "officialCode": "SF356",
+        "tempCode": "V6TMP202603R019",
+        "v6Name": "Yu (Office)"
+      },
+      "employeeId": "da5852bd-0d0a-4a51-a111-f0fc675becb2",
+      "before": {
+        "employee_code": "SF356",
+        "name_zh": "Yu (Office)",
+        "name_en": "Yu (Office)",
+        "alias": "Yu (Office) / Yu",
+        "notes": "V6 匯入 2026-03；來源 row 19。V6 有資料，但員工資料沒有此 staff no。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: SF356。\nV6 note: V6 有資料，但員工資料沒有此 staff no。\nAlternative names: Yu。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "da5852bd-0d0a-4a51-a111-f0fc675becb2",
+        "employee_code": "SF356",
+        "employment_status": "active",
+        "alias": "Yu (Office) / Yu / Yu (Office) / Yu",
+        "name_zh": "Yu (Office)",
+        "name_en": "Yu (Office)",
+        "notes": "V6 匯入 2026-03；來源 row 19。V6 有資料，但員工資料沒有此 staff no。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: SF356。 V6 note: V6 有資料，但員工資料沒有此 staff no。 Alternative names: Yu。\nV6 official code: SF356。\nV6 note: V6 有資料，但員工資料沒有此 staff no。\nAlternative names: Yu。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 20,
+        "officialCode": "SF368",
+        "tempCode": "V6TMP202603R020",
+        "v6Name": "Yana(MKCYCS)"
+      },
+      "employeeId": "a8e4cf23-e9ab-4cb5-a7a6-22673bb4e03e",
+      "before": {
+        "employee_code": "SF368",
+        "name_zh": "Yana(MKCYCS)",
+        "name_en": "Yana(MKCYCS)",
+        "alias": "Yana(MKCYCS) / Yana ( CS)",
+        "notes": "V6 匯入 2026-03；來源 row 20。V6 有資料，但員工資料沒有此 staff no。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: SF368。\nV6 note: V6 有資料，但員工資料沒有此 staff no。\nAlternative names: Yana ( CS)。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "a8e4cf23-e9ab-4cb5-a7a6-22673bb4e03e",
+        "employee_code": "SF368",
+        "employment_status": "active",
+        "alias": "Yana(MKCYCS) / Yana ( CS) / Yana(MKCYCS) / Yana ( CS)",
+        "name_zh": "Yana(MKCYCS)",
+        "name_en": "Yana(MKCYCS)",
+        "notes": "V6 匯入 2026-03；來源 row 20。V6 有資料，但員工資料沒有此 staff no。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: SF368。 V6 note: V6 有資料，但員工資料沒有此 staff no。 Alternative names: Yana ( CS)。\nV6 official code: SF368。\nV6 note: V6 有資料，但員工資料沒有此 staff no。\nAlternative names: Yana ( CS)。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 22,
+        "officialCode": "SF370",
+        "tempCode": "V6TMP202603R022",
+        "v6Name": "Ashley"
+      },
+      "employeeId": "7377648e-ebea-4c39-876d-86db22780a54",
+      "before": {
+        "employee_code": "V6TMP202603R022",
+        "name_zh": "Ashley",
+        "name_en": "Ashley",
+        "alias": "Ashley",
+        "notes": "V6 匯入 2026-03；來源 row 22。V6 內 staff no 重複：SF370 / Ashley。原始 V6 staff no：SF370。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code conflict: SF370。\nV6 重複/未確認，暫保留技術編號。\nV6 note: V6 內 staff no 重複：SF370 / Ashley。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "7377648e-ebea-4c39-876d-86db22780a54",
+        "employee_code": "V6TMP202603R022",
+        "employment_status": "active",
+        "alias": "Ashley",
+        "name_zh": "Ashley",
+        "name_en": "Ashley",
+        "notes": "V6 匯入 2026-03；來源 row 22。V6 內 staff no 重複：SF370 / Ashley。原始 V6 staff no：SF370。入職日缺失，暫以 2026-03-01 佔位。 V6 official code conflict: SF370。 V6 重複/未確認，暫保留技術編號。 V6 note: V6 內 staff no 重複：SF370 / Ashley。\nV6 official code conflict: SF370。\nV6 重複/未確認，暫保留技術編號。\nV6 note: V6 內 staff no 重複：SF370 / Ashley。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 23,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R023",
+        "v6Name": "塋姐(大圍清潔)"
+      },
+      "employeeId": "fff9b4e7-da6f-4302-8c98-98c282a6e877",
+      "before": {
+        "employee_code": "V6TMP202603R023",
+        "name_zh": "塋姐(大圍清潔)",
+        "name_en": "塋姐(大圍清潔)",
+        "alias": "塋姐(大圍清潔)",
+        "notes": "V6 匯入 2026-03；來源 row 23。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "fff9b4e7-da6f-4302-8c98-98c282a6e877",
+        "employee_code": "V6TMP202603R023",
+        "employment_status": "active",
+        "alias": "塋姐(大圍清潔)",
+        "name_zh": "塋姐(大圍清潔)",
+        "name_en": "塋姐(大圍清潔)",
+        "notes": "V6 匯入 2026-03；來源 row 23。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：兼職。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 24,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R024",
+        "v6Name": "珍姐(MOS清潔)"
+      },
+      "employeeId": "a3e93fdc-b172-4f86-8a70-47daee00819e",
+      "before": {
+        "employee_code": "V6TMP202603R024",
+        "name_zh": "珍姐(MOS清潔)",
+        "name_en": "珍姐(MOS清潔)",
+        "alias": "珍姐(MOS清潔)",
+        "notes": "V6 匯入 2026-03；來源 row 24。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "a3e93fdc-b172-4f86-8a70-47daee00819e",
+        "employee_code": "V6TMP202603R024",
+        "employment_status": "active",
+        "alias": "珍姐(MOS清潔)",
+        "name_zh": "珍姐(MOS清潔)",
+        "name_en": "珍姐(MOS清潔)",
+        "notes": "V6 匯入 2026-03；來源 row 24。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：兼職。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 54,
+        "officialCode": "SF370",
+        "tempCode": "V6TMP202603R054",
+        "v6Name": "Yu"
+      },
+      "employeeId": "d9ee61cd-f142-4efe-aa4e-315155e2cd6b",
+      "before": {
+        "employee_code": "V6TMP202603R054",
+        "name_zh": "Yu",
+        "name_en": "Yu",
+        "alias": "Yu",
+        "notes": "V6 匯入 2026-03；來源 row 54。V6 內 staff no 重複：SF370 / Yu。原始 V6 staff no：SF370。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code conflict: SF370。\nV6 重複/未確認，暫保留技術編號。\nV6 note: V6 內 staff no 重複：SF370 / Yu。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "d9ee61cd-f142-4efe-aa4e-315155e2cd6b",
+        "employee_code": "V6TMP202603R054",
+        "employment_status": "active",
+        "alias": "Yu",
+        "name_zh": "Yu",
+        "name_en": "Yu",
+        "notes": "V6 匯入 2026-03；來源 row 54。V6 內 staff no 重複：SF370 / Yu。原始 V6 staff no：SF370。入職日缺失，暫以 2026-03-01 佔位。 V6 official code conflict: SF370。 V6 重複/未確認，暫保留技術編號。 V6 note: V6 內 staff no 重複：SF370 / Yu。\nV6 official code conflict: SF370。\nV6 重複/未確認，暫保留技術編號。\nV6 note: V6 內 staff no 重複：SF370 / Yu。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 58,
+        "officialCode": "SF265",
+        "tempCode": "V6TMP202603R058",
+        "v6Name": "Sugar"
+      },
+      "employeeId": "67bf3bbf-6c1a-4f10-b714-d5ba04dc03da",
+      "before": {
+        "employee_code": "V6TMP202603R058",
+        "name_zh": "Sugar",
+        "name_en": "Sugar",
+        "alias": "Sugar",
+        "notes": "V6 匯入 2026-03；來源 row 58。V6 有 staff no，但員工資料有重複資料列。原始 V6 staff no：SF265。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code conflict: SF265。\nV6 重複/未確認，暫保留技術編號。\nV6 note: V6 有 staff no，但員工資料有重複資料列。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "67bf3bbf-6c1a-4f10-b714-d5ba04dc03da",
+        "employee_code": "V6TMP202603R058",
+        "employment_status": "active",
+        "alias": "Sugar",
+        "name_zh": "Sugar",
+        "name_en": "Sugar",
+        "notes": "V6 匯入 2026-03；來源 row 58。V6 有 staff no，但員工資料有重複資料列。原始 V6 staff no：SF265。入職日缺失，暫以 2026-03-01 佔位。 V6 official code conflict: SF265。 V6 重複/未確認，暫保留技術編號。 V6 note: V6 有 staff no，但員工資料有重複資料列。\nV6 official code conflict: SF265。\nV6 重複/未確認，暫保留技術編號。\nV6 note: V6 有 staff no，但員工資料有重複資料列。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 60,
+        "officialCode": "SF146",
+        "tempCode": "V6TMP202603R060",
+        "v6Name": "KIKI (CWB)"
+      },
+      "employeeId": "6d80e924-c71a-44e8-9b9b-54ebe2b73fda",
+      "before": {
+        "employee_code": "V6TMP202603R060",
+        "name_zh": "KIKI (CWB)",
+        "name_en": "KIKI (CWB)",
+        "alias": "KIKI (CWB)",
+        "notes": "V6 匯入 2026-03；來源 row 60。V6 內未能確認：KIKI。原始 V6 staff no：SF146。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code conflict: SF146。\nV6 重複/未確認，暫保留技術編號。\nV6 note: V6 內未能確認：KIKI。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "6d80e924-c71a-44e8-9b9b-54ebe2b73fda",
+        "employee_code": "V6TMP202603R060",
+        "employment_status": "active",
+        "alias": "KIKI (CWB)",
+        "name_zh": "KIKI (CWB)",
+        "name_en": "KIKI (CWB)",
+        "notes": "V6 匯入 2026-03；來源 row 60。V6 內未能確認：KIKI。原始 V6 staff no：SF146。入職日缺失，暫以 2026-03-01 佔位。 V6 official code conflict: SF146。 V6 重複/未確認，暫保留技術編號。 V6 note: V6 內未能確認：KIKI。\nV6 official code conflict: SF146。\nV6 重複/未確認，暫保留技術編號。\nV6 note: V6 內未能確認：KIKI。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 95,
+        "officialCode": "SF375",
+        "tempCode": "V6TMP202603R095",
+        "v6Name": "Alferd"
+      },
+      "employeeId": "7b91ab69-6f1d-425b-aa21-ebfd388d9468",
+      "before": {
+        "employee_code": "SF375",
+        "name_zh": "Alferd",
+        "name_en": "Alferd",
+        "alias": "Alferd / Alfred",
+        "notes": "V6 匯入 2026-03；來源 row 95。V6 有資料，但員工資料沒有此 staff no。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: SF375。\nV6 note: V6 有資料，但員工資料沒有此 staff no。\nAlternative names: Alfred。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "7b91ab69-6f1d-425b-aa21-ebfd388d9468",
+        "employee_code": "SF375",
+        "employment_status": "active",
+        "alias": "Alferd / Alfred / Alferd / Alfred",
+        "name_zh": "Alferd",
+        "name_en": "Alferd",
+        "notes": "V6 匯入 2026-03；來源 row 95。V6 有資料，但員工資料沒有此 staff no。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: SF375。 V6 note: V6 有資料，但員工資料沒有此 staff no。 Alternative names: Alfred。\nV6 official code: SF375。\nV6 note: V6 有資料，但員工資料沒有此 staff no。\nAlternative names: Alfred。"
+      },
+      "changedFields": [
+        "alias",
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 97,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R097",
+        "v6Name": "Dr Chung"
+      },
+      "employeeId": "8c18d7c1-3fa2-4b9d-b10d-f43fd1f91c3f",
+      "before": {
+        "employee_code": "V6TMP202603R097",
+        "name_zh": "Dr Chung",
+        "name_en": "Dr Chung",
+        "alias": "Dr Chung",
+        "notes": "V6 匯入 2026-03；來源 row 97。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "8c18d7c1-3fa2-4b9d-b10d-f43fd1f91c3f",
+        "employee_code": "V6TMP202603R097",
+        "employment_status": "active",
+        "alias": "Dr Chung",
+        "name_zh": "Dr Chung",
+        "name_en": "Dr Chung",
+        "notes": "V6 匯入 2026-03；來源 row 97。V6 暫時只有資料：兼職。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：兼職。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：兼職。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 98,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R098",
+        "v6Name": "Sun Xiaojie"
+      },
+      "employeeId": "78a8490d-2760-451a-a04d-1b5538a480fe",
+      "before": {
+        "employee_code": "V6TMP202603R098",
+        "name_zh": "Sun Xiaojie",
+        "name_en": "Sun Xiaojie",
+        "alias": "Sun Xiaojie",
+        "notes": "V6 匯入 2026-03；來源 row 98。V6 暫時只有資料：外勞。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：外勞。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "78a8490d-2760-451a-a04d-1b5538a480fe",
+        "employee_code": "V6TMP202603R098",
+        "employment_status": "active",
+        "alias": "Sun Xiaojie",
+        "name_zh": "Sun Xiaojie",
+        "name_en": "Sun Xiaojie",
+        "notes": "V6 匯入 2026-03；來源 row 98。V6 暫時只有資料：外勞。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：外勞。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：外勞。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 99,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R099",
+        "v6Name": "Xue Minglan"
+      },
+      "employeeId": "b158f1a5-3007-4b94-a055-95cf3845de58",
+      "before": {
+        "employee_code": "V6TMP202603R099",
+        "name_zh": "Xue Minglan",
+        "name_en": "Xue Minglan",
+        "alias": "Xue Minglan",
+        "notes": "V6 匯入 2026-03；來源 row 99。V6 暫時只有資料：外勞。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：外勞。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "b158f1a5-3007-4b94-a055-95cf3845de58",
+        "employee_code": "V6TMP202603R099",
+        "employment_status": "active",
+        "alias": "Xue Minglan",
+        "name_zh": "Xue Minglan",
+        "name_en": "Xue Minglan",
+        "notes": "V6 匯入 2026-03；來源 row 99。V6 暫時只有資料：外勞。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：外勞。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：外勞。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 100,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R100",
+        "v6Name": "Dan Wu"
+      },
+      "employeeId": "fbb30fd9-6957-408c-ab9a-6e9a67bdefb1",
+      "before": {
+        "employee_code": "V6TMP202603R100",
+        "name_zh": "Dan Wu",
+        "name_en": "Dan Wu",
+        "alias": "Dan Wu",
+        "notes": "V6 匯入 2026-03；來源 row 100。V6 暫時只有資料：街霸。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：街霸。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "fbb30fd9-6957-408c-ab9a-6e9a67bdefb1",
+        "employee_code": "V6TMP202603R100",
+        "employment_status": "active",
+        "alias": "Dan Wu",
+        "name_zh": "Dan Wu",
+        "name_en": "Dan Wu",
+        "notes": "V6 匯入 2026-03；來源 row 100。V6 暫時只有資料：街霸。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：街霸。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：街霸。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 101,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R101",
+        "v6Name": "Lilly"
+      },
+      "employeeId": "cd5fc796-5ffa-4cd2-9ef9-60e8d4077186",
+      "before": {
+        "employee_code": "V6TMP202603R101",
+        "name_zh": "Lilly",
+        "name_en": "Lilly",
+        "alias": "Lilly",
+        "notes": "V6 匯入 2026-03；來源 row 101。V6 暫時只有資料：街霸。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：街霸。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "cd5fc796-5ffa-4cd2-9ef9-60e8d4077186",
+        "employee_code": "V6TMP202603R101",
+        "employment_status": "active",
+        "alias": "Lilly",
+        "name_zh": "Lilly",
+        "name_en": "Lilly",
+        "notes": "V6 匯入 2026-03；來源 row 101。V6 暫時只有資料：街霸。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：街霸。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：街霸。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    },
+    {
+      "source": {
+        "v6Row": 102,
+        "officialCode": null,
+        "tempCode": "V6TMP202603R102",
+        "v6Name": "Wu Anru"
+      },
+      "employeeId": "09c988a3-2ef9-407e-a0c1-c26d34e229ec",
+      "before": {
+        "employee_code": "V6TMP202603R102",
+        "name_zh": "Wu Anru",
+        "name_en": "Wu Anru",
+        "alias": "Wu Anru",
+        "notes": "V6 匯入 2026-03；來源 row 102。V6 暫時只有資料：街霸。入職日缺失，暫以 2026-03-01 佔位。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：街霸。",
+        "employment_status": "active"
+      },
+      "after": {
+        "id": "09c988a3-2ef9-407e-a0c1-c26d34e229ec",
+        "employee_code": "V6TMP202603R102",
+        "employment_status": "active",
+        "alias": "Wu Anru",
+        "name_zh": "Wu Anru",
+        "name_en": "Wu Anru",
+        "notes": "V6 匯入 2026-03；來源 row 102。V6 暫時只有資料：街霸。入職日缺失，暫以 2026-03-01 佔位。 V6 official code: N/A。 V6 note: V6 暫時只有資料：街霸。\nV6 official code: N/A。\nV6 note: V6 暫時只有資料：街霸。"
+      },
+      "changedFields": [
+        "notes"
+      ]
+    }
+  ],
+  "unresolvedV6": [],
+  "salarySummary": {
+    "missing": [
+      {
+        "rowNumber": 65,
+        "code": null,
+        "name": null,
+        "match": {
+          "kind": "missing"
+        }
+      },
+      {
+        "rowNumber": 77,
+        "code": null,
+        "name": "Cherus",
+        "match": {
+          "kind": "missing"
+        }
+      },
+      {
+        "rowNumber": 101,
+        "code": null,
+        "name": "Sylvia/Yena",
+        "match": {
+          "kind": "missing"
+        }
+      }
+    ],
+    "ambiguous": [
+      {
+        "rowNumber": 17,
+        "code": null,
+        "name": "Tammy"
+      },
+      {
+        "rowNumber": 18,
+        "code": null,
+        "name": "Hebe"
+      },
+      {
+        "rowNumber": 22,
+        "code": "SF370",
+        "name": "Ashley"
+      },
+      {
+        "rowNumber": 23,
+        "code": null,
+        "name": "塋姐(大圍清潔)"
+      },
+      {
+        "rowNumber": 52,
+        "code": "SF370",
+        "name": "Yu"
+      },
+      {
+        "rowNumber": 56,
+        "code": "SF265",
+        "name": "Sugar"
+      },
+      {
+        "rowNumber": 95,
+        "code": null,
+        "name": "Dr Chung"
+      },
+      {
+        "rowNumber": 96,
+        "code": null,
+        "name": "Sun Xiaojie"
+      },
+      {
+        "rowNumber": 97,
+        "code": null,
+        "name": "Xue Minglan"
+      },
+      {
+        "rowNumber": 98,
+        "code": null,
+        "name": "Dan Wu"
+      },
+      {
+        "rowNumber": 99,
+        "code": null,
+        "name": "Lilly"
+      },
+      {
+        "rowNumber": 100,
+        "code": null,
+        "name": "Wu Anru"
+      }
+    ]
+  },
+  "attendanceSummary": {
+    "missing": [
+      {
+        "rowNumber": 18,
+        "code": "SF301",
+        "name": "李醫師",
+        "match": {
+          "kind": "missing"
+        }
+      },
+      {
+        "rowNumber": 24,
+        "code": null,
+        "name": "Cherus",
+        "match": {
+          "kind": "missing"
+        }
+      },
+      {
+        "rowNumber": 67,
+        "code": "SF259",
+        "name": "Kiki(PT)",
+        "match": {
+          "kind": "missing"
+        }
+      }
+    ],
+    "ambiguous": [
+      {
+        "rowNumber": 27,
+        "code": "SF131",
+        "name": "Jumbo(PT)"
+      },
+      {
+        "rowNumber": 35,
+        "code": null,
+        "name": "Ashley"
+      },
+      {
+        "rowNumber": 45,
+        "code": null,
+        "name": "英"
+      },
+      {
+        "rowNumber": 51,
+        "code": null,
+        "name": "Lilly"
+      },
+      {
+        "rowNumber": 66,
+        "code": "SF265",
+        "name": "Sugar"
+      },
+      {
+        "rowNumber": 89,
+        "code": "PT",
+        "name": "Hebe"
+      },
+      {
+        "rowNumber": 92,
+        "code": "SF370",
+        "name": "Yu"
+      }
+    ]
+  }
+}

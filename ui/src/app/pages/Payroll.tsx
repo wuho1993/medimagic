@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type WheelEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type KeyboardEvent, type WheelEvent } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Calculator, ChevronDown, ChevronUp, CreditCard, Download, Save, TrendingUp, X } from 'lucide-react';
@@ -23,6 +23,15 @@ type PayrollProps = {
   commissionAvg: Record<string, number>;
   selectedMonth: string;
   payrollBonusConfig: PayrollBonusConfigCatalog;
+};
+
+type PayrollImportRow = {
+  employeeCode: string;
+  redeem?: number;
+  sales?: number;
+  salesAmountTotal?: number;
+  job?: number;
+  sgm?: number;
 };
 
 const MPF_RATE = 0.05;
@@ -223,6 +232,13 @@ const translations = {
     exportPayslipClearAll: '清除',
     exportPayslipEmpty: '請先選擇至少一位員工。',
     resyncMonthlySettings: '從員工預設重新同步本月設定',
+    aiImportTitle: 'AI 匯入',
+    aiImportTypeLabel: '匯入類別',
+    aiImportTypeAll: '全部類別',
+    aiImportUploading: '分析中...',
+    aiImportSuccess: '匯入完成',
+    aiImportFail: '匯入失敗',
+    aiImportHint: '上載含員工編號的檔案，以 AI 方式導入 Redeem、Sales、Job 或 SGM。',
     month: '月份',
     avg365: '365天平均佣金',
     avgLabel: '月均佣金',
@@ -355,6 +371,13 @@ const translations = {
     exportPayslipClearAll: '清除',
     exportPayslipEmpty: '请先选择至少一位员工。',
     resyncMonthlySettings: '从员工预设重新同步本月设定',
+    aiImportTitle: 'AI 导入',
+    aiImportTypeLabel: '导入类型',
+    aiImportTypeAll: '全部类型',
+    aiImportUploading: '分析中...',
+    aiImportSuccess: '导入完成',
+    aiImportFail: '导入失败',
+    aiImportHint: '上传含员工编号的文件，以 AI 方式导入 Redeem、Sales、Job 或 SGM。',
     month: '月份',
     avg365: '365天平均佣金',
     avgLabel: '月均佣金',
@@ -488,6 +511,13 @@ const translations = {
     exportPayslipEmpty: 'Select at least one employee first.',
     resyncMonthlySettings: 'Resync This Month From Employee Defaults',
     month: 'Month',
+    aiImportTitle: 'AI Payroll Import',
+    aiImportTypeLabel: 'Import Type',
+    aiImportTypeAll: 'All categories',
+    aiImportUploading: 'Analyzing file...',
+    aiImportSuccess: 'Import complete',
+    aiImportFail: 'Import failed',
+    aiImportHint: 'Upload a file with employee codes to import Redeem, Sales, Job or SGM with AI-assisted parsing.',
     avg365: '365-Day Avg Commission',
     avgLabel: 'Monthly Avg',
     mpfSectionTitle: 'MPF Settings',
@@ -973,6 +1003,10 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
+  const [importType, setImportType] = useState<'all' | 'redeem' | 'sales' | 'job' | 'sgm'>('all');
+  const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'error'>('idle');
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importKey, setImportKey] = useState(0);
   const [isPayslipModalOpen, setIsPayslipModalOpen] = useState(false);
   const [selectedPayslipCodes, setSelectedPayslipCodes] = useState<string[]>([]);
   const [activePayslipPdfEntry, setActivePayslipPdfEntry] = useState<PayslipPdfEntry | null>(null);
@@ -1048,6 +1082,245 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
       if (next.has(code)) next.delete(code); else next.add(code);
       return next;
     });
+  };
+
+  const parseImportedNumber = (value: unknown) => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : NaN;
+    }
+
+    const normalized = String(value ?? '')
+      .replace(/[\s\$HKD,]/gi, '')
+      .replace(/，/g, ',')
+      .trim();
+
+    if (normalized.length === 0) {
+      return NaN;
+    }
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  };
+
+  const updateImportedVolumes = (rows: PayrollImportRow[]) => {
+    setEmpVolumes((prev) => {
+      const next = { ...prev };
+
+      for (const rawRow of rows) {
+        const employeeCode = rawRow.employeeCode?.trim();
+        if (!employeeCode) {
+          continue;
+        }
+
+        const current = next[employeeCode] ?? {
+          redeem: '',
+          sales: '',
+          salesAmountTotal: '',
+          job: '',
+          sgm: '',
+          streetPromoterHeadcount: '',
+          telesalesHeadcount: '',
+        };
+
+        const applyMetric = (field: keyof EmployeeVolumes, value?: number) => {
+          if (typeof value === 'number' && !Number.isNaN(value)) {
+            current[field] = String(value);
+          }
+        };
+
+        if (importType === 'all' || importType === 'redeem') {
+          applyMetric('redeem', rawRow.redeem);
+        }
+        if (importType === 'all' || importType === 'sales') {
+          applyMetric('sales', rawRow.sales);
+          applyMetric('salesAmountTotal', rawRow.salesAmountTotal);
+        }
+        if (importType === 'all' || importType === 'job') {
+          applyMetric('job', rawRow.job);
+        }
+        if (importType === 'all' || importType === 'sgm') {
+          applyMetric('sgm', rawRow.sgm);
+        }
+
+        next[employeeCode] = current;
+      }
+
+      return next;
+    });
+  };
+
+  const handlePayrollImport = async (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    setImportStatus('importing');
+    setImportMessage(null);
+
+    try {
+      // 1. Read the file
+      const normalizedName = file.name.toLowerCase();
+      let rows: string[][] = [];
+
+      if (normalizedName.endsWith('.csv') || normalizedName.endsWith('.txt')) {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+        for (const line of lines) {
+          const cells: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let index = 0; index < line.length; index += 1) {
+            const char = line[index];
+            if (char === '"') {
+              if (inQuotes && line[index + 1] === '"') {
+                current += '"';
+                index += 1;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              cells.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          cells.push(current.trim());
+          rows.push(cells);
+        }
+      } else if (normalizedName.endsWith('.xlsx')) {
+        const ExcelJS = await import('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(await file.arrayBuffer() as any);
+        const worksheet = workbook.worksheets[0];
+        if (worksheet) {
+          worksheet.eachRow({ includeEmpty: false }, (row) => {
+            const values: string[] = [];
+            for (let index = 1; index <= row.cellCount; index += 1) {
+              const value = row.getCell(index).value;
+              if (value === null || value === undefined) {
+                values.push('');
+              } else if (typeof value === 'object' && 'text' in value && typeof value.text === 'string') {
+                values.push(value.text.trim());
+              } else {
+                values.push(String(value).trim());
+              }
+            }
+            if (values.some((cell) => cell !== '')) {
+              rows.push(values);
+            }
+          });
+        }
+      } else {
+        throw new Error('Unsupported file type. Please upload XLSX or CSV.');
+      }
+
+      if (rows.length === 0) {
+        throw new Error('Uploaded file contains no rows.');
+      }
+
+      // 2. Build prompt
+      const fieldHint = importType === 'all'
+        ? 'employee code plus any redeem, sales, salesAmountTotal, job, and sgm values available'
+        : `employee code plus the ${importType} value`;
+      const tablePreview = rows.slice(0, 20).map((row) => row.map((cell) => cell || '').join(' | ')).join('\n');
+      const header = rows[0]?.map((cell) => cell || '').join(' | ') ?? '';
+      const prompt = `You are a payroll import assistant. Extract ${fieldHint} from the uploaded payroll table.
+Return only valid JSON. The output must be a JSON array of objects. Each object must include a string field named "employeeCode" and numeric fields where applicable. Do not include any explanation or extra text.
+Examples:
+[
+  {"employeeCode":"EMP001","redeem":10,"sales":5,"salesAmountTotal":1200,"job":0,"sgm":3}
+]
+If importType is not all, return objects with only employeeCode plus the requested field.
+Table header:
+${header}
+Table rows:
+${tablePreview}`;
+
+      // 3. Call Gemini
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || 'AIzaSyD5iJ0f4FoGt0YSaYUsl__07KPDODj8nLE';
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+      const aiResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 800 },
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        throw new Error(`Google API request failed (${aiResponse.status}): ${errorText}`);
+      }
+
+      const aiData = await aiResponse.json();
+      let aiText = '';
+      if (aiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        aiText = aiData.candidates[0].content.parts[0].text;
+      }
+
+      const jsonMatch = aiText.match(/\[\s*[\s\S]*\]/m) || aiText.match(/\{[\s\S]*\}/m);
+      if (!jsonMatch) {
+        throw new Error('Unable to parse AI response as JSON.');
+      }
+
+      const aiParsed = JSON.parse(jsonMatch[0]);
+      if (!Array.isArray(aiParsed)) {
+        throw new Error('AI response did not return an array.');
+      }
+
+      const parsedRows: PayrollImportRow[] = [];
+      for (const item of aiParsed) {
+        if (!item || typeof item !== 'object') continue;
+        const raw = item as Record<string, unknown>;
+        const employeeCode = String(raw.employeeCode ?? raw.employee_code ?? '').trim();
+        if (!employeeCode) continue;
+
+        const parseNumber = (field: string) => {
+          const rawValue = raw[field];
+          if (rawValue === null || rawValue === undefined || rawValue === '') return undefined;
+          const num = Number(String(rawValue).replace(/[\s,\$HKDhkdhkdhkd]/gi, '').trim());
+          return Number.isFinite(num) ? num : undefined;
+        };
+
+        parsedRows.push({
+          employeeCode,
+          redeem: parseNumber('redeem'),
+          sales: parseNumber('sales'),
+          salesAmountTotal: parseNumber('salesAmountTotal'),
+          job: parseNumber('job'),
+          sgm: parseNumber('sgm'),
+        });
+      }
+
+      updateImportedVolumes(parsedRows);
+      markDirty();
+      setImportStatus('success');
+      setImportMessage(`${parsedRows.length} row${parsedRows.length === 1 ? '' : 's'} imported`);
+      setImportKey((prev) => prev + 1);
+    } catch (error) {
+      setImportStatus('error');
+      setImportMessage(error instanceof Error ? error.message : String(error));
+      setImportKey((prev) => prev + 1);
+    }
+  };
+
+  const getImportStatusText = () => {
+    if (importStatus === 'importing') {
+      return t.aiImportUploading;
+    }
+    if (importStatus === 'success') {
+      return importMessage || t.aiImportSuccess;
+    }
+    if (importStatus === 'error') {
+      return importMessage || t.aiImportFail;
+    }
+
+    return '';
   };
 
   const getVolumes = (code: string): EmployeeVolumes => empVolumes[code] ?? {
@@ -1750,6 +2023,35 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">{t.month}</label>
             <input type="month" value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">{t.aiImportTypeLabel}</label>
+            <select
+              value={importType}
+              onChange={(e) => setImportType(e.target.value as 'all' | 'redeem' | 'sales' | 'job' | 'sgm')}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+            >
+              <option value="all">{t.aiImportTypeAll}</option>
+              <option value="redeem">{t.tierCard.redeem}</option>
+              <option value="sales">{t.tierCard.sales}</option>
+              <option value="job">Job</option>
+              <option value="sgm">{t.tierCard.sgm}</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="mb-1 block text-xs font-medium text-slate-500">{t.aiImportTitle}</label>
+            <input
+              key={importKey}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={(event) => handlePayrollImport(event.target.files?.[0] ?? null)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+            />
+            {getImportStatusText() ? (
+              <p className="text-xs text-slate-500">{getImportStatusText()}</p>
+            ) : (
+              <p className="text-xs text-slate-500">{t.aiImportHint}</p>
+            )}
           </div>
           <button
             type="button"
