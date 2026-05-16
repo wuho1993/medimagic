@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  trailingSlash: true,
+  // output: 'export',
+  // trailingSlash: true,
   images: { unoptimized: true },
-  basePath: '/medimagic',
-  assetPrefix: '/medimagic/',
+  // basePath: '/medimagic',
+  // assetPrefix: '/medimagic/',
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   webpack: (config) => {

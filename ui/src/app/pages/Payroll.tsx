@@ -1007,6 +1007,17 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'error'>('idle');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importKey, setImportKey] = useState(0);
+  const [isAiChatbotOpen, setIsAiChatbotOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string }>>([
+    { role: 'ai', text: lang === 'zh-CN' ? '你好！我是 AI 薪资助手。请选择导入类型并上传文件，我会自动为您提取对应的数据。' : (lang === 'en' ? 'Hello! I am your AI Payroll Assistant. Select the import type and upload your file to begin.' : '你好！我是 AI 薪資助手。請選擇匯入類別並上載檔案，我會為您自動分析及提取數據。') }
+  ]);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isAiChatbotOpen) {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, isAiChatbotOpen]);
   const [isPayslipModalOpen, setIsPayslipModalOpen] = useState(false);
   const [selectedPayslipCodes, setSelectedPayslipCodes] = useState<string[]>([]);
   const [activePayslipPdfEntry, setActivePayslipPdfEntry] = useState<PayslipPdfEntry | null>(null);
@@ -1156,6 +1167,10 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
     setImportStatus('importing');
     setImportMessage(null);
+    setChatMessages((prev) => [
+      ...prev,
+      { role: 'user', text: lang === 'zh-CN' ? `已上传文件：${file.name} (类型: ${importType})` : (lang === 'en' ? `Uploaded file: ${file.name} (Type: ${importType})` : `已上載檔案：${file.name} (類別: ${importType})`) }
+    ]);
 
     try {
       // 1. Read the file
@@ -1300,11 +1315,15 @@ ${tablePreview}`;
       updateImportedVolumes(parsedRows);
       markDirty();
       setImportStatus('success');
-      setImportMessage(`${parsedRows.length} row${parsedRows.length === 1 ? '' : 's'} imported`);
+      const successMsg = lang === 'zh-CN' ? `成功提取并导入了 ${parsedRows.length} 位员工的数据！` : (lang === 'en' ? `Successfully extracted and imported data for ${parsedRows.length} employees!` : `成功提取並匯入了 ${parsedRows.length} 位員工的數據！`);
+      setImportMessage(successMsg);
+      setChatMessages((prev) => [...prev, { role: 'ai', text: successMsg }]);
       setImportKey((prev) => prev + 1);
     } catch (error) {
       setImportStatus('error');
-      setImportMessage(error instanceof Error ? error.message : String(error));
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setImportMessage(errorMsg);
+      setChatMessages((prev) => [...prev, { role: 'ai', text: lang === 'zh-CN' ? `抱歉，导入过程中发生错误：${errorMsg}` : (lang === 'en' ? `Sorry, an error occurred during import: ${errorMsg}` : `抱歉，匯入過程中發生錯誤：${errorMsg}`) }]);
       setImportKey((prev) => prev + 1);
     }
   };
@@ -2019,40 +2038,28 @@ ${tablePreview}`;
           <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
           <p className="mt-1 text-sm text-slate-500">{t.subtitle}</p>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">{t.month}</label>
-            <input type="month" value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]" />
+        <div className="flex flex-wrap items-center justify-between gap-4 w-full">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-col">
+              <label className="mb-1 block text-xs font-medium text-slate-500">{t.month}</label>
+              <input type="month" value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]" />
+            </div>
+            <div className="flex flex-col pt-5">
+              <button
+                type="button"
+                onClick={() => setIsAiChatbotOpen(true)}
+                className="group relative flex h-10 items-center gap-2 overflow-hidden rounded-lg bg-gradient-to-r from-[#D4AF37] to-[#C5A028] px-4 font-semibold text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-95"
+              >
+                <div className="absolute inset-0 bg-white/20 opacity-0 transition-opacity group-hover:opacity-100" />
+                <span className="relative flex h-5 w-5 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
+                  <span className="h-2 w-2 animate-ping rounded-full bg-white opacity-75" />
+                  <span className="absolute h-2 w-2 rounded-full bg-white" />
+                </span>
+                ✨ {t.aiImportTitle}
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">{t.aiImportTypeLabel}</label>
-            <select
-              value={importType}
-              onChange={(e) => setImportType(e.target.value as 'all' | 'redeem' | 'sales' | 'job' | 'sgm')}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
-            >
-              <option value="all">{t.aiImportTypeAll}</option>
-              <option value="redeem">{t.tierCard.redeem}</option>
-              <option value="sales">{t.tierCard.sales}</option>
-              <option value="job">Job</option>
-              <option value="sgm">{t.tierCard.sgm}</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="mb-1 block text-xs font-medium text-slate-500">{t.aiImportTitle}</label>
-            <input
-              key={importKey}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={(event) => handlePayrollImport(event.target.files?.[0] ?? null)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
-            />
-            {getImportStatusText() ? (
-              <p className="text-xs text-slate-500">{getImportStatusText()}</p>
-            ) : (
-              <p className="text-xs text-slate-500">{t.aiImportHint}</p>
-            )}
-          </div>
+          <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={handleSave}
@@ -2083,6 +2090,7 @@ ${tablePreview}`;
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-center shadow-sm">
             <div className="text-xs font-medium text-slate-500">{t.totals}</div>
             <div className="text-lg font-bold text-slate-900">{fmt(totals.net)}</div>
+          </div>
           </div>
         </div>
       </div>
@@ -2917,7 +2925,7 @@ ${tablePreview}`;
       )}
 
       {isPayslipModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 px-4 py-6">
           <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
               <div>
@@ -3001,6 +3009,98 @@ ${tablePreview}`;
                 <Download className="h-4 w-4" />
                 {exportStatus === 'exporting' ? t.exportingPayslip : t.exportPayslipConfirm}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isAiChatbotOpen ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm transition-all sm:p-6">
+          <div className="flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl ring-1 ring-slate-200/50 sm:h-[80vh]">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#B38E18] text-white shadow-sm">
+                  ✨
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">AI Payroll Assistant</h2>
+                  <p className="text-xs text-slate-500">{t.aiImportHint}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAiChatbotOpen(false)}
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${msg.role === 'user' ? 'bg-[#D4AF37] text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-none'}`}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {importStatus === 'importing' && (
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-none border border-slate-100 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37] [animation-delay:-0.3s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37] [animation-delay:-0.15s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
+                      <span className="ml-1">{t.aiImportUploading}</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            <div className="border-t border-slate-200 bg-white p-4">
+              <div className="mx-auto flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">{t.aiImportTypeLabel}</label>
+                  <select
+                    value={importType}
+                    onChange={(e) => setImportType(e.target.value as 'all' | 'redeem' | 'sales' | 'job' | 'sgm')}
+                    disabled={importStatus === 'importing'}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37] disabled:opacity-60"
+                  >
+                    <option value="all">{t.aiImportTypeAll}</option>
+                    <option value="redeem">{t.tierCard.redeem}</option>
+                    <option value="sales">{t.tierCard.sales}</option>
+                    <option value="job">Job</option>
+                    <option value="sgm">{t.tierCard.sgm}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    {lang === 'zh-CN' ? '上传文件' : lang === 'en' ? 'Upload File' : '上載檔案'}
+                  </label>
+                  <label className={`relative flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-6 transition-colors ${importStatus === 'importing' ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60' : 'border-[#D4AF37]/40 bg-amber-50/30 hover:border-[#D4AF37] hover:bg-amber-50/80'}`}>
+                    <input
+                      key={importKey}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      disabled={importStatus === 'importing'}
+                      onChange={(event) => handlePayrollImport(event.target.files?.[0] ?? null)}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                    />
+                    <div className="flex flex-col items-center gap-2 text-center">
+                      <div className="rounded-full bg-white p-2 shadow-sm ring-1 ring-slate-900/5">
+                        <Download className="h-5 w-5 text-[#D4AF37]" />
+                      </div>
+                      <div className="text-sm font-medium text-slate-700">
+                        {lang === 'zh-CN' ? '点击或拖拽文件到此处' : lang === 'en' ? 'Click or drag file here' : '點擊或拖拽檔案到此處'}
+                      </div>
+                      <div className="text-xs text-slate-500">.xlsx, .csv</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
