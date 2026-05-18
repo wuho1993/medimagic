@@ -289,7 +289,7 @@ const translations = {
     commissionMethods: {
       standard: '標準佣金',
       none: '無佣金',
-      custom: '自訂佣金',
+      custom: '自訂佣金 / BAR / Rate',
     },
     bankSearch: {
       placeholder: '搜尋銀行名稱或編號',
@@ -555,7 +555,7 @@ const translations = {
     commissionMethods: {
       standard: '标准佣金',
       none: '无佣金',
-      custom: '自定义佣金',
+      custom: '自定义佣金 / BAR / Rate',
     },
     bankSearch: {
       placeholder: '搜索银行名称或编号',
@@ -821,7 +821,7 @@ const translations = {
     commissionMethods: {
       standard: 'Standard',
       none: 'None',
-      custom: 'Custom Commission',
+      custom: 'Custom Commission / BAR / Rate',
     },
     bankSearch: {
       placeholder: 'Search bank name or code',
@@ -1313,7 +1313,7 @@ function createInitialState(employee: EmployeeDetailRecord): FormState {
     briefingBonus: employee.briefingBonus === null ? '' : String(employee.briefingBonus),
     bookingBonus: employee.bookingBonus === null ? '' : String(employee.bookingBonus),
     mpfEnabled: employee.mpfEnabled ? 'true' : 'false',
-    commissionMethod: employee.commissionPresetId ? getPresetSelectValue(employee.commissionPresetId) : (employee.commissionMethod ?? ''),
+    commissionMethod: employee.commissionRules?.length ? 'custom' : (employee.commissionPresetId ? getPresetSelectValue(employee.commissionPresetId) : (employee.commissionMethod ?? '')),
     commissionCustomName: employee.commissionCustomName ?? '',
     commissionCustomTiers: serializeCustomCommissionTiers(employee.commissionCustomTiers ?? []),
     commissionRules: serializeCommissionRules(employee.commissionRules ?? []),
@@ -2634,6 +2634,7 @@ export default function EmployeeProfile({
                     commissionMethod: value,
                     commissionCustomName: selectedPreset?.name ?? current.commissionCustomName,
                     commissionCustomTiers: selectedPreset ? serializeCustomCommissionTiers(selectedPreset.tiers) : current.commissionCustomTiers,
+                    commissionRules: '',
                   };
                 }
         return {
@@ -2643,6 +2644,7 @@ export default function EmployeeProfile({
           commissionCustomTiers: value === 'custom'
             ? current.commissionCustomTiers || serializeCustomCommissionTiers(createDefaultCustomCommissionTiers(commissionTiers))
             : current.commissionCustomTiers,
+          commissionRules: value === 'custom' ? current.commissionRules : '',
         };
       }
 
@@ -3170,22 +3172,28 @@ export default function EmployeeProfile({
                       />
                     ) : null}
                     {isCustomCommissionSelected && (
-                      <CustomCommissionTierEditor
-                        customName={formState.commissionCustomName}
-                        onCustomNameChange={(value) => setFormState((prev) => ({ ...prev, commissionCustomName: value }))}
-                        tiers={customCommissionTiers}
-                        onChange={(tiers) => setFormState((prev) => ({ ...prev, commissionCustomTiers: serializeCustomCommissionTiers(tiers) }))}
-                        onCopyStandard={() => setFormState((prev) => ({ ...prev, commissionCustomTiers: serializeCustomCommissionTiers(createDefaultCustomCommissionTiers(commissionTiers)) }))}
-                        title={customCommissionTitle}
-                        labels={t.customCommissionEditor}
-                        tierLabels={t.tierCard}
-                        locale={locale}
-                      />
+                      <div className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4">
+                        <div>
+                          <div className="text-base font-bold text-slate-900">{t.commissionMethods.custom}</div>
+                          <div className="mt-1 text-sm text-slate-600">可用舊百分比 tier，或使用 BAR / rate 佣金規則。Yan/LY 請用「套用 Yan/LY BAR」。</div>
+                        </div>
+                        <CustomCommissionTierEditor
+                          customName={formState.commissionCustomName}
+                          onCustomNameChange={(value) => setFormState((prev) => ({ ...prev, commissionCustomName: value }))}
+                          tiers={customCommissionTiers}
+                          onChange={(tiers) => setFormState((prev) => ({ ...prev, commissionCustomTiers: serializeCustomCommissionTiers(tiers) }))}
+                          onCopyStandard={() => setFormState((prev) => ({ ...prev, commissionCustomTiers: serializeCustomCommissionTiers(createDefaultCustomCommissionTiers(commissionTiers)) }))}
+                          title={customCommissionTitle}
+                          labels={t.customCommissionEditor}
+                          tierLabels={t.tierCard}
+                          locale={locale}
+                        />
+                        <CommissionRulesEditor
+                          rules={commissionRules}
+                          onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: serializeCommissionRules(rules) }))}
+                        />
+                      </div>
                     )}
-                    <CommissionRulesEditor
-                      rules={commissionRules}
-                      onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: serializeCommissionRules(rules) }))}
-                    />
                     <div className="mt-2 border-t border-slate-100 pt-4">
                       <label className="flex items-center gap-3 cursor-pointer">
                         <input type="checkbox" name="salesBonusEnabled" checked={formState.salesBonusEnabled === 'true'} onChange={(e) => setFormState((prev) => ({ ...prev, salesBonusEnabled: e.target.checked ? 'true' : 'false', payrollBonusEnabled: e.target.checked ? 'true' : 'false', payrollBonusScheme: e.target.checked ? prev.payrollBonusScheme : '', salesBonusRate: '', salesBonusCustomName: e.target.checked ? prev.salesBonusCustomName : '', salesBonusCustomTiers: e.target.checked ? prev.salesBonusCustomTiers : '' }))} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
