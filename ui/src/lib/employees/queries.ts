@@ -15,6 +15,7 @@ import {
   type ShopBonusTier,
   type StandardPayrollBonusSchemes,
 } from './payroll-bonus';
+import { normalizeCommissionRules, type CommissionRule } from './commission-rules';
 import { EMPLOYEE_DOCUMENT_BUCKET, type EmployeeDocumentType } from './document-storage';
 import type { EmployeeEmploymentType } from './employment';
 
@@ -95,6 +96,7 @@ export type EmployeeDetailRecord = EmployeeDirectoryRecord & {
   commissionPresetId: string | null;
   commissionCustomName: string | null;
   commissionCustomTiers: CustomCommissionTier[];
+  commissionRules: CommissionRule[];
   commissionRedeemRate: number | null;
   commissionSalesRate: number | null;
   commissionSgmRate: number | null;
@@ -104,6 +106,9 @@ export type EmployeeDetailRecord = EmployeeDirectoryRecord & {
   payrollBonusPresetId: string | null;
   salesBonusCustomName: string | null;
   salesBonusCustomTiers: PayrollBonusTier[];
+  redeemBonusEnabled: boolean;
+  redeemBonusCustomName: string | null;
+  redeemBonusCustomTiers: PayrollBonusTier[];
   payrollBonusEnabled: boolean;
   payrollBonusScheme: PayrollBonusScheme | null;
   streetPromoterEnabled: boolean;
@@ -197,6 +202,7 @@ type EmployeeSalaryProfileRow = {
   commission_preset_id: string | null;
   commission_custom_name: string | null;
   commission_custom_tiers: unknown | null;
+  commission_rules: unknown | null;
   commission_redeem_rate: number | string | null;
   commission_sales_rate: number | string | null;
   commission_sgm_rate: number | string | null;
@@ -206,6 +212,9 @@ type EmployeeSalaryProfileRow = {
   payroll_bonus_preset_id: string | null;
   sales_bonus_custom_name: string | null;
   sales_bonus_custom_tiers: unknown | null;
+  redeem_bonus_enabled: boolean | null;
+  redeem_bonus_custom_name: string | null;
+  redeem_bonus_custom_tiers: unknown | null;
   payroll_bonus_enabled: boolean | null;
   payroll_bonus_scheme: PayrollBonusScheme | null;
   street_promoter_enabled: boolean | null;
@@ -255,12 +264,12 @@ type PayrollSchemeConfigRow = {
 
 const EMPLOYEE_SALARY_PROFILE_SELECT_LEGACY = 'salary_type, base_salary, allowance_amount, effective_from, remarks, attendance_bonus_enabled, attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus, mpf_enabled, commission_method, commission_preset_id, commission_custom_name, commission_custom_tiers, commission_redeem_rate, commission_sales_rate, commission_sgm_rate, sales_bonus_enabled, sales_bonus_rate, payroll_bonus_preset_id, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme, pay_day_primary, pay_day_secondary, commission_notes';
 const EMPLOYEE_SALARY_PROFILE_SELECT_WITH_PACKAGE = `${EMPLOYEE_SALARY_PROFILE_SELECT_LEGACY}, package_commission_amount`;
-const EMPLOYEE_SALARY_PROFILE_SELECT_CURRENT = `${EMPLOYEE_SALARY_PROFILE_SELECT_WITH_PACKAGE}, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme, sales_amount_rate_percent`;
+const EMPLOYEE_SALARY_PROFILE_SELECT_CURRENT = `${EMPLOYEE_SALARY_PROFILE_SELECT_WITH_PACKAGE}, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
 const PAYROLL_SUMMARY_PROFILE_SELECT_LEGACY = 'salary_type, base_salary, allowance_amount, attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus, mpf_enabled, pay_day_primary, pay_day_secondary, commission_method, commission_custom_name, commission_custom_tiers, commission_redeem_rate, commission_sales_rate, commission_sgm_rate, sales_bonus_enabled, sales_bonus_rate, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme';
 const PAYROLL_SUMMARY_PROFILE_SELECT_WITH_PACKAGE = `${PAYROLL_SUMMARY_PROFILE_SELECT_LEGACY}, package_commission_amount`;
-const PAYROLL_SUMMARY_PROFILE_SELECT_CURRENT = `${PAYROLL_SUMMARY_PROFILE_SELECT_WITH_PACKAGE}, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme, sales_amount_rate_percent`;
+const PAYROLL_SUMMARY_PROFILE_SELECT_CURRENT = `${PAYROLL_SUMMARY_PROFILE_SELECT_WITH_PACKAGE}, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
 const MONTHLY_COMMISSION_RECORD_SELECT_LEGACY = 'employee_id, year_month, redeem_volume, sales_volume, job_amount, sgm_volume, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, total_commission, employees!inner(employee_code)';
-const MONTHLY_COMMISSION_RECORD_SELECT_CURRENT = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
+const MONTHLY_COMMISSION_RECORD_SELECT_CURRENT = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
 
 function isMissingColumnError(message: string | null | undefined) {
   return typeof message === 'string' && (
@@ -361,6 +370,7 @@ function normalizeSalaryProfile(profile: EmployeeSalaryProfileRow | null) {
       commissionPresetId: null,
       commissionCustomName: null,
       commissionCustomTiers: [],
+      commissionRules: [],
       commissionRedeemRate: null,
       commissionSalesRate: null,
       commissionSgmRate: null,
@@ -370,6 +380,9 @@ function normalizeSalaryProfile(profile: EmployeeSalaryProfileRow | null) {
       payrollBonusPresetId: null,
       salesBonusCustomName: null,
       salesBonusCustomTiers: [],
+      redeemBonusEnabled: false,
+      redeemBonusCustomName: null,
+      redeemBonusCustomTiers: [],
       payrollBonusEnabled: false,
       payrollBonusScheme: null,
       streetPromoterEnabled: false,
@@ -410,6 +423,7 @@ function normalizeSalaryProfile(profile: EmployeeSalaryProfileRow | null) {
     commissionCustomTiers: commissionMethod === 'custom' && commissionCustomTiers.length === 0
       ? createLegacyCustomCommissionTiers(commissionRedeemRate, commissionSalesRate, commissionSgmRate)
       : commissionCustomTiers,
+    commissionRules: normalizeCommissionRules(profile.commission_rules),
     commissionRedeemRate,
     commissionSalesRate,
     commissionSgmRate,
@@ -419,6 +433,9 @@ function normalizeSalaryProfile(profile: EmployeeSalaryProfileRow | null) {
     payrollBonusPresetId: profile.payroll_bonus_preset_id ?? null,
     salesBonusCustomName: profile.sales_bonus_custom_name,
     salesBonusCustomTiers: normalizePayrollBonusTiers(profile.sales_bonus_custom_tiers),
+    redeemBonusEnabled: profile.redeem_bonus_enabled ?? false,
+    redeemBonusCustomName: profile.redeem_bonus_custom_name ?? null,
+    redeemBonusCustomTiers: normalizePayrollBonusTiers(profile.redeem_bonus_custom_tiers),
     payrollBonusEnabled: profile.payroll_bonus_enabled ?? false,
     payrollBonusScheme: profile.payroll_bonus_scheme ?? null,
     streetPromoterEnabled: profile.street_promoter_enabled ?? false,
@@ -505,6 +522,7 @@ function mapEmployeeDetail(
     commissionPresetId: salaryProfile.commissionPresetId,
     commissionCustomName: salaryProfile.commissionCustomName,
     commissionCustomTiers: salaryProfile.commissionCustomTiers,
+    commissionRules: salaryProfile.commissionRules,
     commissionRedeemRate: salaryProfile.commissionRedeemRate,
     commissionSalesRate: salaryProfile.commissionSalesRate,
     commissionSgmRate: salaryProfile.commissionSgmRate,
@@ -514,6 +532,9 @@ function mapEmployeeDetail(
     payrollBonusPresetId: salaryProfile.payrollBonusPresetId,
     salesBonusCustomName: salaryProfile.salesBonusCustomName,
     salesBonusCustomTiers: salaryProfile.salesBonusCustomTiers,
+    redeemBonusEnabled: salaryProfile.redeemBonusEnabled,
+    redeemBonusCustomName: salaryProfile.redeemBonusCustomName,
+    redeemBonusCustomTiers: salaryProfile.redeemBonusCustomTiers,
     payrollBonusEnabled: salaryProfile.payrollBonusEnabled,
     payrollBonusScheme: salaryProfile.payrollBonusScheme,
     streetPromoterEnabled: salaryProfile.streetPromoterEnabled,
@@ -1006,6 +1027,7 @@ export type PayrollEmployeeSummary = {
   commissionMethod: string | null;
   commissionCustomName: string | null;
   commissionCustomTiers: CustomCommissionTier[];
+  commissionRules: CommissionRule[];
   commissionRedeemRate: number | null;
   commissionSalesRate: number | null;
   commissionSgmRate: number | null;
@@ -1014,6 +1036,9 @@ export type PayrollEmployeeSummary = {
   salesBonusRate: number | null;
   salesBonusCustomName: string | null;
   salesBonusCustomTiers: PayrollBonusTier[];
+  redeemBonusEnabled: boolean;
+  redeemBonusCustomName: string | null;
+  redeemBonusCustomTiers: PayrollBonusTier[];
   payrollBonusEnabled: boolean;
   payrollBonusScheme: PayrollBonusScheme | null;
   streetPromoterEnabled: boolean;
@@ -1054,7 +1079,7 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
     date_of_birth: string | null;
     position: { code: string | null; name_zh: string | null } | { code: string | null; name_zh: string | null }[] | null;
     branch: NamedLookup;
-    employee_salary_profiles: { salary_type: EmployeeDetailRecord['salaryType']; base_salary: number | string | null; package_commission_amount: number | string | null; allowance_amount: number | string | null; attendance_bonus_amount: number | string | null; transport_allowance: number | string | null; briefing_bonus: number | string | null; booking_bonus: number | string | null; mpf_enabled: boolean | null; pay_day_primary: number | null; pay_day_secondary: number | null; commission_method: string | null; commission_custom_name: string | null; commission_custom_tiers: unknown | null; commission_redeem_rate: number | string | null; commission_sales_rate: number | string | null; commission_sgm_rate: number | string | null; sales_amount_rate_percent: number | string | null; sales_bonus_enabled: boolean | null; sales_bonus_rate: number | string | null; sales_bonus_custom_name: string | null; sales_bonus_custom_tiers: unknown | null; payroll_bonus_enabled: boolean | null; payroll_bonus_scheme: PayrollBonusScheme | null; street_promoter_enabled: boolean | null; telesales_enabled: boolean | null; shop_bonus_enabled: boolean | null; shop_bonus_custom_name: string | null; shop_bonus_custom_tiers: unknown | null; shop_bonus_scheme: ShopBonusScheme | null } | null;
+    employee_salary_profiles: { salary_type: EmployeeDetailRecord['salaryType']; base_salary: number | string | null; package_commission_amount: number | string | null; allowance_amount: number | string | null; attendance_bonus_amount: number | string | null; transport_allowance: number | string | null; briefing_bonus: number | string | null; booking_bonus: number | string | null; mpf_enabled: boolean | null; pay_day_primary: number | null; pay_day_secondary: number | null; commission_method: string | null; commission_custom_name: string | null; commission_custom_tiers: unknown | null; commission_rules: unknown | null; commission_redeem_rate: number | string | null; commission_sales_rate: number | string | null; commission_sgm_rate: number | string | null; sales_amount_rate_percent: number | string | null; sales_bonus_enabled: boolean | null; sales_bonus_rate: number | string | null; sales_bonus_custom_name: string | null; sales_bonus_custom_tiers: unknown | null; redeem_bonus_enabled: boolean | null; redeem_bonus_custom_name: string | null; redeem_bonus_custom_tiers: unknown | null; payroll_bonus_enabled: boolean | null; payroll_bonus_scheme: PayrollBonusScheme | null; street_promoter_enabled: boolean | null; telesales_enabled: boolean | null; shop_bonus_enabled: boolean | null; shop_bonus_custom_name: string | null; shop_bonus_custom_tiers: unknown | null; shop_bonus_scheme: ShopBonusScheme | null } | null;
   }[]).map((row) => {
     // employee_salary_profiles is a single object (unique FK), not an array
     const sp = row.employee_salary_profiles;
@@ -1089,6 +1114,7 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
       commissionCustomTiers: sp?.commission_method === 'custom' && commissionCustomTiers.length === 0
         ? createLegacyCustomCommissionTiers(commissionRedeemRate, commissionSalesRate, commissionSgmRate)
         : commissionCustomTiers,
+      commissionRules: normalizeCommissionRules(sp?.commission_rules ?? null),
       commissionRedeemRate,
       commissionSalesRate,
       commissionSgmRate,
@@ -1097,6 +1123,9 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
       salesBonusRate: sp?.sales_bonus_rate ? Number(sp.sales_bonus_rate) : null,
       salesBonusCustomName: sp?.sales_bonus_custom_name ?? null,
       salesBonusCustomTiers: normalizePayrollBonusTiers(sp?.sales_bonus_custom_tiers ?? null),
+      redeemBonusEnabled: sp?.redeem_bonus_enabled ?? false,
+      redeemBonusCustomName: sp?.redeem_bonus_custom_name ?? null,
+      redeemBonusCustomTiers: normalizePayrollBonusTiers(sp?.redeem_bonus_custom_tiers ?? null),
       payrollBonusEnabled: sp?.payroll_bonus_enabled ?? false,
       payrollBonusScheme: sp?.payroll_bonus_scheme ?? null,
       streetPromoterEnabled: sp?.street_promoter_enabled ?? false,
@@ -1157,6 +1186,7 @@ export type MonthlyCommissionRecord = {
   sgmCommission: number;
   salesBonus: number;
   payrollBonus: number;
+  redeemBonus: number;
   totalCommission: number;
   packageNoPayHandling: PackageNoPayHandling | null;
 };
@@ -1336,6 +1366,7 @@ export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<
     sgm_commission: number | string;
     sales_bonus: number | string;
     payroll_bonus: number | string;
+    redeem_bonus_amount: number | string | null;
     total_commission: number | string;
     package_no_pay_handling: string | null;
     employees: { employee_code: string };
@@ -1382,6 +1413,7 @@ export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<
     sgmCommission: Number(r.sgm_commission),
     salesBonus: Number(r.sales_bonus),
     payrollBonus: Number(r.payroll_bonus),
+    redeemBonus: Number(r.redeem_bonus_amount ?? 0),
     totalCommission: Number(r.total_commission),
     packageNoPayHandling: r.package_no_pay_handling === 'no_package' || r.package_no_pay_handling === 'pro_rate'
       ? r.package_no_pay_handling
@@ -1489,6 +1521,7 @@ export type AttendanceManagementMonthlyRecord = {
 export type AttendanceDeductionBasis = {
   employeeId: string;
   employeeCode: string;
+  salaryType: EmployeeDetailRecord['salaryType'];
   baseSalary: number;
   allowanceAmount: number;
   transportAllowance: number;
@@ -1524,6 +1557,7 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
       {
         employeeId: employees.find((entry) => entry.employeeCode === employee.employeeCode)?.id ?? '',
         employeeCode: employee.employeeCode,
+        salaryType: employee.salaryType,
         baseSalary: employee.baseSalary,
         allowanceAmount: employee.allowanceAmount,
         transportAllowance: employee.transportAllowance,

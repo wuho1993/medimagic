@@ -1,5 +1,6 @@
 import { createBrowserSupabaseClient } from '@/src/lib/supabase/client';
 import { normalizeCustomCommissionName, normalizeCustomCommissionTiers } from '@/src/lib/employees/custom-commission';
+import { normalizeCommissionRules } from '@/src/lib/employees/commission-rules';
 import { calculateProbationEndDate } from '@/src/lib/employees/employment';
 import { normalizePayrollBonusCustomName, normalizePayrollBonusTiers, normalizeShopBonusTiers } from '@/src/lib/employees/payroll-bonus';
 
@@ -23,6 +24,16 @@ function getValue(formData: FormData, key: string) {
 function getNullableValue(formData: FormData, key: string) {
   const value = getValue(formData, key);
   return value.length > 0 ? value : null;
+}
+
+function getNullableJsonValue(formData: FormData, key: string) {
+  const raw = getNullableValue(formData, key);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 function getNullableNumber(formData: FormData, key: string) {
@@ -58,8 +69,18 @@ function getNullablePercentageNumber(formData: FormData, key: string) {
   return parsed;
 }
 
-function generateTemporaryEmployeeCode() {
-  return `TMP${Date.now()}`;
+async function generateTemporaryEmployeeCode(supabase: ReturnType<typeof createBrowserSupabaseClient>) {
+  const { data } = await supabase
+    .from('employees')
+    .select('employee_code')
+    .like('employee_code', 'NA-%');
+
+  const maxNumber = (data ?? []).reduce((max, row) => {
+    const match = String(row.employee_code ?? '').match(/^NA-(\d+)$/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+
+  return `NA-${String(maxNumber + 1).padStart(2, '0')}`;
 }
 
 function parseSalesBonusCustomTiers(formData: FormData, key: string) {
@@ -272,7 +293,7 @@ export async function createEmployee(formData: FormData) {
   const probationEndDate = calculateProbationEndDate(hireDate, probationMonths);
   const supabase = createBrowserSupabaseClient();
   const payload = {
-    employee_code: employeeCode || generateTemporaryEmployeeCode(),
+    employee_code: employeeCode || await generateTemporaryEmployeeCode(supabase),
     name_zh: nameZh,
     name_en: nameEn,
     alias: getNullableValue(formData, 'alias'),
@@ -336,7 +357,7 @@ export async function updateEmployee(formData: FormData) {
     throw new Error(existingEmployeeError?.message ?? 'Employee not found.');
   }
 
-  const normalizedEmployeeCode = employeeCode || originalEmployeeCode || String(existingEmployee.employee_code ?? '') || generateTemporaryEmployeeCode();
+  const normalizedEmployeeCode = employeeCode || originalEmployeeCode || String(existingEmployee.employee_code ?? '') || await generateTemporaryEmployeeCode(supabase);
   const normalizedEmploymentType = employmentType || String(existingEmployee.employment_type ?? '') || '全職';
   const normalizedEmploymentStatus = employmentStatus || String(existingEmployee.employment_status ?? '') || 'active';
   const normalizedGender = gender || String(existingEmployee.gender ?? '') || 'other';
@@ -401,6 +422,7 @@ export async function updateEmployee(formData: FormData) {
   const commissionCustomTiers = commissionMethod === 'custom'
     ? parseCommissionCustomTiers(formData, 'commissionCustomTiers')
     : null;
+  const commissionRules = normalizeCommissionRules(getNullableJsonValue(formData, 'commissionRules'));
   const commissionRedeemRate = null;
   const commissionSalesRate = null;
   const commissionSgmRate = null;
@@ -454,6 +476,7 @@ export async function updateEmployee(formData: FormData) {
     commissionPresetId,
     commissionCustomName,
     commissionCustomTiers,
+    commissionRules.length > 0 ? commissionRules : null,
     salesAmountRatePercent,
     payDayPrimary,
     payDaySecondary,
@@ -487,6 +510,7 @@ export async function updateEmployee(formData: FormData) {
       commission_preset_id: commissionPresetId,
       commission_custom_name: commissionCustomName,
       commission_custom_tiers: commissionCustomTiers,
+      commission_rules: commissionRules.length > 0 ? commissionRules : null,
       commission_redeem_rate: commissionRedeemRate,
       commission_sales_rate: commissionSalesRate,
       commission_sgm_rate: commissionSgmRate,
@@ -518,7 +542,7 @@ export async function updateEmployee(formData: FormData) {
         await supabase
           .from('employee_salary_profiles')
           .upsert(
-            (({ package_commission_amount, street_promoter_enabled, telesales_enabled, sales_amount_rate_percent, ...legacyPayload }) => legacyPayload)(salaryProfilePayload),
+            (({ package_commission_amount, street_promoter_enabled, telesales_enabled, sales_amount_rate_percent, commission_rules, ...legacyPayload }) => legacyPayload)(salaryProfilePayload),
             { onConflict: 'employee_id' },
           )
       ).error)

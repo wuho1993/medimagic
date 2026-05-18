@@ -8,6 +8,7 @@ import type { PackageNoPayHandling, PayrollEmployeeSummary } from '@/src/lib/emp
 import { createLegacyCustomCommissionTiers, normalizeCustomCommissionName, normalizeCustomCommissionTiers } from '@/src/lib/employees/custom-commission';
 import { calculateShopTargetPercent } from '@/src/lib/employees/payroll-bonus';
 import { normalizePayrollBonusTiers, normalizeShopBonusTiers, type PayrollBonusScheme, type ShopBonusScheme } from '@/src/lib/employees/payroll-bonus';
+import { normalizeCommissionRules } from '@/src/lib/employees/commission-rules';
 
 function isMissingColumnError(message: string | null | undefined) {
   return typeof message === 'string' && (
@@ -59,6 +60,7 @@ type CommissionEntry = {
   sgmCommission: number;
   salesBonus: number;
   payrollBonus: number;
+  redeemBonus: number;
   totalCommission: number;
   packageNoPayHandling: PackageNoPayHandling | null;
 };
@@ -83,7 +85,7 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
 
   const supabase = createSupabaseAdminClient();
   const legacyProfileSelect = 'salary_type, base_salary, allowance_amount, attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus, mpf_enabled, pay_day_primary, pay_day_secondary, commission_method, commission_custom_name, commission_custom_tiers, commission_redeem_rate, commission_sales_rate, commission_sgm_rate, sales_bonus_enabled, sales_bonus_rate, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme';
-  const currentProfileSelect = `${legacyProfileSelect}, package_commission_amount, sales_amount_rate_percent`;
+  const currentProfileSelect = `${legacyProfileSelect}, package_commission_amount, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
   const buildQuery = (profileSelect: string) => supabase
     .from('employees')
     .select(`employee_code, name_zh, alias, hire_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
@@ -125,6 +127,7 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
       commission_method: string | null;
       commission_custom_name: string | null;
       commission_custom_tiers: unknown | null;
+      commission_rules: unknown | null;
       commission_redeem_rate: number | string | null;
       commission_sales_rate: number | string | null;
       commission_sgm_rate: number | string | null;
@@ -133,6 +136,9 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
       sales_bonus_rate: number | string | null;
       sales_bonus_custom_name: string | null;
       sales_bonus_custom_tiers: unknown | null;
+      redeem_bonus_enabled: boolean | null;
+      redeem_bonus_custom_name: string | null;
+      redeem_bonus_custom_tiers: unknown | null;
       payroll_bonus_enabled: boolean | null;
       payroll_bonus_scheme: PayrollBonusScheme | null;
       street_promoter_enabled: boolean | null;
@@ -181,6 +187,7 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
       commissionCustomTiers: profile?.commission_method === 'custom' && commissionCustomTiers.length === 0
         ? createLegacyCustomCommissionTiers(commissionRedeemRate, commissionSalesRate, commissionSgmRate)
         : commissionCustomTiers,
+      commissionRules: normalizeCommissionRules(profile?.commission_rules ?? null),
       commissionRedeemRate,
       commissionSalesRate,
       commissionSgmRate,
@@ -189,6 +196,9 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
       salesBonusRate: profile?.sales_bonus_rate ? Number(profile.sales_bonus_rate) : null,
       salesBonusCustomName: profile?.sales_bonus_custom_name ?? null,
       salesBonusCustomTiers: normalizePayrollBonusTiers(profile?.sales_bonus_custom_tiers ?? null),
+      redeemBonusEnabled: profile?.redeem_bonus_enabled ?? false,
+      redeemBonusCustomName: profile?.redeem_bonus_custom_name ?? null,
+      redeemBonusCustomTiers: normalizePayrollBonusTiers(profile?.redeem_bonus_custom_tiers ?? null),
       payrollBonusEnabled: profile?.payroll_bonus_enabled ?? false,
       payrollBonusScheme: profile?.payroll_bonus_scheme ?? null,
       streetPromoterEnabled: profile?.street_promoter_enabled ?? false,
@@ -249,6 +259,7 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
     e.sgmCommission > 0 ||
     e.salesBonus > 0 ||
     e.payrollBonus > 0 ||
+    e.redeemBonus > 0 ||
     e.totalCommission > 0
   ));
   if (nonEmpty.length === 0) {
@@ -320,6 +331,7 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
         sgm_commission: e.sgmCommission,
         sales_bonus: e.salesBonus,
         payroll_bonus: e.payrollBonus,
+        redeem_bonus_amount: e.redeemBonus,
         total_commission: e.totalCommission,
         package_no_pay_handling: e.packageNoPayHandling,
         updated_at: new Date().toISOString(),
@@ -335,7 +347,7 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
       await supabase
         .from('monthly_commission_records')
         .upsert(
-          rows.map(({ shop_target_amount, shop_actual_sales_amount, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, manual_deduction_applied, manual_deduction_amount, manual_bonus_mpf_included, manual_deduction_mpf_included, mpf_ee_deduction_mode, worked_days, worked_hours, sales_amount_total, sales_amount_commission, package_no_pay_handling, ...row }) => ({
+          rows.map(({ shop_target_amount, shop_actual_sales_amount, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, manual_deduction_applied, manual_deduction_amount, manual_bonus_mpf_included, manual_deduction_mpf_included, mpf_ee_deduction_mode, worked_days, worked_hours, sales_amount_total, sales_amount_commission, package_no_pay_handling, redeem_bonus_amount, ...row }) => ({
             ...row,
             job_amount: Number(row.job_amount ?? 0) + Number(street_promoter_commission_amount ?? 0) + Number(telesales_commission_amount ?? 0),
           })),
@@ -350,4 +362,3 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
 
   return { success: true, count: rows.length };
 }
-

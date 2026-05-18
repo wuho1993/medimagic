@@ -10,7 +10,8 @@ import { useLanguage } from '../i18n/LanguageContext';
 import type { PayrollEmployeeSummary, CommissionRateTier, MonthlyCommissionRecord, PackageNoPayHandling, PayrollAttendanceRecord } from '@/src/lib/employees/queries';
 import { calculateStreetPromoterCommission, calculateTelesalesCommission, calculateTotalCommission } from '@/src/lib/employees/commission';
 import { calculateCustomCommission, normalizeCustomCommissionName } from '@/src/lib/employees/custom-commission';
-import { calculatePayrollBonus, calculateShopBonus, calculateShopTargetPercent, type PayrollBonusConfigCatalog } from '@/src/lib/employees/payroll-bonus';
+import { calculatePayrollBonus, calculateRedeemBonusFromTiers, calculateShopBonus, calculateShopTargetPercent, type PayrollBonusConfigCatalog } from '@/src/lib/employees/payroll-bonus';
+import { calculateCommissionRules } from '@/src/lib/employees/commission-rules';
 import { getMonthEndDate, isMpfContributionEligible } from '@/src/lib/employees/employment';
 import { fetchLatestPayrollEmployeeDefaults, saveMonthlyCommission } from '@/app/app/payroll/actions';
 
@@ -27,11 +28,32 @@ type PayrollProps = {
 
 type PayrollImportRow = {
   employeeCode: string;
+  sourceName?: string;
+  targetEmployeeCode?: string;
+  excluded?: boolean;
   redeem?: number;
   sales?: number;
   salesAmountTotal?: number;
   job?: number;
   sgm?: number;
+};
+
+type PendingPayrollImport = {
+  fileName: string;
+  importType: 'all' | 'redeem' | 'sales' | 'job' | 'sgm';
+  targetMonth?: string;
+  totalRows: number;
+  header: string;
+  tablePreview: string;
+  parsedRows: PayrollImportRow[];
+  warnings: string[];
+};
+
+type PayrollImportRollback = {
+  fileName: string;
+  targetMonth: string;
+  importedAt: string;
+  beforeValues: Record<string, EmployeeVolumes>;
 };
 
 const MPF_RATE = 0.05;
@@ -189,6 +211,7 @@ type PayslipPdfEntry = {
   telesalesCommission: number;
   salesBonus: number;
   payrollBonus: number;
+  redeemBonus: number;
   packageCommissionAmount: number;
   packageCommission: number;
   isPackageEmployee: boolean;
@@ -633,10 +656,16 @@ const translations = {
 function buildInitialVolumes(savedRecords: MonthlyCommissionRecord[]): Record<string, EmployeeVolumes> {
   const init: Record<string, EmployeeVolumes> = {};
   for (const r of savedRecords) {
+    const legacySalesReportImport = r.salesVolume > 0
+      && r.salesAmountTotal > r.salesVolume * 10
+      && r.salesAmountCommission <= 0;
+    const salesValue = legacySalesReportImport ? r.salesAmountTotal : r.salesVolume;
+    const salesAmountValue = legacySalesReportImport ? 0 : r.salesAmountTotal;
+
     init[r.employeeCode] = {
       redeem: r.redeemVolume > 0 ? String(r.redeemVolume) : '',
-      sales: r.salesVolume > 0 ? String(r.salesVolume) : '',
-      salesAmountTotal: r.salesAmountTotal > 0 ? String(r.salesAmountTotal) : '',
+      sales: salesValue > 0 ? String(salesValue) : '',
+      salesAmountTotal: salesAmountValue > 0 ? String(salesAmountValue) : '',
       job: r.jobAmount > 0 ? String(r.jobAmount) : '',
       sgm: r.sgmVolume > 0 ? String(r.sgmVolume) : '',
       streetPromoterHeadcount: r.streetPromoterHeadcount > 0 ? String(r.streetPromoterHeadcount) : '',
@@ -906,10 +935,12 @@ function createEmptyCommissionResult() {
     redeem: { amount: 0, rate: 0 },
     sales: { amount: 0, rate: 0 },
     sgm: { amount: 0, rate: 0 },
+    commissionRuleItems: [],
     salesAmount: { total: 0, amount: 0, ratePercent: 0 },
     job: 0,
     salesBonus: 0,
     payrollBonus: 0,
+    redeemBonus: 0,
     commissionTotal: 0,
     totalBonus: 0,
     total: 0,
@@ -931,7 +962,34 @@ function calcEmployeeCommission(
   const salesAmountRatePercent = emp.salesAmountRatePercent ?? 0;
   const salesAmountCommission = roundMoney(volumes.salesAmountTotal * (salesAmountRatePercent / 100));
 
-  if (isCustom) {
+  const commissionRuleResult = emp.commissionRules.length > 0
+    ? calculateCommissionRules({
+      redeem: volumes.redeem,
+      sales: volumes.sales,
+      salesAmountTotal: volumes.salesAmountTotal,
+      job: volumes.job,
+      sgm: volumes.sgm,
+    }, emp.commissionRules)
+    : { items: [], total: 0 };
+
+  let commissionRuleMappedAmount = 0;
+  if (commissionRuleResult.items.length > 0) {
+    for (const item of commissionRuleResult.items) {
+      if (item.metric === 'redeem') {
+        redeemAmt += item.amount;
+        redeemRate = item.rate;
+        commissionRuleMappedAmount += item.amount;
+      } else if (item.metric === 'sales') {
+        salesAmt += item.amount;
+        salesRate = item.rate;
+        commissionRuleMappedAmount += item.amount;
+      } else if (item.metric === 'sgm') {
+        sgmAmt += item.amount;
+        sgmRate = item.rate;
+        commissionRuleMappedAmount += item.amount;
+      }
+    }
+  } else if (isCustom) {
     const result = calculateCustomCommission({ redeem: volumes.redeem, sales: volumes.sales, sgm: volumes.sgm }, emp.commissionCustomTiers);
     redeemRate = result.redeem.rate;
     redeemAmt = result.redeem.amount;
@@ -939,7 +997,7 @@ function calcEmployeeCommission(
     salesAmt = result.sales.amount;
     sgmRate = result.sgm.rate;
     sgmAmt = result.sgm.amount;
-  } else {
+  } else if (emp.commissionMethod === 'standard') {
     const result = calculateTotalCommission(volumes, tiers);
     redeemAmt = result.redeem.amount; redeemRate = result.redeem.rate;
     salesAmt = result.sales.amount; salesRate = result.sales.rate;
@@ -952,20 +1010,26 @@ function calcEmployeeCommission(
   }
 
   const payrollBonusAmt = calculatePayrollBonus(volumes.sales, emp.salesBonusEnabled, emp.payrollBonusScheme, emp.salesBonusCustomTiers, payrollBonusSchemes);
-
+  const redeemBonusAmt = emp.redeemBonusEnabled
+    ? calculateRedeemBonusFromTiers(volumes.redeem, emp.redeemBonusCustomTiers)
+    : 0;
   const jobAmt = volumes.job;
-  const commissionTotal = Math.round((redeemAmt + salesAmt + sgmAmt + salesAmountCommission + jobAmt) * 100) / 100;
-  const totalBonus = Math.round((salesBonusAmt + payrollBonusAmt) * 100) / 100;
+  const commissionRuleExtraAmount = Math.max(0, roundMoney(commissionRuleResult.total - commissionRuleMappedAmount));
+  const commissionTotal = Math.round((redeemAmt + salesAmt + sgmAmt + salesAmountCommission + jobAmt + commissionRuleExtraAmount) * 100) / 100;
+  const totalBonus = Math.round((salesBonusAmt + payrollBonusAmt + redeemBonusAmt) * 100) / 100;
   const total = Math.round((commissionTotal + totalBonus) * 100) / 100;
 
   return {
     redeem: { amount: redeemAmt, rate: redeemRate },
     sales: { amount: salesAmt, rate: salesRate },
     sgm: { amount: sgmAmt, rate: sgmRate },
+    commissionRuleItems: commissionRuleResult.items,
+    commissionRuleExtra: commissionRuleExtraAmount,
     salesAmount: { total: volumes.salesAmountTotal, amount: salesAmountCommission, ratePercent: salesAmountRatePercent },
     job: jobAmt,
     salesBonus: salesBonusAmt,
     payrollBonus: payrollBonusAmt,
+    redeemBonus: redeemBonusAmt,
     commissionTotal,
     totalBonus,
     total,
@@ -1008,10 +1072,17 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importKey, setImportKey] = useState(0);
   const [isAiChatbotOpen, setIsAiChatbotOpen] = useState(false);
+  const [pendingPayrollImport, setPendingPayrollImport] = useState<PendingPayrollImport | null>(null);
+  const [lastPayrollImportRollback, setLastPayrollImportRollback] = useState<PayrollImportRollback | null>(null);
+  const [selectedPayrollImportFile, setSelectedPayrollImportFile] = useState<File | null>(null);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatSending, setIsChatSending] = useState(false);
+  const delayAiFeedback = () => new Promise((resolve) => setTimeout(resolve, 800));
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string }>>([
-    { role: 'ai', text: lang === 'zh-CN' ? '你好！我是 AI 薪资助手。请选择导入类型并上传文件，我会自动为您提取对应的数据。' : (lang === 'en' ? 'Hello! I am your AI Payroll Assistant. Select the import type and upload your file to begin.' : '你好！我是 AI 薪資助手。請選擇匯入類別並上載檔案，我會為您自動分析及提取數據。') }
+    { role: 'ai', text: lang === 'zh-CN' ? '你好！我是 AI 薪资助手。请选择导入类型并上传文件，我会自动为您提取对应的数据。你也可以输入「记住：...」保存个人记忆。' : (lang === 'en' ? 'Hello! I am your AI Payroll Assistant. Select the import type and upload your file to begin. You can also type "Remember: ..." to save a private memory.' : '你好！我是 AI 薪資助手。請選擇匯入類別並上載檔案，我會為您自動分析及提取數據。你亦可以輸入「記住：...」保存個人記憶。') }
   ]);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const pendingImportStorageKey = 'medi-magic-payroll-pending-import';
 
   useEffect(() => {
     if (isAiChatbotOpen) {
@@ -1118,7 +1189,24 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
       const next = { ...prev };
 
       for (const rawRow of rows) {
-        const employeeCode = rawRow.employeeCode?.trim();
+        if (rawRow.excluded) {
+          continue;
+        }
+
+        const normalizedRow = { ...rawRow };
+        if (
+          normalizedRow.sourceName
+          && typeof normalizedRow.sales === 'number'
+          && typeof normalizedRow.salesAmountTotal === 'number'
+          && normalizedRow.salesAmountTotal > normalizedRow.sales * 10
+        ) {
+          // Legacy in-memory imports from the sales performance report used total order count as Sales.
+          // For this report, commission should be based on the performance subtotal instead.
+          normalizedRow.sales = normalizedRow.salesAmountTotal;
+          normalizedRow.salesAmountTotal = undefined;
+        }
+
+        const employeeCode = (normalizedRow.targetEmployeeCode || normalizedRow.employeeCode)?.trim();
         if (!employeeCode) {
           continue;
         }
@@ -1140,17 +1228,17 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
         };
 
         if (importType === 'all' || importType === 'redeem') {
-          applyMetric('redeem', rawRow.redeem);
+          applyMetric('redeem', normalizedRow.redeem);
         }
         if (importType === 'all' || importType === 'sales') {
-          applyMetric('sales', rawRow.sales);
-          applyMetric('salesAmountTotal', rawRow.salesAmountTotal);
+          applyMetric('sales', normalizedRow.sales);
+          applyMetric('salesAmountTotal', normalizedRow.salesAmountTotal);
         }
         if (importType === 'all' || importType === 'job') {
-          applyMetric('job', rawRow.job);
+          applyMetric('job', normalizedRow.job);
         }
         if (importType === 'all' || importType === 'sgm') {
-          applyMetric('sgm', rawRow.sgm);
+          applyMetric('sgm', normalizedRow.sgm);
         }
 
         next[employeeCode] = current;
@@ -1160,6 +1248,466 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     });
   };
 
+  const parsePayrollImportMonth = (input: string) => {
+    const normalized = input.trim();
+    const explicit = normalized.match(/(20\d{2})[-/年\s]*(0?[1-9]|1[0-2])\s*(?:月)?/);
+    if (explicit) {
+      return `${explicit[1]}-${explicit[2].padStart(2, '0')}`;
+    }
+
+    const monthOnly = normalized.match(/(?:^|\D)(0?[1-9]|1[0-2])\s*(?:月|月份|month)?(?:\D|$)/i);
+    if (monthOnly) {
+      const year = selectedMonth.split('-')[0] || String(new Date().getFullYear());
+      return `${year}-${monthOnly[1].padStart(2, '0')}`;
+    }
+
+    return null;
+  };
+
+  const getHongKongYearMonth = () => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Hong_Kong',
+      year: 'numeric',
+      month: '2-digit',
+    }).formatToParts(new Date());
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    return year && month ? `${year}-${month}` : selectedMonth;
+  };
+
+  const detectImportMonthFromRows = (rows: string[][]) => {
+    const previewText = rows.slice(0, 8).map((row) => row.join(' ')).join('\n');
+    return parsePayrollImportMonth(previewText) ?? getHongKongYearMonth();
+  };
+
+  const normalizeImportMatchText = (value: string | null | undefined) => String(value ?? '')
+    .toLowerCase()
+    .replace(/[\s()（）/\\._-]+/g, '')
+    .trim();
+
+  const getImportCandidates = (row: PayrollImportRow, limit = 3) => {
+    const sourceName = normalizeImportMatchText(row.sourceName);
+    if (!sourceName) {
+      return [];
+    }
+
+    return employees
+      .map((employee) => {
+        const names = [employee.alias, employee.nameZh, employee.employeeCode].map(normalizeImportMatchText).filter(Boolean);
+        const score = names.reduce((best, name) => {
+          if (name === sourceName) return Math.max(best, 100);
+          if (name.includes(sourceName) || sourceName.includes(name)) return Math.max(best, 80);
+          let shared = 0;
+          for (const char of sourceName) {
+            if (name.includes(char)) shared += 1;
+          }
+          return Math.max(best, sourceName.length ? Math.round((shared / sourceName.length) * 60) : 0);
+        }, 0);
+        return { employee, score };
+      })
+      .filter(({ score }) => score >= 45)
+      .sort((left, right) => right.score - left.score || left.employee.employeeCode.localeCompare(right.employee.employeeCode))
+      .slice(0, limit)
+      .map(({ employee }) => employee);
+  };
+
+  const resolveImportRowTarget = (row: PayrollImportRow) => {
+    if (row.excluded) {
+      return null;
+    }
+    const explicit = row.targetEmployeeCode ? employees.find((employee) => employee.employeeCode === row.targetEmployeeCode) : null;
+    if (explicit) {
+      return explicit;
+    }
+    return employees.find((employee) => employee.employeeCode === row.employeeCode) ?? null;
+  };
+
+  const refreshLatestEmployeeDefaults = async (employeeCodes: string[]) => {
+    const uniqueCodes = Array.from(new Set(employeeCodes.filter(Boolean)));
+    if (uniqueCodes.length === 0) {
+      return;
+    }
+
+    const results = await Promise.all(uniqueCodes.map(async (employeeCode) => {
+      const result = await fetchLatestPayrollEmployeeDefaults(employeeCode);
+      return { employeeCode, result };
+    }));
+
+    setLiveEmployeeDefaults((prev) => {
+      const next = { ...prev };
+      for (const { employeeCode, result } of results) {
+        if ('success' in result && result.success) {
+          next[employeeCode] = {
+            ...(next[employeeCode] ?? employees.find((employee) => employee.employeeCode === employeeCode)),
+            ...result.employee,
+          } as PayrollEmployeeSummary;
+        }
+      }
+      return next;
+    });
+  };
+
+  const getCommissionWarnings = (rowsToImport: PayrollImportRow[]) => {
+    const employeeByCode = new Map(employees.map((employee) => [employee.employeeCode, employee]));
+    const hasStandardSalesTiers = commissionTiers.some((tier) => tier.commissionType === 'sales');
+    const hasStandardRedeemTiers = commissionTiers.some((tier) => tier.commissionType === 'redeem');
+    const hasStandardSgmTiers = commissionTiers.some((tier) => tier.commissionType === 'sgm');
+    const warnings: string[] = [];
+
+    for (const row of rowsToImport) {
+      if (row.excluded) {
+        continue;
+      }
+      const targetCode = row.targetEmployeeCode || row.employeeCode;
+      const employee = employeeByCode.get(targetCode);
+      if (!employee) {
+        warnings.push(`${row.employeeCode}${row.sourceName ? ` (${row.sourceName})` : ''}: 未能對應 HRMS 員工，確認匯入時會略過。`);
+        continue;
+      }
+
+      const name = employee.alias || employee.nameZh;
+      const label = `${targetCode}${name ? ` (${name})` : ''}`;
+      const customSalesTiers = employee.commissionCustomTiers.filter((tier) => tier.commissionType === 'sales' && tier.rate > 0);
+      const customRedeemTiers = employee.commissionCustomTiers.filter((tier) => tier.commissionType === 'redeem' && tier.rate > 0);
+      const customSgmTiers = employee.commissionCustomTiers.filter((tier) => tier.commissionType === 'sgm' && tier.rate > 0);
+
+      if (typeof row.sales === 'number' && row.sales > 0) {
+        if (employee.commissionMethod === 'custom' && customSalesTiers.length === 0) {
+          warnings.push(`${label}: 自訂佣金未設定銷售佣金級別/比例，銷售數量佣金可能係 0。`);
+        } else if (employee.commissionMethod !== 'custom' && !hasStandardSalesTiers) {
+          warnings.push(`${label}: 系統未設定標準銷售佣金級別。`);
+        } else if (!employee.commissionMethod || employee.commissionMethod === 'none') {
+          warnings.push(`${label}: 未啟用銷售佣金計算方式。`);
+        }
+      }
+
+      if (typeof row.salesAmountTotal === 'number' && row.salesAmountTotal > 0) {
+        const hasSalesCountCommission = employee.commissionMethod === 'custom'
+          ? customSalesTiers.length > 0
+          : hasStandardSalesTiers && Boolean(employee.commissionMethod && employee.commissionMethod !== 'none');
+        if (!hasSalesCountCommission && !(employee.salesAmountRatePercent && employee.salesAmountRatePercent > 0)) {
+          warnings.push(`${label}: 未設定銷售佣金比例/級別，銷售金額會匯入，但佣金可能係 0。`);
+        }
+      }
+
+      if (typeof row.redeem === 'number' && row.redeem > 0) {
+        if (employee.commissionMethod === 'custom' && customRedeemTiers.length === 0) {
+          warnings.push(`${label}: 自訂佣金未設定 Redeem 佣金級別/比例。`);
+        } else if (employee.commissionMethod !== 'custom' && !hasStandardRedeemTiers) {
+          warnings.push(`${label}: 系統未設定標準 Redeem 佣金級別。`);
+        }
+      }
+
+      if (typeof row.sgm === 'number' && row.sgm > 0) {
+        if (employee.commissionMethod === 'custom' && customSgmTiers.length === 0) {
+          warnings.push(`${label}: 自訂佣金未設定 SGM 佣金級別/比例。`);
+        } else if (employee.commissionMethod !== 'custom' && !hasStandardSgmTiers) {
+          warnings.push(`${label}: 系統未設定標準 SGM 佣金級別。`);
+        }
+      }
+    }
+
+    return warnings;
+  };
+
+  const applyPendingPayrollImport = (pending: PendingPayrollImport) => {
+    const importableRows = pending.parsedRows.filter((row) => resolveImportRowTarget(row));
+    const beforeValues = Object.fromEntries(
+      importableRows.map((row) => {
+        const targetCode = row.targetEmployeeCode || row.employeeCode;
+        return [targetCode, { ...getVolumes(targetCode) }];
+      }),
+    );
+    setLastPayrollImportRollback({
+      fileName: pending.fileName,
+      targetMonth: pending.targetMonth ?? selectedMonth,
+      importedAt: new Date().toISOString(),
+      beforeValues,
+    });
+    updateImportedVolumes(importableRows);
+    markDirty();
+    setImportStatus('success');
+    const successMsg = lang === 'zh-CN'
+      ? `已确认并导入 ${importableRows.length} 位员工的数据到 ${pending.targetMonth ?? selectedMonth}。`
+      : lang === 'en'
+        ? `Confirmed and imported data for ${importableRows.length} employees into ${pending.targetMonth ?? selectedMonth}.`
+        : `已確認並匯入 ${importableRows.length} 位員工嘅數據到 ${pending.targetMonth ?? selectedMonth}。`;
+    setImportMessage(successMsg);
+    setChatMessages((prev) => [...prev, { role: 'ai', text: successMsg }]);
+    setPendingPayrollImport(null);
+    setImportKey((prev) => prev + 1);
+  };
+
+  const applyPendingPayrollImportWithLatestDefaults = async (pending: PendingPayrollImport) => {
+    const importableCodes = pending.parsedRows
+      .map((row) => row.targetEmployeeCode || row.employeeCode)
+      .filter((code) => Boolean(code));
+    setImportStatus('importing');
+    await refreshLatestEmployeeDefaults(importableCodes);
+    applyPendingPayrollImport(pending);
+  };
+
+  const restoreLastPayrollImport = () => {
+    if (!lastPayrollImportRollback) {
+      return;
+    }
+
+    setEmpVolumes((prev) => ({ ...prev, ...lastPayrollImportRollback.beforeValues }));
+    markDirty();
+    setChatMessages((prev) => [...prev, {
+      role: 'ai',
+      text: `已回復 ${lastPayrollImportRollback.fileName} 匯入前嘅狀態（月份：${lastPayrollImportRollback.targetMonth}）。如果你已經按過 Save Payroll，請再按一次 Save 將回復結果寫入 Supabase。`,
+    }]);
+    setLastPayrollImportRollback(null);
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const raw = window.sessionStorage.getItem(pendingImportStorageKey);
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const pending = JSON.parse(raw) as PendingPayrollImport;
+      if (pending.targetMonth === selectedMonth && selectedMonth === initialMonth && Array.isArray(pending.parsedRows)) {
+        window.sessionStorage.removeItem(pendingImportStorageKey);
+        void applyPendingPayrollImportWithLatestDefaults(pending);
+      }
+    } catch {
+      window.sessionStorage.removeItem(pendingImportStorageKey);
+    }
+  }, [initialMonth, selectedMonth, savedRecords]);
+
+  const parseSalesPerformanceReportRows = (rows: string[][]): PayrollImportRow[] => {
+    const hasSalesReportHeader = rows.some((row) => (
+      row.some((cell) => cell.includes('銷售員編號')) && row.some((cell) => cell.includes('業績'))
+    ));
+
+    if (!hasSalesReportHeader || (importType !== 'all' && importType !== 'sales')) {
+      return [];
+    }
+
+    const parsed: PayrollImportRow[] = [];
+    let current: { employeeCode: string; sourceName: string; salesCount: number; salesAmountTotal: number } | null = null;
+
+    const flush = () => {
+      if (!current) {
+        return;
+      }
+      parsed.push({
+        employeeCode: current.employeeCode,
+        sourceName: current.sourceName,
+        sales: roundMoney(current.salesAmountTotal),
+      });
+      current = null;
+    };
+
+    for (const row of rows) {
+      const employeeCode = String(row[0] ?? '').trim();
+      if (/^SF\d+/i.test(employeeCode)) {
+        flush();
+        current = { employeeCode, sourceName: String(row[1] ?? '').trim(), salesCount: 0, salesAmountTotal: 0 };
+      }
+
+      if (!current) {
+        continue;
+      }
+
+      const totalOrderIndex = row.findIndex((cell) => cell.includes('總單數'));
+      const subtotalIndex = row.findIndex((cell) => cell.includes('小計'));
+
+      if (totalOrderIndex >= 0 || subtotalIndex >= 0) {
+        const totalOrders = totalOrderIndex >= 0 ? parseImportedNumber(row[totalOrderIndex + 1]) : NaN;
+        const subtotal = subtotalIndex >= 0 ? parseImportedNumber(row[subtotalIndex + 1]) : NaN;
+        if (Number.isFinite(totalOrders)) {
+          current.salesCount = totalOrders;
+        }
+        if (Number.isFinite(subtotal)) {
+          current.salesAmountTotal = subtotal;
+        }
+        flush();
+        continue;
+      }
+
+      const performance = parseImportedNumber(row[9]);
+      if (Number.isFinite(performance)) {
+        current.salesCount += 1;
+        current.salesAmountTotal += performance;
+      }
+    }
+
+    flush();
+    return parsed;
+  };
+
+  const buildImportReviewMessage = (pending: PendingPayrollImport) => {
+    const labelMap = {
+      all: 'All',
+      redeem: 'Redeem',
+      sales: 'Sales',
+      job: 'Job',
+      sgm: 'SGM',
+    };
+    const employeeByCode = new Map(employees.map((employee) => [employee.employeeCode, employee]));
+    const metricLabels: Array<[keyof PayrollImportRow, string]> = [
+      ['redeem', 'Redeem'],
+      ['sales', 'Sales'],
+      ['salesAmountTotal', 'Sales Amount'],
+      ['job', 'Job'],
+      ['sgm', 'SGM'],
+    ];
+    const importableCount = pending.parsedRows.filter((row) => resolveImportRowTarget(row)).length;
+    const unmatchedCount = pending.parsedRows.filter((row) => !row.excluded && !resolveImportRowTarget(row)).length;
+    const excludedCount = pending.parsedRows.filter((row) => row.excluded).length;
+    const lines = pending.parsedRows
+      .filter((row) => row.excluded || !resolveImportRowTarget(row))
+      .map((row) => {
+      const employee = resolveImportRowTarget(row);
+      const metrics = metricLabels
+        .filter(([key]) => typeof row[key] === 'number')
+        .map(([key, label]) => `${label}: ${row[key]}`)
+        .join(', ');
+      const employeeName = employee?.alias || employee?.nameZh;
+      const status = row.excluded ? '已排除' : employee ? `匹配 ${employee.employeeCode}${employeeName ? ` ${employeeName}` : ''}` : '未匹配';
+      return `• ${row.employeeCode}${row.sourceName ? ` (${row.sourceName})` : ''} -> ${status}: ${metrics || '未有數值'}`;
+    });
+    const totalSalesAmount = pending.parsedRows.reduce((sum, row) => sum + (typeof row.sales === 'number' ? row.sales : 0), 0);
+    const warningLines = pending.warnings.slice(0, 8).map((warning) => `• ${warning}`);
+    const warningMore = pending.warnings.length > warningLines.length ? `\n• 另外仲有 ${pending.warnings.length - warningLines.length} 個提醒未顯示。` : '';
+    const warningBlock = pending.warnings.length > 0
+      ? `\n\nCommission 設定提醒：\n${warningLines.join('\n')}${warningMore}`
+      : '\n\nCommission 設定檢查：暫時未發現明顯缺漏。';
+
+    const monthLine = pending.targetMonth
+      ? `目標月份：${pending.targetMonth}`
+      : '請先回覆呢份文件係邊個月份，例如「2026-02」或「2月」。未確認月份前唔會寫入 Payroll。';
+
+    const exceptionBlock = lines.length > 0 ? `\n\n需要處理嘅員工：\n${lines.join('\n')}` : '\n\n所有員工已成功匹配。';
+    return `我已分析檔案，但未匯入系統。\n\n檔案：${pending.fileName}\n匯入類別：${labelMap[pending.importType]}\n${monthLine}\n文件資料：共 ${pending.totalRows} 行，標題係「${pending.header || '未偵測到標題'}」。\nAI 提取到 ${pending.parsedRows.length} 位員工，成功匹配 ${importableCount} 位，未匹配 ${unmatchedCount} 位，已排除 ${excludedCount} 位，Sales 業績總額 HK$${totalSalesAmount.toLocaleString('en-HK')}.${exceptionBlock}${warningBlock}\n\n最後確認：是否將已匹配嘅 commission input 寫入 ${pending.targetMonth ?? '指定月份'}？未匹配/已排除員工唔會寫入。`;
+  };
+
+  const confirmPendingPayrollImport = async () => {
+    if (!pendingPayrollImport) {
+      return;
+    }
+
+    if (!pendingPayrollImport.targetMonth) {
+      setChatMessages((prev) => [...prev, { role: 'ai', text: lang === 'zh-CN' ? '请先告诉我这份文件属于哪个月份，例如 2026-02。' : lang === 'en' ? 'Please tell me which month this file belongs to first, for example 2026-02.' : '請先話我知呢份文件屬於邊個月份，例如 2026-02。' }]);
+      return;
+    }
+
+    if (pendingPayrollImport.targetMonth !== selectedMonth && typeof window !== 'undefined') {
+      window.sessionStorage.setItem(pendingImportStorageKey, JSON.stringify(pendingPayrollImport));
+      setChatMessages((prev) => [...prev, { role: 'ai', text: `我會先切換到 ${pendingPayrollImport.targetMonth}，再將資料寫入該月份。` }]);
+      handleMonthChange(pendingPayrollImport.targetMonth);
+      return;
+    }
+
+    await applyPendingPayrollImportWithLatestDefaults(pendingPayrollImport);
+  };
+
+  const updatePendingImportRow = (index: number, patch: Partial<PayrollImportRow>) => {
+    setPendingPayrollImport((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const parsedRows = prev.parsedRows.map((row, rowIndex) => (
+        rowIndex === index ? { ...row, ...patch } : row
+      ));
+      return { ...prev, parsedRows, warnings: getCommissionWarnings(parsedRows) };
+    });
+  };
+
+  const cancelPendingPayrollImport = () => {
+    setPendingPayrollImport(null);
+    setImportStatus('idle');
+    setImportMessage(null);
+    setChatMessages((prev) => [...prev, { role: 'ai', text: lang === 'zh-CN' ? '已取消本次导入。请重新上传正确文件。' : lang === 'en' ? 'Import cancelled. Please upload the correct file again.' : '已取消今次匯入。請重新上載正確檔案。' }]);
+    setImportKey((prev) => prev + 1);
+  };
+
+  const handleAiChatSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const question = chatInput.trim();
+    if (!question && selectedPayrollImportFile && !isChatSending && importStatus !== 'importing') {
+      const file = selectedPayrollImportFile;
+      setSelectedPayrollImportFile(null);
+      await handlePayrollImport(file);
+      return;
+    }
+
+    if (!question || isChatSending) {
+      return;
+    }
+
+    setChatInput('');
+    setIsChatSending(true);
+    setChatMessages((prev) => [...prev, { role: 'user', text: question }]);
+
+    try {
+      if (pendingPayrollImport && !pendingPayrollImport.targetMonth) {
+        const parsedMonth = parsePayrollImportMonth(question);
+        if (parsedMonth) {
+          const nextPending = { ...pendingPayrollImport, targetMonth: parsedMonth, warnings: getCommissionWarnings(pendingPayrollImport.parsedRows) };
+          setPendingPayrollImport(nextPending);
+          setImportMessage(lang === 'zh-CN' ? `已设定目标月份：${parsedMonth}，等待确认导入。` : lang === 'en' ? `Target month set to ${parsedMonth}. Waiting for confirmation.` : `已設定目標月份：${parsedMonth}，等待確認匯入。`);
+          setChatMessages((prev) => [...prev, { role: 'ai', text: `${buildImportReviewMessage(nextPending)}\n\n如果正確，請按「確認匯入」。` }]);
+          return;
+        }
+
+        setChatMessages((prev) => [...prev, { role: 'ai', text: lang === 'zh-CN' ? '我未能识别月份，请用 YYYY-MM 格式，例如 2026-02。' : lang === 'en' ? 'I could not identify the month. Please use YYYY-MM, for example 2026-02.' : '我未能識別月份，請用 YYYY-MM 格式，例如 2026-02。' }]);
+        return;
+      }
+
+      const memoryContent = question
+        .replace(/^(記住|记住|remember)\s*[:：,-]?\s*/i, '')
+        .trim();
+      const shouldSaveMemory = memoryContent !== question && memoryContent.length > 0;
+
+      if (shouldSaveMemory) {
+        const response = await fetch('../../api/ai/memories/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            moduleKey: 'payroll',
+            memoryType: memoryContent.includes('規則') || memoryContent.includes('规则') || memoryContent.toLowerCase().includes('rule') ? 'business_rule' : 'preference',
+            content: memoryContent,
+            metadata: { source: 'payroll_ai_chat' },
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data?.error || `Memory save failed (${response.status}).`);
+        }
+        setChatMessages((prev) => [...prev, { role: 'ai', text: lang === 'zh-CN' ? `已记住：${memoryContent}` : lang === 'en' ? `Saved to your private memory: ${memoryContent}` : `已記住：${memoryContent}` }]);
+        return;
+      }
+
+      const pendingContext = pendingPayrollImport
+        ? `\n\nCurrent pending import context:\n${buildImportReviewMessage(pendingPayrollImport)}`
+        : '';
+      const response = await fetch('../../api/ai/payroll-import/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responseMode: 'chat', prompt: `${question}${pendingContext}` }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || `AI API request failed (${response.status}).`);
+      }
+      setChatMessages((prev) => [...prev, { role: 'ai', text: typeof data?.text === 'string' ? data.text : '我暫時未能回覆。' }]);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setChatMessages((prev) => [...prev, { role: 'ai', text: `抱歉，AI chat 發生錯誤：${errorMsg}` }]);
+    } finally {
+      setIsChatSending(false);
+    }
+  };
+
   const handlePayrollImport = async (file: File | null) => {
     if (!file) {
       return;
@@ -1167,6 +1715,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
 
     setImportStatus('importing');
     setImportMessage(null);
+    setPendingPayrollImport(null);
     setChatMessages((prev) => [
       ...prev,
       { role: 'user', text: lang === 'zh-CN' ? `已上传文件：${file.name} (类型: ${importType})` : (lang === 'en' ? `Uploaded file: ${file.name} (Type: ${importType})` : `已上載檔案：${file.name} (類別: ${importType})`) }
@@ -1234,12 +1783,36 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
         throw new Error('Uploaded file contains no rows.');
       }
 
+      await delayAiFeedback();
+
       // 2. Build prompt
       const fieldHint = importType === 'all'
         ? 'employee code plus any redeem, sales, salesAmountTotal, job, and sgm values available'
         : `employee code plus the ${importType} value`;
       const tablePreview = rows.slice(0, 20).map((row) => row.map((cell) => cell || '').join(' | ')).join('\n');
       const header = rows[0]?.map((cell) => cell || '').join(' | ') ?? '';
+      const detectedMonth = detectImportMonthFromRows(rows);
+      const structuredRows = parseSalesPerformanceReportRows(rows);
+
+      if (structuredRows.length > 0) {
+        const pending: PendingPayrollImport = {
+          fileName: file.name,
+          importType,
+          targetMonth: detectedMonth,
+          totalRows: rows.length,
+          header,
+          tablePreview,
+          parsedRows: structuredRows,
+          warnings: getCommissionWarnings(structuredRows),
+        };
+
+        setPendingPayrollImport(pending);
+        setImportStatus('success');
+        setImportMessage(lang === 'zh-CN' ? '已完成分析，等待确认导入。' : lang === 'en' ? 'Analysis completed. Waiting for confirmation.' : '已完成分析，等待確認匯入。');
+        setChatMessages((prev) => [...prev, { role: 'ai', text: buildImportReviewMessage(pending) }]);
+        return;
+      }
+
       const prompt = `You are a payroll import assistant. Extract ${fieldHint} from the uploaded payroll table.
 Return only valid JSON. The output must be a JSON array of objects. Each object must include a string field named "employeeCode" and numeric fields where applicable. Do not include any explanation or extra text.
 Examples:
@@ -1252,34 +1825,23 @@ ${header}
 Table rows:
 ${tablePreview}`;
 
-      // 3. Call Gemini
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
-      if (!apiKey || apiKey === 'AIzaSyD5iJ0f4FoGt0YSaYUsl__07KPDODj8nLE') {
-        throw new Error('Google API key is missing or invalid. Please add your own NEXT_PUBLIC_GOOGLE_API_KEY to your .env.local file.');
-      }
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-      const aiResponse = await fetch(endpoint, {
+      // 3. Call server-side AI proxy so API keys are not exposed in the browser.
+      const aiResponse = await fetch('../../api/ai/payroll-import/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 800 },
+          prompt,
         }),
       });
 
+      const aiData = await aiResponse.json();
       if (!aiResponse.ok) {
-        const errorText = await aiResponse.text();
-        throw new Error(`Google API request failed (${aiResponse.status}): ${errorText}`);
+        throw new Error(aiData?.error || `AI API request failed (${aiResponse.status}).`);
       }
 
-      const aiData = await aiResponse.json();
-      let aiText = '';
-      if (aiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        aiText = aiData.candidates[0].content.parts[0].text;
-      }
+      const aiText = typeof aiData?.text === 'string' ? aiData.text : '';
 
       const jsonMatch = aiText.match(/\[\s*[\s\S]*\]/m) || aiText.match(/\{[\s\S]*\}/m);
       if (!jsonMatch) {
@@ -1315,13 +1877,22 @@ ${tablePreview}`;
         });
       }
 
-      updateImportedVolumes(parsedRows);
-      markDirty();
+      const pending: PendingPayrollImport = {
+        fileName: file.name,
+        importType,
+        targetMonth: detectedMonth,
+        totalRows: rows.length,
+        header,
+        tablePreview,
+        parsedRows,
+        warnings: getCommissionWarnings(parsedRows),
+      };
+
+      setPendingPayrollImport(pending);
       setImportStatus('success');
-      const successMsg = lang === 'zh-CN' ? `成功提取并导入了 ${parsedRows.length} 位员工的数据！` : (lang === 'en' ? `Successfully extracted and imported data for ${parsedRows.length} employees!` : `成功提取並匯入了 ${parsedRows.length} 位員工的數據！`);
-      setImportMessage(successMsg);
-      setChatMessages((prev) => [...prev, { role: 'ai', text: successMsg }]);
-      setImportKey((prev) => prev + 1);
+      const reviewMsg = buildImportReviewMessage(pending);
+      setImportMessage(lang === 'zh-CN' ? '已完成分析，等待确认导入。' : lang === 'en' ? 'Analysis completed. Waiting for confirmation.' : '已完成分析，等待確認匯入。');
+      setChatMessages((prev) => [...prev, { role: 'ai', text: reviewMsg }]);
     } catch (error) {
       setImportStatus('error');
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -1739,6 +2310,7 @@ ${tablePreview}`;
       sgmCommission: r.commissionCalculationEnabled ? r.commResult.sgm.amount : 0,
       salesBonus: r.commissionCalculationEnabled ? r.commResult.salesBonus : 0,
       payrollBonus: r.commissionCalculationEnabled ? r.commResult.payrollBonus : 0,
+      redeemBonus: r.commissionCalculationEnabled ? r.commResult.redeemBonus : 0,
       totalCommission: r.displayedCommission,
       packageNoPayHandling: r.isPackageEmployee && r.hasAttendanceNoPay && r.packageCommissionAmount > 0 ? r.packageNoPayHandling : null,
     };
@@ -1780,6 +2352,7 @@ ${tablePreview}`;
     telesalesCommission: row.telesalesCommission,
     salesBonus: row.commResult.salesBonus,
     payrollBonus: row.commResult.payrollBonus,
+    redeemBonus: row.commResult.redeemBonus,
     packageCommissionAmount: row.packageCommissionAmount,
     packageCommission: row.packageCommission,
     isPackageEmployee: row.isPackageEmployee,
@@ -1839,6 +2412,7 @@ ${tablePreview}`;
     entry.sgmCommission > 0 ||
     entry.salesBonus > 0 ||
     entry.payrollBonus > 0 ||
+    entry.redeemBonus > 0 ||
     entry.totalCommission > 0
   ));
 
@@ -2892,6 +3466,12 @@ ${tablePreview}`;
                                       <span className="font-semibold tabular-nums text-fuchsia-800">{fmtDec(row.commResult.payrollBonus)}</span>
                                     </div>
                                   )}
+                                  {row.commResult.redeemBonus > 0 && (
+                                    <div className="flex items-center justify-between rounded-lg bg-rose-50 px-2.5 py-1.5">
+                                      <span className="text-rose-600 text-xs">Redeem Bonus</span>
+                                      <span className="font-semibold tabular-nums text-rose-800">{fmtDec(row.commResult.redeemBonus)}</span>
+                                    </div>
+                                  )}
                                   {row.isPackageEmployee && row.packageCommission > 0 && (
                                     <div className="flex items-center justify-between rounded-lg bg-yellow-50 px-2.5 py-1.5">
                                       <span className="text-yellow-700 text-xs">{t.commInput.packageAppliedCommission}</span>
@@ -3042,7 +3622,7 @@ ${tablePreview}`;
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {chatMessages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${msg.role === 'user' ? 'bg-[#D4AF37] text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-none'}`}>
+                  <div className={`max-w-[85%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm shadow-sm ${msg.role === 'user' ? 'bg-[#D4AF37] text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-none'}`}>
                     {msg.text}
                   </div>
                 </div>
@@ -3059,18 +3639,153 @@ ${tablePreview}`;
                   </div>
                 </div>
               )}
+              {pendingPayrollImport ? (
+                <div className="flex justify-start">
+                  <div className="max-w-[96%] rounded-2xl rounded-bl-none border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate-800 shadow-sm">
+                    <div className="font-semibold text-slate-900">
+                      {lang === 'zh-CN' ? '请确认是否写入 Payroll' : lang === 'en' ? 'Confirm Payroll Import' : '請確認是否寫入 Payroll'}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      {lang === 'zh-CN'
+                        ? `已成功匹配 ${pendingPayrollImport.parsedRows.filter((row) => resolveImportRowTarget(row)).length} 位员工。只需处理未匹配项目。`
+                        : lang === 'en'
+                          ? `${pendingPayrollImport.parsedRows.filter((row) => resolveImportRowTarget(row)).length} employees matched. Only unmatched items are shown.`
+                          : `已成功匹配 ${pendingPayrollImport.parsedRows.filter((row) => resolveImportRowTarget(row)).length} 位員工。只顯示未匹配項目。`}
+                    </div>
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-white/70 p-3">
+                      <label className="mb-1 block text-xs font-semibold text-slate-600">
+                        {lang === 'zh-CN' ? '目标月份' : lang === 'en' ? 'Target Month' : '目標月份'}
+                      </label>
+                      <input
+                        type="month"
+                        value={pendingPayrollImport.targetMonth ?? ''}
+                        onChange={(event) => setPendingPayrollImport((prev) => prev ? { ...prev, targetMonth: event.target.value || undefined } : prev)}
+                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                      />
+                      {pendingPayrollImport.warnings.length > 0 ? (
+                        <p className="mt-2 text-xs font-medium text-amber-700">
+                          {pendingPayrollImport.warnings.length} 個 commission setup 提醒：
+                        </p>
+                      ) : null}
+                      {pendingPayrollImport.warnings.length > 0 ? (
+                        <div className="mt-2 max-h-28 overflow-auto rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          {pendingPayrollImport.warnings.map((warning, index) => (
+                            <div key={`${warning}-${index}`}>• {warning}</div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    {pendingPayrollImport.parsedRows.some((row) => row.excluded || !resolveImportRowTarget(row)) ? (
+                    <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-amber-200 bg-white">
+                      <table className="min-w-full text-left text-xs">
+                        <thead className="sticky top-0 bg-amber-100 text-slate-700">
+                          <tr>
+                            <th className="px-3 py-2 font-semibold">文件員工</th>
+                            <th className="px-3 py-2 font-semibold">HRMS 匹配</th>
+                            <th className="px-3 py-2 font-semibold text-right">Sales</th>
+                            <th className="px-3 py-2 font-semibold text-right">業績</th>
+                            <th className="px-3 py-2 font-semibold">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {pendingPayrollImport.parsedRows.map((row, index) => ({ row, index })).filter(({ row }) => row.excluded || !resolveImportRowTarget(row)).map(({ row, index }) => {
+                            const matchedEmployee = resolveImportRowTarget(row);
+                            const candidates = getImportCandidates(row);
+                            const matchedName = matchedEmployee ? (matchedEmployee.alias || matchedEmployee.nameZh) : null;
+                            return (
+                              <tr key={`${row.employeeCode}-${index}`} className={row.excluded ? 'bg-slate-50 text-slate-400' : matchedEmployee ? 'bg-white' : 'bg-rose-50/60'}>
+                                <td className="px-3 py-2 align-top">
+                                  <div className="font-semibold text-slate-900">{row.employeeCode}</div>
+                                  <div>{row.sourceName || '—'}</div>
+                                </td>
+                                <td className="px-3 py-2 align-top">
+                                  {row.excluded ? '已排除' : matchedEmployee ? `${matchedEmployee.employeeCode} ${matchedName ?? ''}` : '未匹配'}
+                                </td>
+                                <td className="px-3 py-2 text-right align-top tabular-nums">{row.sales ?? '—'}</td>
+                                <td className="px-3 py-2 text-right align-top tabular-nums">{typeof row.sales === 'number' ? row.sales.toLocaleString('en-HK') : '—'}</td>
+                                <td className="px-3 py-2 align-top">
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {candidates.map((candidate) => (
+                                      <button
+                                        key={candidate.employeeCode}
+                                        type="button"
+                                        onClick={() => updatePendingImportRow(index, { targetEmployeeCode: candidate.employeeCode, excluded: false })}
+                                        className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:border-[#D4AF37] hover:text-[#9A7815]"
+                                      >
+                                        用 {candidate.employeeCode} {candidate.alias || candidate.nameZh}
+                                      </button>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => updatePendingImportRow(index, { excluded: !row.excluded })}
+                                      className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:border-slate-300"
+                                    >
+                                      {row.excluded ? '取消排除' : '排除'}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    ) : (
+                      <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
+                        所有員工已成功匹配，無需手動處理。
+                      </div>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={confirmPendingPayrollImport}
+                        disabled={!pendingPayrollImport.targetMonth}
+                        className="rounded-full bg-[#D4AF37] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {pendingPayrollImport.targetMonth
+                          ? (lang === 'zh-CN' ? '确认导入' : lang === 'en' ? 'Confirm Import' : '確認匯入')
+                          : (lang === 'zh-CN' ? '请先输入月份' : lang === 'en' ? 'Enter Month First' : '請先輸入月份')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelPendingPayrollImport}
+                        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                      >
+                        {lang === 'zh-CN' ? '取消' : lang === 'en' ? 'Cancel' : '取消'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {lastPayrollImportRollback ? (
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-none border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm">
+                    <div className="font-semibold text-slate-900">可回復上次匯入</div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      {lastPayrollImportRollback.fileName} / {lastPayrollImportRollback.targetMonth}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={restoreLastPayrollImport}
+                      className="mt-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+                    >
+                      回復匯入前狀態
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div ref={chatBottomRef} />
             </div>
 
-            <div className="border-t border-slate-200 bg-white p-4">
-              <div className="mx-auto flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">{t.aiImportTypeLabel}</label>
+            <div className="border-t border-slate-200 bg-white p-3">
+              <div className="mx-auto flex w-full max-w-xl flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="sr-only">{t.aiImportTypeLabel}</label>
                   <select
                     value={importType}
                     onChange={(e) => setImportType(e.target.value as 'all' | 'redeem' | 'sales' | 'job' | 'sgm')}
                     disabled={importStatus === 'importing'}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37] disabled:opacity-60"
+                    className="h-10 w-32 shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 shadow-sm focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37] disabled:opacity-60 sm:w-36"
                   >
                     <option value="all">{t.aiImportTypeAll}</option>
                     <option value="redeem">{t.tierCard.redeem}</option>
@@ -3078,31 +3793,47 @@ ${tablePreview}`;
                     <option value="job">Job</option>
                     <option value="sgm">{t.tierCard.sgm}</option>
                   </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    {lang === 'zh-CN' ? '上传文件' : lang === 'en' ? 'Upload File' : '上載檔案'}
-                  </label>
-                  <label className={`relative flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-6 transition-colors ${importStatus === 'importing' ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60' : 'border-[#D4AF37]/40 bg-amber-50/30 hover:border-[#D4AF37] hover:bg-amber-50/80'}`}>
+                  <label className={`relative inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3 text-sm font-semibold shadow-sm transition-colors ${importStatus === 'importing' ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 opacity-60' : 'border-[#D4AF37]/40 bg-amber-50 text-[#9A7815] hover:border-[#D4AF37] hover:bg-amber-100'}`}>
                     <input
                       key={importKey}
                       type="file"
                       accept=".xlsx,.xls,.csv"
                       disabled={importStatus === 'importing'}
-                      onChange={(event) => handlePayrollImport(event.target.files?.[0] ?? null)}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] ?? null;
+                        setSelectedPayrollImportFile(file);
+                        if (file) {
+                          setChatMessages((prev) => [...prev, {
+                            role: 'user',
+                            text: `已選擇檔案：${file.name}（類別：${importType}）。請按「傳送」開始分析。`,
+                          }]);
+                        }
+                      }}
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                     />
-                    <div className="flex flex-col items-center gap-2 text-center">
-                      <div className="rounded-full bg-white p-2 shadow-sm ring-1 ring-slate-900/5">
-                        <Download className="h-5 w-5 text-[#D4AF37]" />
-                      </div>
-                      <div className="text-sm font-medium text-slate-700">
-                        {lang === 'zh-CN' ? '点击或拖拽文件到此处' : lang === 'en' ? 'Click or drag file here' : '點擊或拖拽檔案到此處'}
-                      </div>
-                      <div className="text-xs text-slate-500">.xlsx, .csv</div>
-                    </div>
+                    <Download className="h-4 w-4" />
+                    <span>{lang === 'zh-CN' ? '上传' : lang === 'en' ? 'Upload' : '上載'}</span>
                   </label>
+                  <span className="hidden text-xs text-slate-400 sm:inline">.xlsx, .csv</span>
+                  {selectedPayrollImportFile ? <span className="truncate text-xs font-medium text-slate-500">{selectedPayrollImportFile.name}</span> : null}
                 </div>
+                <form onSubmit={handleAiChatSubmit} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    disabled={isChatSending || importStatus === 'importing'}
+                    placeholder={selectedPayrollImportFile ? '已選檔案，按傳送開始分析' : (lang === 'zh-CN' ? '向 AI 发问，例如：这些数据有问题吗？' : lang === 'en' ? 'Ask AI about this import...' : '問 AI，例如：呢啲資料有冇問題？')}
+                    className="h-11 min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 shadow-sm focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37] disabled:opacity-60"
+                  />
+                  <button
+                    type="submit"
+                    disabled={(!chatInput.trim() && !selectedPayrollImportFile) || isChatSending || importStatus === 'importing'}
+                    className="h-11 rounded-full bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isChatSending ? (lang === 'en' ? 'Sending' : '傳送中') : (lang === 'en' ? 'Send' : '傳送')}
+                  </button>
+                </form>
               </div>
             </div>
           </div>
@@ -3121,7 +3852,7 @@ ${tablePreview}`;
                 + activePayslipPdfEntry.streetPromoterCommission
                 + activePayslipPdfEntry.telesalesCommission
               );
-              const extraBonus = roundMoney(activePayslipPdfEntry.payrollBonus + activePayslipPdfEntry.shopBonus);
+              const extraBonus = roundMoney(activePayslipPdfEntry.payrollBonus + activePayslipPdfEntry.redeemBonus + activePayslipPdfEntry.shopBonus);
               const baseSalaryDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBaseSalary - activePayslipPdfEntry.calculatedBaseSalary, 0));
               const allowanceDeduction = roundMoney(Math.max(allowanceTotal - (activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance), 0));
               const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));

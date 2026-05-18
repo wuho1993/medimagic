@@ -1,12 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  trailingSlash: true,
   images: { unoptimized: true },
   basePath: '/medimagic',
   assetPrefix: '/medimagic/',
-  typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   webpack: (config) => {
     // Stub Node-only modules so server-side code that was converted
     // to client-side doesn't cause build errors.

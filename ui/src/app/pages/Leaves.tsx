@@ -22,6 +22,7 @@ type AttendanceManagementProps = {
 type CombinedAttendanceRow = {
   employee: EmployeeDirectoryRecord;
   record: AttendanceManagementMonthlyRecord | null;
+  salaryType: AttendanceDeductionBasis['salaryType'];
   groupLabel: string;
   displayName: string;
 };
@@ -121,6 +122,23 @@ const translations = {
     saving: '儲存中...',
     saved: '已儲存',
     totalMismatch: '總日數必須等於計薪日數',
+    salaryTypeLabel: '計薪方式',
+    salaryTypeNames: {
+      monthly: '月薪',
+      daily: '日薪',
+      hourly: '時薪',
+      package: 'Package / 包薪',
+      street_promoter: '街霸',
+      unset: '未設定',
+    },
+    attendanceModeHints: {
+      monthly: '計薪日數預設為當月日數；如曾手動修改，新月份會沿用最近一次手動值。',
+      daily: '日薪員工仍使用同一個計薪日數欄位，可手動修改並沿用最近一次手動值。',
+      hourly: '時薪員工可保留計薪日數作出勤核對；工時仍於薪資月結輸入。',
+      package: 'Package 保留 package 規則；計薪日數可手動修改，不因兼職身份改成日薪/時薪。',
+      street_promoter: '街霸按特殊佣金規則處理；計薪日數可作出勤核對。',
+      unset: '未設定計薪方式：計薪日數仍可儲存，請再到員工 Profile 確認。',
+    },
     deduction: '無薪扣減',
     deductionBase: '扣減基礎',
     noPayDays: '無薪日數',
@@ -175,6 +193,23 @@ const translations = {
     saving: '保存中...',
     saved: '已保存',
     totalMismatch: '总日数必须等于计薪日数',
+    salaryTypeLabel: '计薪方式',
+    salaryTypeNames: {
+      monthly: '月薪',
+      daily: '日薪',
+      hourly: '时薪',
+      package: 'Package / 包薪',
+      street_promoter: '街霸',
+      unset: '未设置',
+    },
+    attendanceModeHints: {
+      monthly: '计薪日数预设为当月日数；如曾手动修改，新月份会沿用最近一次手动值。',
+      daily: '日薪员工仍使用同一个计薪日数栏位，可手动修改并沿用最近一次手动值。',
+      hourly: '时薪员工可保留计薪日数作出勤核对；工时仍于薪资月结输入。',
+      package: 'Package 保留 package 规则；计薪日数可手动修改，不因兼职身份改成日薪/时薪。',
+      street_promoter: '街霸按特殊佣金规则处理；计薪日数可作出勤核对。',
+      unset: '未设置计薪方式：计薪日数仍可储存，请再到员工 Profile 确认。',
+    },
     deduction: '无薪扣减',
     deductionBase: '扣减基础',
     noPayDays: '无薪日数',
@@ -229,6 +264,23 @@ const translations = {
     saving: 'Saving...',
     saved: 'Saved',
     totalMismatch: 'Total days must match calendar days',
+    salaryTypeLabel: 'Salary Type',
+    salaryTypeNames: {
+      monthly: 'Monthly',
+      daily: 'Daily',
+      hourly: 'Hourly',
+      package: 'Package',
+      street_promoter: 'Street Promoter',
+      unset: 'Unset',
+    },
+    attendanceModeHints: {
+      monthly: 'Payroll days default to the month length; manual changes carry forward to new months.',
+      daily: 'Daily staff use the same payroll-days field; manual changes carry forward.',
+      hourly: 'Hourly staff can keep payroll days for attendance checks; hours remain in Payroll.',
+      package: 'Package rules remain unchanged; payroll days can be edited without forcing daily/hourly payroll.',
+      street_promoter: 'Street promoters use special commission rules; payroll days can be kept for attendance checks.',
+      unset: 'Salary type is unset. Payroll days can still be saved; confirm the profile separately.',
+    },
     deduction: 'No-Pay Deduction',
     deductionBase: 'Deduction Base',
     noPayDays: 'No-Pay Days',
@@ -277,6 +329,48 @@ function displayName(employee: EmployeeDirectoryRecord) {
 
 function groupLabelFor(employee: EmployeeDirectoryRecord) {
   return employee.branchNameZh || employee.branchCode || employee.branchNameEn || 'UNASSIGNED';
+}
+
+type AttendanceSalaryTypeKey = NonNullable<AttendanceDeductionBasis['salaryType']> | 'unset';
+
+function getSalaryTypeKey(salaryType: AttendanceDeductionBasis['salaryType']): AttendanceSalaryTypeKey {
+  return salaryType ?? 'unset';
+}
+
+function getManualCalendarDaysFromHistory(
+  historyMap: Map<string, AttendanceManagementMonthlyRecord[]>,
+  employeeId: string,
+  selectedMonth: string,
+) {
+  const employeeRecords = historyMap.get(employeeId) ?? [];
+
+  for (let index = employeeRecords.length - 1; index >= 0; index -= 1) {
+    const record = employeeRecords[index];
+    const calendarDays = record.calendarDays ?? 0;
+    const monthDays = getDaysInMonth(record.yearMonth);
+
+    if (record.yearMonth < selectedMonth && calendarDays > 0 && monthDays !== null && calendarDays !== monthDays) {
+      return calendarDays;
+    }
+  }
+
+  return null;
+}
+
+function getCalendarDaysDefault(
+  row: CombinedAttendanceRow,
+  selectedMonthDays: number | null,
+  selectedMonth: string,
+  historyMap: Map<string, AttendanceManagementMonthlyRecord[]>,
+) {
+  if (row.record?.calendarDays && row.record.calendarDays > 0) {
+    return row.record.calendarDays;
+  }
+
+  const rememberedCalendarDays = getManualCalendarDaysFromHistory(historyMap, row.employee.id, selectedMonth);
+  if (rememberedCalendarDays !== null) return rememberedCalendarDays;
+
+  return selectedMonthDays ?? 0;
 }
 
 function formatValue(value: number | string | null) {
@@ -379,9 +473,7 @@ function createDraftRow(
   selectedMonth: string,
   historyMap: Map<string, AttendanceManagementMonthlyRecord[]>,
 ): AttendanceDraftRow {
-  const calendarDays = row.record?.calendarDays && row.record.calendarDays > 0
-    ? row.record.calendarDays
-    : (selectedMonthDays ?? 0);
+  const calendarDays = getCalendarDaysDefault(row, selectedMonthDays, selectedMonth, historyMap);
   const carriedPrevMonthHours = getCarryForwardPrevHours(historyMap, row.employee.id, selectedMonth);
   const effectivePrevMonthRemainingHours = isPrevMonthRemainingHoursAutoMonth(selectedMonth)
     ? (carriedPrevMonthHours ?? row.record?.prevMonthRemainingHours ?? null)
@@ -425,6 +517,10 @@ function calculateDraftTotal(draft: AttendanceDraftRow) {
   return editableDayFields.reduce((sum, field) => sum + parseDraftNumber(draft[field]), 0);
 }
 
+function getEffectiveCalendarDays(row: CombinedAttendanceRow, draft: AttendanceDraftRow) {
+  return draft.calendarDays;
+}
+
 function formatCurrency(value: number, locale: string) {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
@@ -438,6 +534,7 @@ function buildCombinedRows(
   employees: EmployeeDirectoryRecord[],
   records: AttendanceManagementMonthlyRecord[],
   selectedMonth: string,
+  deductionBasisByEmployeeCode: Record<string, AttendanceDeductionBasis>,
 ) {
   const monthRecordMap = new Map(
     records.filter((record) => record.yearMonth === selectedMonth).map((record) => [record.employeeId, record]),
@@ -446,6 +543,7 @@ function buildCombinedRows(
   const rows: CombinedAttendanceRow[] = employees.map((employee) => ({
     employee,
     record: monthRecordMap.get(employee.id) ?? null,
+    salaryType: monthRecordMap.get(employee.id)?.salaryType as AttendanceDeductionBasis['salaryType'] ?? deductionBasisByEmployeeCode[employee.employeeCode]?.salaryType ?? null,
     groupLabel: groupLabelFor(employee),
     displayName: displayName(employee),
   }));
@@ -490,8 +588,8 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   const historyMap = useMemo(() => buildEmployeeHistoryMap(records), [records]);
 
   const rows = useMemo(
-    () => buildCombinedRows(overview.employees, records, selectedMonth),
-    [overview.employees, records, selectedMonth],
+    () => buildCombinedRows(overview.employees, records, selectedMonth, overview.deductionBasisByEmployeeCode),
+    [overview.employees, overview.deductionBasisByEmployeeCode, records, selectedMonth],
   );
   const groupedRows = useMemo(() => groupRows(rows), [rows]);
   const [drafts, setDrafts] = useState<Record<string, AttendanceDraftRow>>({});
@@ -650,6 +748,25 @@ export default function AttendanceManagement({ overview, focusMode = false, init
     setRowFeedback((current) => ({ ...current, [employeeId]: { tone: 'idle', message: null } }));
   };
 
+  const updateCalendarDays = (employeeId: string, value: string) => {
+    setDrafts((current) => {
+      const sourceRow = rows.find((row) => row.employee.id === employeeId)!;
+      const base = current[employeeId] ?? createDraftRow(sourceRow, selectedMonthDays, selectedMonth, historyMap);
+      const parsed = parseDraftNumber(value);
+
+      setDirtyRows((prev) => new Set(prev).add(employeeId));
+
+      return {
+        ...current,
+        [employeeId]: {
+          ...base,
+          calendarDays: parsed,
+        },
+      };
+    });
+    setRowFeedback((current) => ({ ...current, [employeeId]: { tone: 'idle', message: null } }));
+  };
+
   const toggleGroup = (groupLabel: string) => {
     setCollapsedGroups((current) => {
       const next = new Set(current);
@@ -688,7 +805,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
       employeeId: row.employee.id,
       yearMonth: selectedMonth,
       branchSection: row.record?.branchSection ?? row.employee.branchCode ?? row.employee.branchNameZh,
-      calendarDays: draft.calendarDays,
+      calendarDays: getEffectiveCalendarDays(row, draft),
       workedDays: parseDraftNumber(draft.workedDays),
       offDays: parseDraftNumber(draft.offDays),
       statutoryHolidayDays: parseDraftNumber(draft.statutoryHolidayDays),
@@ -1024,11 +1141,12 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                       {columns.map((column) => {
                         const draft = drafts[row.employee.id] ?? createDraftRow(row, selectedMonthDays, selectedMonth, historyMap);
                         const totalDays = Number(calculateDraftTotal(draft).toFixed(2));
-                        const hasMismatch = Math.abs(totalDays - draft.calendarDays) > 0.001;
+                        const effectiveCalendarDays = getEffectiveCalendarDays(row, draft);
+                        const hasMismatch = Math.abs(totalDays - effectiveCalendarDays) > 0.001;
                         const deductionBasis: AttendanceDeductionBasis | undefined = overview.deductionBasisByEmployeeCode[row.employee.employeeCode];
                         const noPayDays = parseDraftNumber(draft.sickNoPayDays) + parseDraftNumber(draft.noPayLeaveDays) + parseDraftNumber(draft.noPayStatutoryHolidayDays);
                         const deductionBase = row.record?.deductionBase ?? deductionBasis?.deductionBase ?? 0;
-                        const deductionAmount = draft.calendarDays > 0 ? (deductionBase / draft.calendarDays) * noPayDays : 0;
+                        const deductionAmount = effectiveCalendarDays > 0 ? (deductionBase / effectiveCalendarDays) * noPayDays : 0;
                         const historicalAttendanceRecord = getLatestHistoricalAttendanceRecord(historyMap, row.employee.id, selectedMonth);
                         const isPrevMonthRemainingHoursAuto = isPrevMonthRemainingHoursAutoMonth(selectedMonth)
                           && historicalAttendanceRecord !== null;
@@ -1059,6 +1177,12 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                               <div>{row.displayName}</div>
                               <div className="mt-1 text-[10px] leading-4 text-slate-500">
                                 {t.deductionBase}: {formatCurrency(deductionBase, locale)}
+                              </div>
+                              <div className="text-[10px] leading-4 text-slate-500">
+                                {t.salaryTypeLabel}: {t.salaryTypeNames[getSalaryTypeKey(row.salaryType)]}
+                              </div>
+                              <div className="text-[10px] leading-4 text-slate-400">
+                                {t.attendanceModeHints[getSalaryTypeKey(row.salaryType)]}
                               </div>
                               {noPayDays > 0 ? (
                                 <div className="text-[10px] leading-4 text-rose-600">
@@ -1098,7 +1222,19 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                             </td>
                           );
                         } else if (column.key === 'calendarDays') {
-                          content = formatValue(draft.calendarDays);
+                          return (
+                            <td
+                              key={column.key}
+                              className={`border-b border-r border-slate-200 px-1.5 py-1.5 text-center align-middle ${column.cellClassName}`}
+                            >
+                              <input
+                                inputMode="decimal"
+                                value={draft.calendarDays === 0 ? '' : String(draft.calendarDays)}
+                                onChange={(event) => updateCalendarDays(row.employee.id, event.target.value)}
+                                className="w-full rounded-md border border-slate-200 bg-white px-1 py-1 text-center text-[11px] font-medium text-slate-800 outline-none transition focus:border-[#B8871A]"
+                              />
+                            </td>
+                          );
                         } else if (editableFields.includes(column.key as EditableAttendanceField)) {
                           const fieldKey = column.key as EditableAttendanceField;
                           const isReadOnlyAutoField = fieldKey === 'accumulatedOtHours'
@@ -1173,11 +1309,12 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                       {columns.map((column) => {
                         const draft = drafts[row.employee.id] ?? createDraftRow(row, selectedMonthDays, selectedMonth, historyMap);
                         const totalDays = Number(calculateDraftTotal(draft).toFixed(2));
-                        const hasMismatch = Math.abs(totalDays - draft.calendarDays) > 0.001;
+                        const effectiveCalendarDays = getEffectiveCalendarDays(row, draft);
+                        const hasMismatch = Math.abs(totalDays - effectiveCalendarDays) > 0.001;
                         const deductionBasis: AttendanceDeductionBasis | undefined = overview.deductionBasisByEmployeeCode[row.employee.employeeCode];
                         const noPayDays = parseDraftNumber(draft.sickNoPayDays) + parseDraftNumber(draft.noPayLeaveDays) + parseDraftNumber(draft.noPayStatutoryHolidayDays);
                         const deductionBase = row.record?.deductionBase ?? deductionBasis?.deductionBase ?? 0;
-                        const deductionAmount = draft.calendarDays > 0 ? (deductionBase / draft.calendarDays) * noPayDays : 0;
+                        const deductionAmount = effectiveCalendarDays > 0 ? (deductionBase / effectiveCalendarDays) * noPayDays : 0;
                         const historicalAttendanceRecord = getLatestHistoricalAttendanceRecord(historyMap, row.employee.id, selectedMonth);
                         const carriedPrevMonthHours = historicalAttendanceRecord?.accumulatedOtHours ?? null;
                         const isPrevMonthRemainingHoursAuto = isPrevMonthRemainingHoursAutoMonth(selectedMonth)
@@ -1209,6 +1346,12 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                               <div>{row.displayName}</div>
                               <div className="mt-1 text-[10px] leading-4 text-slate-500">
                                 {t.deductionBase}: {formatCurrency(deductionBase, locale)}
+                              </div>
+                              <div className="text-[10px] leading-4 text-slate-500">
+                                {t.salaryTypeLabel}: {t.salaryTypeNames[getSalaryTypeKey(row.salaryType)]}
+                              </div>
+                              <div className="text-[10px] leading-4 text-slate-400">
+                                {t.attendanceModeHints[getSalaryTypeKey(row.salaryType)]}
                               </div>
                               {noPayDays > 0 ? (
                                 <div className="text-[10px] leading-4 text-rose-600">
@@ -1248,7 +1391,19 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                             </td>
                           );
                         } else if (column.key === 'calendarDays') {
-                          content = formatValue(draft.calendarDays);
+                          return (
+                            <td
+                              key={column.key}
+                              className={`border-b border-r border-slate-200 px-1.5 py-1.5 text-center align-middle ${column.cellClassName}`}
+                            >
+                              <input
+                                inputMode="decimal"
+                                value={draft.calendarDays === 0 ? '' : String(draft.calendarDays)}
+                                onChange={(event) => updateCalendarDays(row.employee.id, event.target.value)}
+                                className="w-full rounded-md border border-slate-200 bg-white px-1 py-1 text-center text-[11px] font-medium text-slate-800 outline-none transition focus:border-[#B8871A]"
+                              />
+                            </td>
+                          );
                         } else if (editableFields.includes(column.key as EditableAttendanceField)) {
                           const fieldKey = column.key as EditableAttendanceField;
                           const isReadOnlyAutoField = fieldKey === 'accumulatedOtHours'

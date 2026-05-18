@@ -193,6 +193,10 @@ export function calculatePayrollBonus(
   return calculatePayrollBonusFromTiers(salesVolume, getPayrollBonusTiers(scheme, customTiers, standardSchemes));
 }
 
+export function calculateRedeemBonusFromTiers(redeemVolume: number, tiers: PayrollBonusTier[]): number {
+  return calculatePayrollBonusFromTiers(redeemVolume, tiers);
+}
+
 export function calculateShopTargetPercent(targetAmount: number, actualSalesAmount: number): number {
   if (targetAmount <= 0 || actualSalesAmount <= 0) {
     return 0;
