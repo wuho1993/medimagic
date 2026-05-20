@@ -161,7 +161,7 @@ const translations = {
       sickNoPayDays: '病假 (SL)(No Pay)',
       noPayLeaveDays: '事假 (NPL)',
       noPayStatutoryHolidayDays: 'No Pay 勞工假 (NPSH)',
-      lateDays: '遲到日數',
+      lateDays: '遲到時間(分鐘)',
       prevMonthRemainingHours: '上月剩餘鐘數 (HOUR)',
       makeupHours: '補鐘',
       overtimeHours: 'OT',
@@ -232,7 +232,7 @@ const translations = {
       sickNoPayDays: '病假 (SL)(No Pay)',
       noPayLeaveDays: '事假 (NPL)',
       noPayStatutoryHolidayDays: 'No Pay 劳工假 (NPSH)',
-      lateDays: '迟到日数',
+      lateDays: '迟到时间(分钟)',
       prevMonthRemainingHours: '上月剩余钟数 (HOUR)',
       makeupHours: '补钟',
       overtimeHours: 'OT',
@@ -303,7 +303,7 @@ const translations = {
       sickNoPayDays: 'SL No Pay',
       noPayLeaveDays: 'NPL',
       noPayStatutoryHolidayDays: 'NPSH',
-      lateDays: 'Late Days',
+      lateDays: 'Late Minutes',
       prevMonthRemainingHours: 'Prev Hours',
       makeupHours: 'Makeup',
       overtimeHours: 'OT',
@@ -386,6 +386,25 @@ function getDaysInMonth(yearMonth: string) {
   const [year, month] = yearMonth.split('-').map(Number);
   if (!year || !month) return null;
   return new Date(year, month, 0).getDate();
+}
+
+function formatYearMonth(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function addMonths(yearMonth: string, offset: number) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) return yearMonth;
+  return formatYearMonth(new Date(year, month - 1 + offset, 1));
+}
+
+function buildMonthOptions(months: string[], defaultMonth: string, selectedMonth: string) {
+  const currentMonth = formatYearMonth(new Date());
+  const options = new Set<string>([...months, defaultMonth, selectedMonth, currentMonth]);
+  for (let offset = -12; offset <= 3; offset += 1) {
+    options.add(addMonths(currentMonth, offset));
+  }
+  return Array.from(options).filter((month) => /^\d{4}-\d{2}$/.test(month)).sort((left, right) => right.localeCompare(left));
 }
 
 function toDraftNumber(value: number | null | undefined) {
@@ -579,13 +598,17 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   const { lang } = useLanguage();
   const t = translations[lang] ?? translations.en;
   const locale = lang === 'en' ? 'en-HK' : lang === 'zh-CN' ? 'zh-CN' : 'zh-HK';
-  const monthFromUrl = initialMonth && overview.months.includes(initialMonth) ? initialMonth : overview.defaultMonth;
+  const monthFromUrl = initialMonth && /^\d{4}-\d{2}$/.test(initialMonth) ? initialMonth : overview.defaultMonth;
   const [selectedMonth, setSelectedMonth] = useState(monthFromUrl);
   const [tableScale, setTableScale] = useState(() => clampScale(initialScale ?? 0.65));
   const [records, setRecords] = useState(overview.records);
   const selectedMonthDays = getDaysInMonth(selectedMonth);
   const recordMap = useMemo(() => buildMonthlyRecordMap(records), [records]);
   const historyMap = useMemo(() => buildEmployeeHistoryMap(records), [records]);
+  const monthOptions = useMemo(
+    () => buildMonthOptions(overview.months, overview.defaultMonth, selectedMonth),
+    [overview.defaultMonth, overview.months, selectedMonth],
+  );
 
   const rows = useMemo(
     () => buildCombinedRows(overview.employees, records, selectedMonth, overview.deductionBasisByEmployeeCode),
@@ -604,6 +627,10 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   useEffect(() => {
     setRecords(overview.records);
   }, [overview.records]);
+
+  useEffect(() => {
+    setSelectedMonth(monthFromUrl);
+  }, [monthFromUrl]);
 
   useEffect(() => {
     setSupportsCssZoom(typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('zoom', '1'));
@@ -777,6 +804,18 @@ export default function AttendanceManagement({ overview, focusMode = false, init
       }
       return next;
     });
+  };
+
+  const handleMonthChange = (month: string) => {
+    setSelectedMonth(month);
+    const params = new URLSearchParams();
+    params.set('month', month);
+    if (focusMode) {
+      params.set('scale', tableScale.toFixed(2));
+    }
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+    }
   };
 
   const openFocusView = () => {
@@ -989,10 +1028,10 @@ export default function AttendanceManagement({ overview, focusMode = false, init
               <div className="text-xs font-semibold text-slate-500">{t.month}</div>
               <select
                 value={selectedMonth}
-                onChange={(event) => setSelectedMonth(event.target.value)}
+                onChange={(event) => handleMonthChange(event.target.value)}
                 className="mt-1 min-w-40 bg-transparent text-sm font-semibold text-slate-900 outline-none"
               >
-                {overview.months.map((month) => (
+                {monthOptions.map((month) => (
                   <option key={month} value={month}>
                     {formatMonthLabel(month, lang)}
                   </option>

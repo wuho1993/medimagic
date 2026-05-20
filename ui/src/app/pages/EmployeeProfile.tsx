@@ -10,12 +10,13 @@ import type {
   EmployeeDirectoryOption,
   SavedCommissionPresetRecord,
   SavedPayrollBonusPresetRecord,
+  SavedShopCommissionPresetRecord,
 } from '@/src/lib/employees/queries';
-import { CUSTOM_COMMISSION_TYPES, normalizeCustomCommissionName, normalizeCustomCommissionTiers, type CustomCommissionTier } from '@/src/lib/employees/custom-commission';
+import { CUSTOM_COMMISSION_TYPES, type CustomCommissionTier } from '@/src/lib/employees/custom-commission';
 import type { EmployeeDocumentType } from '@/src/lib/employees/document-storage';
 import { calculateAge, calculateProbationEndDate, EMPLOYEE_EMPLOYMENT_TYPES } from '@/src/lib/employees/employment';
 import { normalizePayrollBonusCustomName, normalizePayrollBonusTiers, normalizeShopBonusTiers, type PayrollBonusConfigCatalog, type PayrollBonusTier, type ShopBonusTier } from '@/src/lib/employees/payroll-bonus';
-import { getCommissionRuleConflictMessages, normalizeCommissionRules, serializeCommissionRules, type CommissionRule, type CommissionRuleMetric, type CommissionRuleType } from '@/src/lib/employees/commission-rules';
+import { createCommissionRulesFromLegacyCustomTiers, getCommissionRuleConflictMessages, normalizeCommissionRules, serializeCommissionRules, type CommissionRule, type CommissionRuleMetric, type CommissionRuleType } from '@/src/lib/employees/commission-rules';
 import { updateEmployee } from '@/app/app/people/actions';
 import { deleteEmployeeDocument, uploadEmployeeDocument } from '@/app/app/people/document-actions';
 
@@ -24,6 +25,7 @@ type EmployeeProfileProps = {
   commissionTiers: CommissionRateTier[];
   savedCommissionPresets: SavedCommissionPresetRecord[];
   savedPayrollBonusPresets: SavedPayrollBonusPresetRecord[];
+  savedShopCommissionPresets: SavedShopCommissionPresetRecord[];
   payrollBonusConfig: PayrollBonusConfigCatalog;
   options: {
     positions: EmployeeDirectoryOption[];
@@ -53,6 +55,8 @@ type FormState = {
   hireDate: string;
   probationEndDate: string;
   employmentEndDate: string;
+  terminationReason: string;
+  finalPayrollMonth: string;
   notes: string;
   paymentMethod: NonNullable<EmployeeDetailRecord['paymentMethod']> | '';
   bankId: string;
@@ -176,6 +180,8 @@ const translations = {
       probationMonths: '試用期(月)',
       probationEndDate: '試用期完結日',
       employmentEndDate: '離職 / 合約完結日',
+      terminationReason: '離職原因',
+      finalPayrollMonth: '最後出糧月份',
       notes: '備註',
       annualLeaveDays: '大假天數',
       paymentMethod: '出糧方法',
@@ -442,6 +448,8 @@ const translations = {
       probationMonths: '试用期(月)',
       probationEndDate: '试用期结束日',
       employmentEndDate: '离职 / 合同结束日',
+      terminationReason: '离职原因',
+      finalPayrollMonth: '最后发薪月份',
       notes: '备注',
       annualLeaveDays: '年假天数',
       paymentMethod: '发薪方式',
@@ -708,6 +716,8 @@ const translations = {
       probationMonths: 'Probation (Months)',
       probationEndDate: 'Probation End Date',
       employmentEndDate: 'Employment End Date',
+      terminationReason: 'Termination Reason',
+      finalPayrollMonth: 'Final Payroll Month',
       notes: 'Notes',
       annualLeaveDays: 'Annual Leave Days',
       paymentMethod: 'Payment Method',
@@ -916,6 +926,8 @@ const translations = {
   },
 } as const;
 
+type EmployeeProfileLabels = (typeof translations)[keyof typeof translations];
+
 function getStatusClasses(status: EmployeeDetailRecord['employmentStatus']) {
   switch (status) {
     case 'active':
@@ -1063,6 +1075,76 @@ function serializeCustomCommissionTiers(tiers: CustomCommissionTier[]) {
   return JSON.stringify(sanitizeCustomCommissionDraftTiers(tiers));
 }
 
+function createStandardCommissionRulesFromRateTable(tiers: CommissionRateTier[]) {
+  const legacyTypes = new Set<CustomCommissionTier['commissionType']>(['redeem', 'sales', 'sgm']);
+  return createCommissionRulesFromLegacyCustomTiers('自訂佣金', tiers
+    .filter((tier): tier is CommissionRateTier & { commissionType: CustomCommissionTier['commissionType'] } => tier.staffGroup === 'default' && legacyTypes.has(tier.commissionType as CustomCommissionTier['commissionType']))
+    .map((tier) => ({
+      commissionType: tier.commissionType,
+      minAmount: tier.minAmount,
+      maxAmount: tier.maxAmount,
+      rate: tier.rate,
+    })));
+}
+
+function applyCommissionPresetToState(current: FormState, preset: SavedCommissionPresetRecord): FormState {
+  return {
+    ...current,
+    commissionMethod: 'custom',
+    commissionCustomName: preset.name,
+    commissionCustomTiers: serializeCustomCommissionTiers(preset.tiers),
+    commissionRules: serializeCommissionRules([
+      ...createCommissionRulesFromLegacyCustomTiers(preset.name, preset.tiers),
+      ...normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric === 'shop'),
+    ]),
+  };
+}
+
+function applyShopCommissionPresetToState(current: FormState, preset: SavedShopCommissionPresetRecord): FormState {
+  return {
+    ...current,
+    shopBonusEnabled: 'true',
+    shopBonusScheme: 'custom',
+    shopBonusCustomName: preset.name,
+    shopBonusCustomTiers: '',
+    commissionMethod: current.commissionMethod || 'custom',
+    commissionRules: serializeCommissionRules([
+      ...normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric !== 'shop'),
+      ...preset.rules,
+    ]),
+  };
+}
+
+function getAppliedCommissionDisplayName(
+  employee: EmployeeDetailRecord,
+  mainRules: CommissionRule[],
+  labels: EmployeeProfileLabels,
+) {
+  if (employee.commissionMethod !== 'custom') {
+    return employee.commissionMethod ? labels.commissionMethods[employee.commissionMethod] : labels.emptyValue;
+  }
+
+  const ruleNames = new Set(mainRules.map((rule) => rule.name));
+  const hasYanLyBar = ruleNames.has('Sales BAR Commission') && ruleNames.has('Redeem BAR Commission');
+  const customName = employee.commissionCustomName?.trim();
+  const isGenericBarName = customName === 'BAR Commission';
+  if (hasYanLyBar || isGenericBarName) return `${labels.commissionMethods.custom} - Yan/LY BAR`;
+  if (customName) return `${labels.commissionMethods.custom} - ${customName}`;
+  if (mainRules.length > 1) return `${labels.commissionMethods.custom} - 自訂佣金方案`;
+  if (mainRules.length > 0) return `${labels.commissionMethods.custom} - ${mainRules.map((rule) => rule.name).join(' / ')}`;
+  return labels.commissionMethods.custom;
+}
+
+function getAppliedShopDisplayName(employee: EmployeeDetailRecord, shopRules: CommissionRule[], labels: EmployeeProfileLabels) {
+  const customName = employee.shopBonusCustomName?.trim();
+  if (shopRules.length > 0) {
+    return customName || shopRules.map((rule) => rule.name).join(' / ');
+  }
+  if (employee.shopBonusScheme === 'custom') return customName || labels.shopBonusSchemeOptions.custom;
+  if (employee.shopBonusScheme === 'standard') return labels.shopBonusSchemeOptions.standard;
+  return labels.emptyValue;
+}
+
 function parseJsonSafely(value: string) {
   if (!value.trim()) return [];
   try {
@@ -1070,84 +1152,6 @@ function parseJsonSafely(value: string) {
   } catch {
     return null;
   }
-}
-
-function parseSerializedCustomCommissionTiers(value: string) {
-  if (!value) {
-    return [];
-  }
-
-  try {
-    return sanitizeCustomCommissionDraftTiers(JSON.parse(value));
-  } catch {
-    return [];
-  }
-}
-
-function createDefaultCustomCommissionTiers(tiers: CommissionRateTier[]): CustomCommissionTier[] {
-  const defaults = tiers
-    .filter((tier) => tier.staffGroup === 'default' && (tier.commissionType === 'redeem' || tier.commissionType === 'sales' || tier.commissionType === 'sgm'))
-    .map((tier) => ({
-      commissionType: tier.commissionType,
-      minAmount: tier.minAmount,
-      maxAmount: tier.maxAmount,
-      rate: tier.rate,
-    }));
-
-  return normalizeCustomCommissionTiers(defaults);
-}
-
-function getCustomCommissionConflictMessages(
-  tiers: CustomCommissionTier[],
-  labels: {
-    redeem: string;
-    sales: string;
-    sgm: string;
-    conflictRange: string;
-    conflictOverlap: string;
-    conflictUnlimited: string;
-  },
-) {
-  const draftTiers = sanitizeCustomCommissionDraftTiers(tiers);
-  const messages: string[] = [];
-  const typeLabelMap: Record<CustomCommissionTier['commissionType'], string> = {
-    redeem: labels.redeem,
-    sales: labels.sales,
-    sgm: labels.sgm,
-  };
-
-  for (const commissionType of CUSTOM_COMMISSION_TYPES) {
-    const group = draftTiers
-      .map((tier, index) => ({ ...tier, rowNumber: index + 1 }))
-      .filter((tier) => tier.commissionType === commissionType);
-    const typeLabel = typeLabelMap[commissionType];
-
-    group.forEach((tier) => {
-      if (tier.maxAmount !== null && tier.maxAmount < tier.minAmount) {
-        messages.push(labels.conflictRange.replace('{type}', typeLabel).replace('{index}', `${tier.rowNumber}`));
-      }
-    });
-
-    const orderedGroup = [...group].sort((left, right) => left.minAmount - right.minAmount || (left.maxAmount ?? Number.MAX_SAFE_INTEGER) - (right.maxAmount ?? Number.MAX_SAFE_INTEGER));
-
-    orderedGroup.forEach((tier, index) => {
-      if (tier.maxAmount === null && index !== group.length - 1) {
-        messages.push(labels.conflictUnlimited.replace('{type}', typeLabel).replace('{index}', `${tier.rowNumber}`));
-      }
-
-      if (index === orderedGroup.length - 1) {
-        return;
-      }
-
-      const nextTier = orderedGroup[index + 1];
-      const currentMax = tier.maxAmount;
-      if (currentMax === null || nextTier.minAmount <= currentMax) {
-        messages.push(labels.conflictOverlap.replace('{type}', typeLabel).replace('{from}', `${tier.rowNumber}`).replace('{to}', `${nextTier.rowNumber}`));
-      }
-    });
-  }
-
-  return Array.from(new Set(messages));
 }
 
 function parseSerializedPayrollBonusTiers(value: string) {
@@ -1295,6 +1299,8 @@ function createInitialState(employee: EmployeeDetailRecord): FormState {
     hireDate: employee.hireDate ?? '',
     probationEndDate,
     employmentEndDate: employee.employmentEndDate ?? '',
+    terminationReason: employee.terminationReason ?? '',
+    finalPayrollMonth: employee.finalPayrollMonth ?? '',
     notes: employee.notes ?? '',
     paymentMethod: employee.paymentMethod ?? '',
     bankId: employee.bankId ?? '',
@@ -1313,10 +1319,10 @@ function createInitialState(employee: EmployeeDetailRecord): FormState {
     briefingBonus: employee.briefingBonus === null ? '' : String(employee.briefingBonus),
     bookingBonus: employee.bookingBonus === null ? '' : String(employee.bookingBonus),
     mpfEnabled: employee.mpfEnabled ? 'true' : 'false',
-    commissionMethod: employee.commissionRules?.length ? 'custom' : (employee.commissionPresetId ? getPresetSelectValue(employee.commissionPresetId) : (employee.commissionMethod ?? '')),
+    commissionMethod: employee.commissionRules?.length || employee.commissionPresetId ? 'custom' : (employee.commissionMethod ?? ''),
     commissionCustomName: employee.commissionCustomName ?? '',
     commissionCustomTiers: serializeCustomCommissionTiers(employee.commissionCustomTiers ?? []),
-    commissionRules: serializeCommissionRules(employee.commissionRules ?? []),
+    commissionRules: serializeCommissionRules(employee.commissionRules?.length ? employee.commissionRules : createCommissionRulesFromLegacyCustomTiers(employee.commissionCustomName, employee.commissionCustomTiers ?? [])),
     commissionRedeemRate: employee.commissionRedeemRate === null ? '' : String(employee.commissionRedeemRate),
     commissionSalesRate: employee.commissionSalesRate === null ? '' : String(employee.commissionSalesRate),
     commissionSgmRate: employee.commissionSgmRate === null ? '' : String(employee.commissionSgmRate),
@@ -1374,7 +1380,7 @@ function PayrollBonusSchemePreview({
   );
 }
 
-function CommissionRulesPreview({ rules }: { rules: CommissionRule[] }) {
+function CommissionRulesPreview({ rules, title = '自訂佣金規則' }: { rules: CommissionRule[]; title?: string }) {
   if (rules.length === 0) return null;
 
   const currency = new Intl.NumberFormat('en-HK', { style: 'currency', currency: 'HKD', maximumFractionDigits: 0 });
@@ -1382,13 +1388,14 @@ function CommissionRulesPreview({ rules }: { rules: CommissionRule[] }) {
     sales: 'Sales',
     redeem: 'Redeem',
     salesAmountTotal: 'Sales Amount',
+    shop: '鋪數',
     job: 'Job',
     sgm: 'SGM',
   };
 
   return (
     <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
-      <div className="text-sm font-bold text-slate-900">自訂佣金規則</div>
+      <div className="text-sm font-bold text-slate-900">{title}</div>
       {rules.map((rule) => (
         <div key={rule.code} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -1418,6 +1425,7 @@ const COMMISSION_RULE_METRIC_LABELS: Record<CommissionRuleMetric, string> = {
   sales: 'Sales',
   redeem: 'Redeem',
   salesAmountTotal: 'Sales Amount',
+  shop: '鋪數',
   job: 'Job',
   sgm: 'SGM',
 };
@@ -1450,10 +1458,7 @@ function CommissionRulesEditor({ rules, onChange }: { rules: CommissionRule[]; o
           <div className="text-sm font-bold text-slate-900">自訂佣金規則</div>
           <div className="mt-1 text-xs text-slate-600">佣金還佣金：BAR / rate 在這裡設定；Bonus 分開設定。</div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => onChange(createYanLyBarCommissionRulesForEditor())} className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs font-semibold text-[#8E6F12] hover:bg-[#D4AF37]/15">套用 Yan/LY BAR</button>
-          <button type="button" onClick={() => onChange([...rules, { code: `commission_rule_${rules.length + 1}`, name: `佣金規則 ${rules.length + 1}`, type: 'bar', metric: 'sales', enabled: true, stackable: false, tiers: [{ minAmount: 0, maxAmount: null, amount: 0, rate: null }] }])} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">新增佣金規則</button>
-        </div>
+        <button type="button" onClick={() => onChange([...rules, { code: `commission_rule_${rules.length + 1}`, name: `佣金規則 ${rules.length + 1}`, type: 'bar', metric: 'sales', enabled: true, stackable: false, tiers: [{ minAmount: 0, maxAmount: null, amount: 0, rate: null }] }])} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">新增佣金規則</button>
       </div>
       {conflicts.length > 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><div className="font-semibold">佣金規則可能有衝突</div>{conflicts.map((conflict) => <div key={conflict} className="mt-1">• {conflict}</div>)}</div> : rules.length > 0 ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">✅ 佣金規則暫時未見衝突</div> : null}
       {rules.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">未設定自訂佣金規則。可繼續使用標準佣金 / 舊自訂佣金，或新增 BAR / rate 規則。</div> : null}
@@ -1462,7 +1467,7 @@ function CommissionRulesEditor({ rules, onChange }: { rules: CommissionRule[]; o
           <div className="grid gap-3 md:grid-cols-[1fr_150px_170px_100px_auto]">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">名稱<input value={rule.name} onChange={(event) => updateRule(ruleIndex, { name: event.target.value, code: event.target.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || rule.code })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800" /></label>
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">類型<select value={rule.type} onChange={(event) => updateRule(ruleIndex, { type: event.target.value as CommissionRuleType, tiers: rule.tiers.map((tier) => event.target.value === 'bar' ? { ...tier, amount: tier.amount ?? 0, rate: null } : { ...tier, amount: null, rate: tier.rate ?? 0 }) })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800"><option value="bar">{COMMISSION_RULE_TYPE_LABELS.bar}</option><option value="rate">{COMMISSION_RULE_TYPE_LABELS.rate}</option></select></label>
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">計算基準<select value={rule.metric} onChange={(event) => updateRule(ruleIndex, { metric: event.target.value as CommissionRuleMetric })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{(Object.keys(COMMISSION_RULE_METRIC_LABELS) as CommissionRuleMetric[]).map((metric) => <option key={metric} value={metric}>{COMMISSION_RULE_METRIC_LABELS[metric]}</option>)}</select></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">計算基準<select value={rule.metric} onChange={(event) => updateRule(ruleIndex, { metric: event.target.value as CommissionRuleMetric })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{(Object.keys(COMMISSION_RULE_METRIC_LABELS) as CommissionRuleMetric[]).filter((metric) => metric !== 'shop').map((metric) => <option key={metric} value={metric}>{COMMISSION_RULE_METRIC_LABELS[metric]}</option>)}</select></label>
             <label className="flex items-end gap-2 pb-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={rule.enabled} onChange={(event) => updateRule(ruleIndex, { enabled: event.target.checked })} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />啟用</label>
             <button type="button" onClick={() => onChange(rules.filter((_, index) => index !== ruleIndex))} className="self-end rounded-xl border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50">刪除</button>
           </div>
@@ -1936,199 +1941,6 @@ function InlineNumberInput({
   );
 }
 
-function CustomCommissionTierEditor({
-  customName,
-  onCustomNameChange,
-  tiers,
-  onChange,
-  onCopyStandard,
-  title,
-  labels,
-  tierLabels,
-  locale,
-}: {
-  customName: string;
-  onCustomNameChange: (value: string) => void;
-  tiers: CustomCommissionTier[];
-  onChange: (tiers: CustomCommissionTier[]) => void;
-  onCopyStandard: () => void;
-  title: string;
-  labels: {
-    name: string;
-    namePlaceholder: string;
-    editHint: string;
-    previewTitle: string;
-    conflictTitle: string;
-    conflictRange: string;
-    conflictOverlap: string;
-    conflictUnlimited: string;
-    type: string;
-    minAmount: string;
-    maxAmount: string;
-    rate: string;
-    copyStandard: string;
-    addTier: string;
-    removeTier: string;
-    empty: string;
-  };
-  tierLabels: {
-    type: string;
-    range: string;
-    rate: string;
-    redeem: string;
-    sales: string;
-    sgm: string;
-    noLimit: string;
-    jobNote: string;
-  };
-  locale: string;
-}) {
-  const editableTiers = sanitizeCustomCommissionDraftTiers(tiers);
-  const previewTiers = normalizeCustomCommissionTiers(editableTiers);
-  const conflicts = getCustomCommissionConflictMessages(editableTiers, {
-    redeem: tierLabels.redeem,
-    sales: tierLabels.sales,
-    sgm: tierLabels.sgm,
-    conflictRange: labels.conflictRange,
-    conflictOverlap: labels.conflictOverlap,
-    conflictUnlimited: labels.conflictUnlimited,
-  });
-
-  return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-        <span className="mb-1.5 block">{labels.name}</span>
-        <input
-          type="text"
-          value={customName}
-          onChange={(event) => onCustomNameChange(event.target.value)}
-          placeholder={labels.namePlaceholder}
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
-        />
-      </label>
-      <div className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-600">
-        {labels.editHint}
-      </div>
-      {conflicts.length > 0 ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <div className="font-semibold">{labels.conflictTitle}</div>
-          <div className="mt-2 space-y-1">
-            {conflicts.map((conflict) => (
-              <div key={conflict}>• {conflict}</div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {editableTiers.length === 0 ? <div className="text-sm text-slate-600">{labels.empty}</div> : null}
-      {editableTiers.length > 0 ? (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                <th className="w-14 px-4 py-3 text-center">#</th>
-                <th className="px-4 py-3">{labels.type}</th>
-                <th className="px-4 py-3">{labels.minAmount}</th>
-                <th className="px-4 py-3">{labels.maxAmount}</th>
-                <th className="px-4 py-3 text-right">{labels.rate}</th>
-                <th className="px-4 py-3 text-right">{labels.removeTier}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {editableTiers.map((tier, index) => (
-                <tr key={`custom-commission-tier-${index}`}>
-                  <td className="px-4 py-3 text-center text-xs font-semibold text-slate-400">{index + 1}</td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={tier.commissionType}
-                      onChange={(event) => {
-                        const next = editableTiers.map((entry, tierIndex) => tierIndex === index ? { ...entry, commissionType: event.target.value as CustomCommissionTier['commissionType'] } : entry);
-                        onChange(next);
-                      }}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
-                    >
-                      {CUSTOM_COMMISSION_TYPES.map((type) => (
-                        <option key={type} value={type}>{tierLabels[type]}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <InlineNumberInput
-                      value={tier.minAmount}
-                      onCommit={(value) => {
-                        const next = editableTiers.map((entry, tierIndex) => tierIndex === index ? { ...entry, minAmount: value ?? 0 } : entry);
-                        onChange(next);
-                      }}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <InlineNumberInput
-                      value={tier.maxAmount}
-                      onCommit={(value) => {
-                        const next = editableTiers.map((entry, tierIndex) => tierIndex === index ? { ...entry, maxAmount: value } : entry);
-                        onChange(next);
-                      }}
-                      allowEmpty
-                      placeholder={tierLabels.noLimit}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="relative">
-                      <InlineNumberInput
-                        value={Number((tier.rate * 100).toFixed(2))}
-                        onCommit={(value) => {
-                          const next = editableTiers.map((entry, tierIndex) => tierIndex === index ? { ...entry, rate: (value ?? 0) / 100 } : entry);
-                          onChange(next);
-                        }}
-                        allowDecimal
-                        align="right"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 pr-8 text-right text-sm text-slate-800 outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">%</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => onChange(editableTiers.filter((_, tierIndex) => tierIndex !== index))}
-                      className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50"
-                    >
-                      {labels.removeTier}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onCopyStandard}
-          className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-2 text-sm font-medium text-[#8E6F12] transition-colors hover:bg-[#D4AF37]/15"
-        >
-          {labels.copyStandard}
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange([...editableTiers, { commissionType: 'redeem', minAmount: 0, maxAmount: null, rate: 0 }])}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-        >
-          {labels.addTier}
-        </button>
-      </div>
-      {previewTiers.length > 0 ? (
-        <CommissionRateTableCard
-          title={labels.previewTitle}
-          tiers={previewTiers}
-          labels={tierLabels}
-          locale={locale}
-        />
-      ) : null}
-    </div>
-  );
-}
-
 function SearchableBankSelect({
   selectedId,
   options,
@@ -2449,6 +2261,7 @@ export default function EmployeeProfile({
   commissionTiers,
   savedCommissionPresets,
   savedPayrollBonusPresets,
+  savedShopCommissionPresets,
   payrollBonusConfig,
 }: EmployeeProfileProps) {
   const router = useRouter();
@@ -2485,19 +2298,18 @@ export default function EmployeeProfile({
   const displayedProbationEndDate = calculateProbationEndDate(employee.hireDate, employee.probationMonths) ?? employee.probationEndDate;
   const availableBranches = options.branches;
   const selectedBank = options.banks.find((bank) => bank.id === formState.bankId) ?? null;
-  const customCommissionTiers = parseSerializedCustomCommissionTiers(formState.commissionCustomTiers);
-  const customCommissionConflicts = getCustomCommissionConflictMessages(customCommissionTiers, {
-    redeem: t.tierCard.redeem,
-    sales: t.tierCard.sales,
-    sgm: t.tierCard.sgm,
-    conflictRange: t.customCommissionEditor.conflictRange,
-    conflictOverlap: t.customCommissionEditor.conflictOverlap,
-    conflictUnlimited: t.customCommissionEditor.conflictUnlimited,
-  });
-  const employeeCustomCommissionTiers = employee.commissionCustomTiers ?? [];
-  const customCommissionTitle = normalizeCustomCommissionName(formState.commissionCustomName) ?? t.commissionMethods.custom;
-  const employeeCustomCommissionTitle = normalizeCustomCommissionName(employee.commissionCustomName) ?? t.commissionMethods.custom;
   const commissionRules = normalizeCommissionRules(parseJsonSafely(formState.commissionRules));
+  const commissionRulesForEditor = commissionRules.filter((rule) => rule.metric !== 'shop');
+  const shopCommissionRules = commissionRules.filter((rule) => rule.metric === 'shop');
+  const commissionRuleConflicts = getCommissionRuleConflictMessages(commissionRulesForEditor);
+  const employeeCommissionRules = employee.commissionRules?.length
+    ? employee.commissionRules
+    : createCommissionRulesFromLegacyCustomTiers(employee.commissionCustomName, employee.commissionCustomTiers ?? []);
+  const employeeMainCommissionRules = employeeCommissionRules.filter((rule) => rule.metric !== 'shop');
+  const employeeShopCommissionRules = employeeCommissionRules.filter((rule) => rule.metric === 'shop');
+  const employeeHasShopSetup = employee.shopBonusEnabled || employeeShopCommissionRules.length > 0;
+  const appliedCommissionDisplayName = getAppliedCommissionDisplayName(employee, employeeMainCommissionRules, t);
+  const appliedShopDisplayName = getAppliedShopDisplayName(employee, employeeShopCommissionRules, t);
   const customBonusTiers = parseSerializedPayrollBonusTiers(formState.salesBonusCustomTiers);
   const customBonusConflicts = getCustomBonusConflictMessages(customBonusTiers, {
     conflictDuplicate: t.customBonusEditor.conflictDuplicate,
@@ -2634,17 +2446,17 @@ export default function EmployeeProfile({
                     commissionMethod: value,
                     commissionCustomName: selectedPreset?.name ?? current.commissionCustomName,
                     commissionCustomTiers: selectedPreset ? serializeCustomCommissionTiers(selectedPreset.tiers) : current.commissionCustomTiers,
-                    commissionRules: '',
+                    commissionRules: selectedPreset ? serializeCommissionRules(createCommissionRulesFromLegacyCustomTiers(selectedPreset.name, selectedPreset.tiers)) : current.commissionRules,
                   };
                 }
         return {
           ...current,
           commissionMethod: value,
-          commissionCustomName: value === 'custom' ? current.commissionCustomName : '',
-          commissionCustomTiers: value === 'custom'
-            ? current.commissionCustomTiers || serializeCustomCommissionTiers(createDefaultCustomCommissionTiers(commissionTiers))
-            : current.commissionCustomTiers,
-          commissionRules: value === 'custom' ? current.commissionRules : '',
+          commissionCustomName: value === 'custom' ? (current.commissionCustomName || '自訂佣金') : '',
+          commissionCustomTiers: value === 'custom' ? current.commissionCustomTiers : current.commissionCustomTiers,
+          commissionRules: value === 'custom'
+            ? (normalizeCommissionRules(parseJsonSafely(current.commissionRules)).length > 0 ? current.commissionRules : serializeCommissionRules(createStandardCommissionRulesFromRateTable(commissionTiers)))
+            : '',
         };
       }
 
@@ -2696,8 +2508,8 @@ export default function EmployeeProfile({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (isCustomCommissionSelected && customCommissionConflicts.length > 0) {
-      setErrorMessage(`${t.customCommissionEditor.conflictTitle} ${customCommissionConflicts[0]}`);
+    if (isCustomCommissionSelected && commissionRuleConflicts.length > 0) {
+      setErrorMessage(`佣金規則可能有衝突：${commissionRuleConflicts[0]}`);
       return;
     }
 
@@ -2730,11 +2542,7 @@ export default function EmployeeProfile({
         setSuccessMessage(t.success);
         setIsEditing(false);
 
-        if (result.employeeCode !== employee.employeeCode) {
-          router.push(`/app/people?id=${result.employeeCode}`);
-        }
-
-        router.refresh();
+        router.push(`/app/people?id=${result.employeeCode}&updated=${Date.now()}`);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
       }
@@ -2985,6 +2793,8 @@ export default function EmployeeProfile({
                     <FieldShell label={t.fields.probationMonths}><input type="number" min="0" step="1" name="probationMonths" value={formState.probationMonths} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label={t.fields.probationEndDate}><input type="date" name="probationEndDate" value={formState.probationEndDate} readOnly className={inputClasses('bg-slate-100 text-slate-700')} /></FieldShell>
                     <FieldShell label={t.fields.employmentEndDate}><input type="date" name="employmentEndDate" value={formState.employmentEndDate} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label={t.fields.terminationReason}><input type="text" name="terminationReason" value={formState.terminationReason} onChange={handleInputChange} placeholder="RESIGN / RETIRE / DISMIS" className={inputClasses()} /></FieldShell>
+                    <FieldShell label={t.fields.finalPayrollMonth}><input type="month" name="finalPayrollMonth" value={formState.finalPayrollMonth} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label={t.fields.annualLeaveDays}><input type="number" min="0" step="1" name="annualLeaveDays" value={formState.annualLeaveDays} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label={t.fields.notes}><textarea name="notes" value={formState.notes} onChange={handleInputChange} rows={4} className={inputClasses()} /></FieldShell>
                   </div>
@@ -2999,6 +2809,8 @@ export default function EmployeeProfile({
                     <InfoRow label={t.fields.probationMonths} value={employee.probationMonths === null ? t.emptyValue : `${employee.probationMonths}`} />
                     <InfoRow label={t.fields.probationEndDate} value={formatDate(displayedProbationEndDate, locale, t.emptyValue)} />
                     <InfoRow label={t.fields.employmentEndDate} value={formatDate(employee.employmentEndDate, locale, t.emptyValue)} />
+                    <InfoRow label={t.fields.terminationReason} value={renderTextValue(employee.terminationReason)} />
+                    <InfoRow label={t.fields.finalPayrollMonth} value={renderTextValue(employee.finalPayrollMonth)} />
                     <InfoRow label={t.fields.annualLeaveDays} value={annualLeaveValue} />
                     <InfoRow label={t.fields.notes} value={renderTextValue(employee.notes)} />
                   </div>
@@ -3131,38 +2943,62 @@ export default function EmployeeProfile({
                 </h3>
                 {isEditing ? (
                   <div className="grid gap-4">
-                    <div className="grid gap-3 lg:grid-cols-2">
-                      <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 cursor-pointer">
-                        <input type="checkbox" name="streetPromoterEnabled" checked={formState.streetPromoterEnabled === 'true'} onChange={(e) => setFormState((prev) => ({ ...prev, streetPromoterEnabled: e.target.checked ? 'true' : 'false' }))} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
-                        <span className="text-sm font-medium text-slate-700">{t.fields.streetPromoterEnabled}</span>
-                      </label>
-                      <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 cursor-pointer">
-                        <input type="checkbox" name="telesalesEnabled" checked={formState.telesalesEnabled === 'true'} onChange={(e) => setFormState((prev) => ({ ...prev, telesalesEnabled: e.target.checked ? 'true' : 'false' }))} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
-                        <span className="text-sm font-medium text-slate-700">{t.fields.telesalesEnabled}</span>
-                      </label>
-                    </div>
-                    {(formState.streetPromoterEnabled === 'true' || formState.telesalesEnabled === 'true') ? specialCommissionRulesCard : null}
-                    <FieldShell label={t.fields.commissionMethod}>
-                      <select name="commissionMethod" value={formState.commissionMethod} onChange={handleInputChange} className={inputClasses()}>
-                        <option value="">{t.emptyValue}</option>
-                        <option value="standard">{t.commissionMethods.standard}</option>
-                        <option value="none">{t.commissionMethods.none}</option>
-                        <option value="custom">{t.commissionMethods.custom}</option>
-                        {savedCommissionPresets.length > 0 ? (
-                          <optgroup label={savedPresetsLabel}>
-                            {savedCommissionPresets.map((preset) => (
-                              <option key={preset.id} value={getPresetSelectValue(preset.id)}>{preset.name}</option>
-                            ))}
-                          </optgroup>
-                        ) : null}
-                      </select>
-                    </FieldShell>
-                    <FieldShell label={t.fields.salesAmountRatePercent}>
-                      <div className="space-y-2">
-                        <input type="number" min="0" step="0.01" name="salesAmountRatePercent" value={formState.salesAmountRatePercent} onChange={handleInputChange} className={inputClasses()} />
-                        <div className="text-xs text-slate-500">{t.sections.salesAmountRateNote}</div>
+                    <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                      <div>
+                        <div className="text-base font-bold text-slate-900">{t.fields.commissionMethod}</div>
+                        <div className="mt-1 text-sm text-slate-600">主佣金、BAR / Rate、街霸及電話銷售員都歸入佣金計算方式；Bonus 另外分開。</div>
                       </div>
-                    </FieldShell>
+                      <FieldShell label={t.fields.commissionMethod}>
+                        <select name="commissionMethod" value={formState.commissionMethod} onChange={handleInputChange} className={inputClasses()}>
+                          <option value="">{t.emptyValue}</option>
+                          <option value="standard">{t.commissionMethods.standard}</option>
+                          <option value="none">{t.commissionMethods.none}</option>
+                          <option value="custom">{t.commissionMethods.custom}</option>
+                        </select>
+                      </FieldShell>
+                      <div className="rounded-xl border border-[#D4AF37]/20 bg-white px-4 py-3">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{savedPresetsLabel}</div>
+                        <div className="flex flex-wrap gap-2">
+                          {savedCommissionPresets.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => setFormState((prev) => applyCommissionPresetToState(prev, preset))}
+                              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              套用 {preset.name}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setFormState((prev) => ({
+                              ...prev,
+                              commissionMethod: 'custom',
+                              commissionCustomName: 'Yan/LY BAR',
+                              commissionCustomTiers: '',
+                              commissionRules: serializeCommissionRules([...createYanLyBarCommissionRulesForEditor(), ...normalizeCommissionRules(parseJsonSafely(prev.commissionRules)).filter((rule) => rule.metric === 'shop')]),
+                            }))}
+                            className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs font-semibold text-[#8E6F12] hover:bg-[#D4AF37]/15"
+                          >
+                            套用 Yan/LY BAR
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">可疊加佣金項目</div>
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 cursor-pointer">
+                            <input type="checkbox" name="streetPromoterEnabled" checked={formState.streetPromoterEnabled === 'true'} onChange={(e) => setFormState((prev) => ({ ...prev, streetPromoterEnabled: e.target.checked ? 'true' : 'false' }))} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
+                            <span className="text-sm font-medium text-slate-700">{t.fields.streetPromoterEnabled}</span>
+                          </label>
+                          <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 cursor-pointer">
+                            <input type="checkbox" name="telesalesEnabled" checked={formState.telesalesEnabled === 'true'} onChange={(e) => setFormState((prev) => ({ ...prev, telesalesEnabled: e.target.checked ? 'true' : 'false' }))} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
+                            <span className="text-sm font-medium text-slate-700">{t.fields.telesalesEnabled}</span>
+                          </label>
+                        </div>
+                      </div>
+                      {(formState.streetPromoterEnabled === 'true' || formState.telesalesEnabled === 'true') ? specialCommissionRulesCard : null}
+                    </div>
                     {formState.commissionMethod === 'standard' ? (
                       <CommissionRateTableCard
                         title={t.sections.commissionRateTable}
@@ -3172,27 +3008,10 @@ export default function EmployeeProfile({
                       />
                     ) : null}
                     {isCustomCommissionSelected && (
-                      <div className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4">
-                        <div>
-                          <div className="text-base font-bold text-slate-900">{t.commissionMethods.custom}</div>
-                          <div className="mt-1 text-sm text-slate-600">可用舊百分比 tier，或使用 BAR / rate 佣金規則。Yan/LY 請用「套用 Yan/LY BAR」。</div>
-                        </div>
-                        <CustomCommissionTierEditor
-                          customName={formState.commissionCustomName}
-                          onCustomNameChange={(value) => setFormState((prev) => ({ ...prev, commissionCustomName: value }))}
-                          tiers={customCommissionTiers}
-                          onChange={(tiers) => setFormState((prev) => ({ ...prev, commissionCustomTiers: serializeCustomCommissionTiers(tiers) }))}
-                          onCopyStandard={() => setFormState((prev) => ({ ...prev, commissionCustomTiers: serializeCustomCommissionTiers(createDefaultCustomCommissionTiers(commissionTiers)) }))}
-                          title={customCommissionTitle}
-                          labels={t.customCommissionEditor}
-                          tierLabels={t.tierCard}
-                          locale={locale}
-                        />
-                        <CommissionRulesEditor
-                          rules={commissionRules}
-                          onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: serializeCommissionRules(rules) }))}
-                        />
-                      </div>
+                      <CommissionRulesEditor
+                        rules={commissionRulesForEditor}
+                        onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: serializeCommissionRules([...rules, ...shopCommissionRules]), commissionCustomTiers: '' }))}
+                      />
                     )}
                     <div className="mt-2 border-t border-slate-100 pt-4">
                       <label className="flex items-center gap-3 cursor-pointer">
@@ -3255,15 +3074,36 @@ export default function EmployeeProfile({
                           </select>
                         </FieldShell>
                         {isCustomShopBonusSelected ? (
-                          <CustomShopBonusTierEditor
-                            tiers={customShopBonusTiers}
-                            onChange={(tiers) => setFormState((prev) => ({ ...prev, shopBonusCustomTiers: serializeShopBonusTiers(tiers) }))}
-                            onCopyStandard={() => setFormState((prev) => ({ ...prev, shopBonusCustomTiers: serializeShopBonusTiers(createDefaultShopBonusTiers(standardShopBonusTiers)) }))}
-                            customName={formState.shopBonusCustomName}
-                            onCustomNameChange={(value) => setFormState((prev) => ({ ...prev, shopBonusCustomName: value }))}
-                            title={customShopBonusTitle}
-                            labels={t.customShopBonusEditor}
-                          />
+                          <>
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">{savedPresetsLabel}</div>
+                              <div className="flex flex-wrap gap-2">
+                                {savedShopCommissionPresets.map((preset) => (
+                                  <button
+                                    key={preset.id}
+                                    type="button"
+                                    onClick={() => setFormState((prev) => applyShopCommissionPresetToState(prev, preset))}
+                                    className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                                  >
+                                    套用 {preset.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            {shopCommissionRules.length > 0 ? (
+                              <CommissionRulesPreview rules={shopCommissionRules} title="已套用鋪數方案" />
+                            ) : (
+                              <CustomShopBonusTierEditor
+                                tiers={customShopBonusTiers}
+                                onChange={(tiers) => setFormState((prev) => ({ ...prev, shopBonusCustomTiers: serializeShopBonusTiers(tiers) }))}
+                                onCopyStandard={() => setFormState((prev) => ({ ...prev, shopBonusCustomTiers: serializeShopBonusTiers(createDefaultShopBonusTiers(standardShopBonusTiers)) }))}
+                                customName={formState.shopBonusCustomName}
+                                onCustomNameChange={(value) => setFormState((prev) => ({ ...prev, shopBonusCustomName: value }))}
+                                title={customShopBonusTitle}
+                                labels={t.customShopBonusEditor}
+                              />
+                            )}
+                          </>
                         ) : null}
                         {formState.shopBonusScheme === 'standard' ? (
                           <ShopBonusSchemePreview tiers={standardShopBonusTiers} title={t.shopBonusSchemeOptions.standard} />
@@ -3274,11 +3114,11 @@ export default function EmployeeProfile({
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    <InfoRow label={t.fields.commissionMethod} value={appliedCommissionDisplayName} />
                     <InfoRow label={t.fields.streetPromoterEnabled} value={employee.streetPromoterEnabled ? t.booleanLabels.yes : t.booleanLabels.no} />
                     <InfoRow label={t.fields.telesalesEnabled} value={employee.telesalesEnabled ? t.booleanLabels.yes : t.booleanLabels.no} />
                     {(employee.streetPromoterEnabled || employee.telesalesEnabled) ? specialCommissionRulesCard : null}
-                    <InfoRow label={t.fields.commissionMethod} value={employee.commissionMethod === 'custom' ? employeeCustomCommissionTitle : employee.commissionMethod ? t.commissionMethods[employee.commissionMethod] : t.emptyValue} />
-                    <InfoRow label={t.fields.salesAmountRatePercent} value={employee.salesAmountRatePercent === null ? t.emptyValue : `${employee.salesAmountRatePercent}%`} />
+                    {employee.salesAmountRatePercent !== null && Number.isFinite(employee.salesAmountRatePercent) ? <InfoRow label={t.fields.salesAmountRatePercent} value={`${employee.salesAmountRatePercent}%`} /> : null}
                     {employee.commissionMethod === 'standard' ? (
                       <CommissionRateTableCard
                         title={t.sections.commissionRateTable}
@@ -3287,15 +3127,7 @@ export default function EmployeeProfile({
                         locale={locale}
                       />
                     ) : null}
-                    {employee.commissionMethod === 'custom' && (
-                      <CommissionRateTableCard
-                        title={employeeCustomCommissionTitle}
-                        tiers={employeeCustomCommissionTiers}
-                        labels={t.tierCard}
-                        locale={locale}
-                      />
-                    )}
-                    <CommissionRulesPreview rules={employee.commissionRules ?? []} />
+                    <CommissionRulesPreview rules={employeeMainCommissionRules} />
                     <InfoRow label={t.fields.salesBonusEnabled} value={employee.salesBonusEnabled || employee.payrollBonusEnabled ? t.booleanLabels.yes : t.booleanLabels.no} />
                     {(employee.salesBonusEnabled || employee.payrollBonusEnabled) && (employee.payrollBonusScheme || employee.salesBonusRate !== null) && (
                       <>
@@ -3312,20 +3144,24 @@ export default function EmployeeProfile({
                         )}
                       </>
                     )}
-                    <InfoRow label={t.fields.shopBonusEnabled} value={employee.shopBonusEnabled ? t.booleanLabels.yes : t.booleanLabels.no} />
-                    {employee.shopBonusEnabled && employee.shopBonusScheme && (
+                    <InfoRow label={t.fields.shopBonusEnabled} value={employeeHasShopSetup ? `${t.booleanLabels.yes} - ${appliedShopDisplayName}` : t.booleanLabels.no} />
+                    {employeeHasShopSetup ? (
                       <>
                         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                           {t.shopBonusNote}
                         </div>
-                        <InfoRow label={t.fields.shopBonusScheme} value={employee.shopBonusScheme === 'custom' ? employeeCustomShopBonusTitle : t.shopBonusSchemeOptions.standard} />
-                        {employee.shopBonusScheme === 'custom' ? (
-                          <ShopBonusSchemePreview tiers={employeeCustomShopBonusTiers} title={employeeCustomShopBonusTitle} />
+                        <InfoRow label={t.fields.shopBonusScheme} value={appliedShopDisplayName} />
+                        {employeeShopCommissionRules.length > 0 ? (
+                          <CommissionRulesPreview rules={employeeShopCommissionRules} title="已套用鋪數方案" />
+                        ) : employee.shopBonusScheme === 'custom' ? (
+                          <>
+                            <ShopBonusSchemePreview tiers={employeeCustomShopBonusTiers} title={employeeCustomShopBonusTitle} />
+                          </>
                         ) : (
                           <ShopBonusSchemePreview tiers={standardShopBonusTiers} title={t.shopBonusSchemeOptions.standard} />
                         )}
                       </>
-                    )}
+                    ) : null}
                     <InfoRow label={t.fields.commissionNotes} value={renderTextValue(employee.commissionNotes)} />
                   </div>
                 )}

@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "telegram:bot": "node scripts/telegram-bot.mjs",
     "typecheck": "tsc --noEmit",
     "db:apply-file": "node scripts/apply-sql-file.mjs",
     "build:github": "bash scripts/build-github.sh"

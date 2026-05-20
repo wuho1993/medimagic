@@ -15,7 +15,7 @@ import {
   type ShopBonusTier,
   type StandardPayrollBonusSchemes,
 } from './payroll-bonus';
-import { normalizeCommissionRules, type CommissionRule } from './commission-rules';
+import { createMoonIrisTaiWaiShopCommissionRules, normalizeCommissionRules, type CommissionRule } from './commission-rules';
 import { EMPLOYEE_DOCUMENT_BUCKET, type EmployeeDocumentType } from './document-storage';
 import type { EmployeeEmploymentType } from './employment';
 
@@ -78,6 +78,8 @@ export type EmployeeDetailRecord = EmployeeDirectoryRecord & {
   managerEmployeeId: string | null;
   probationEndDate: string | null;
   employmentEndDate: string | null;
+  terminationReason: string | null;
+  finalPayrollMonth: string | null;
   branchCode: string | null;
   notes: string | null;
   salaryType: 'monthly' | 'daily' | 'hourly' | 'package' | 'street_promoter' | null;
@@ -136,6 +138,12 @@ export type SavedPayrollBonusPresetRecord = {
   tiers: PayrollBonusTier[];
 };
 
+export type SavedShopCommissionPresetRecord = {
+  id: string;
+  name: string;
+  rules: CommissionRule[];
+};
+
 export type EmployeeDirectoryOption = {
   id: string;
   code: string;
@@ -180,6 +188,8 @@ type EmployeeDetailQueryRow = EmployeeQueryRow & {
   manager_employee_id: string | null;
   probation_end_date: string | null;
   employment_end_date: string | null;
+  termination_reason: string | null;
+  final_payroll_month: string | null;
   branch_code: string | null;
   notes: string | null;
   bank: { name_zh: string | null; name_en: string | null } | { name_zh: string | null; name_en: string | null }[] | null;
@@ -401,7 +411,8 @@ function normalizeSalaryProfile(profile: EmployeeSalaryProfileRow | null) {
   const commissionRedeemRate = profile.commission_redeem_rate === null ? null : Number(profile.commission_redeem_rate);
   const commissionSalesRate = profile.commission_sales_rate === null ? null : Number(profile.commission_sales_rate);
   const commissionSgmRate = profile.commission_sgm_rate === null ? null : Number(profile.commission_sgm_rate);
-  const salesAmountRatePercent = profile.sales_amount_rate_percent === null ? null : Number(profile.sales_amount_rate_percent);
+  const rawSalesAmountRatePercent = profile.sales_amount_rate_percent === null ? null : Number(profile.sales_amount_rate_percent);
+  const salesAmountRatePercent = rawSalesAmountRatePercent !== null && Number.isFinite(rawSalesAmountRatePercent) ? rawSalesAmountRatePercent : null;
   const commissionCustomTiers = normalizeCustomCommissionTiers(profile.commission_custom_tiers);
 
   return {
@@ -504,6 +515,8 @@ function mapEmployeeDetail(
     managerEmployeeId: row.manager_employee_id,
     probationEndDate: row.probation_end_date,
     employmentEndDate: row.employment_end_date,
+    terminationReason: row.termination_reason,
+    finalPayrollMonth: row.final_payroll_month,
     branchCode: row.branch_code,
     notes: row.notes,
     salaryType: salaryProfile.salaryType,
@@ -656,20 +669,24 @@ export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppS
   }
 
   const supabase = await createServerSupabaseClient();
-  const baseQuery = supabase
+  const currentSelect = 'id, employee_code, name_zh, name_en, alias, gender, phone, company_type, company_id, branch_id, employment_type, employment_status, hire_date, annual_leave_days, position_id, identity_type, identity_number, date_of_birth, address, payment_method, bank_id, bank_account_number, probation_months, manager_employee_id, probation_end_date, employment_end_date, termination_reason, final_payroll_month, branch_code, notes, position:positions(name_zh), bank:banks(name_zh,name_en), company:companies(name_zh,name_en), branch:branches(name_zh,name_en)';
+  const legacySelect = 'id, employee_code, name_zh, name_en, alias, gender, phone, company_type, company_id, branch_id, employment_type, employment_status, hire_date, annual_leave_days, position_id, identity_type, identity_number, date_of_birth, address, payment_method, bank_id, bank_account_number, probation_months, manager_employee_id, probation_end_date, employment_end_date, branch_code, notes, position:positions(name_zh), bank:banks(name_zh,name_en), company:companies(name_zh,name_en), branch:branches(name_zh,name_en)';
+  const buildEmployeeDetailQuery = (select: string) => supabase
     .from('employees')
-    .select(
-      'id, employee_code, name_zh, name_en, alias, gender, phone, company_type, company_id, branch_id, employment_type, employment_status, hire_date, annual_leave_days, position_id, identity_type, identity_number, date_of_birth, address, payment_method, bank_id, bank_account_number, probation_months, manager_employee_id, probation_end_date, employment_end_date, branch_code, notes, position:positions(name_zh), bank:banks(name_zh,name_en), company:companies(name_zh,name_en), branch:branches(name_zh,name_en)'
-    )
+    .select(select)
     .eq('employee_code', normalizedCode);
 
-  const scopedQuery = applyScopeFilters(baseQuery, user);
+  const scopedQuery = applyScopeFilters(buildEmployeeDetailQuery(currentSelect), user);
 
   if (!scopedQuery) {
     return null;
   }
 
-  const { data, error } = await scopedQuery.maybeSingle();
+  const currentResult = await scopedQuery.maybeSingle();
+  const legacyScopedQuery = currentResult.error && isMissingColumnError(currentResult.error.message)
+    ? applyScopeFilters(buildEmployeeDetailQuery(legacySelect), user)
+    : null;
+  const { data, error } = legacyScopedQuery ? await legacyScopedQuery.maybeSingle() : currentResult;
 
   if (error) {
     console.error(`Failed to load employee detail for ${normalizedCode}:`, error.message);
@@ -680,6 +697,8 @@ export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppS
     return null;
   }
 
+  const employeeData = data as unknown as EmployeeDetailQueryRow;
+
   let salaryProfile: EmployeeSalaryProfileRow | null = null;
   let documents: EmployeeDocumentRecord[] = [];
   let visas: EmployeeVisaRecord[] = [];
@@ -688,17 +707,17 @@ export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppS
     supabase
       .from('employee_salary_profiles')
       .select(EMPLOYEE_SALARY_PROFILE_SELECT_CURRENT)
-      .eq('employee_id', data.id)
+      .eq('employee_id', employeeData.id)
       .maybeSingle(),
     supabase
       .from('employee_documents')
       .select('id, document_type, file_name, file_path, storage_folder, expiry_date, remarks')
-      .eq('employee_id', data.id)
+      .eq('employee_id', employeeData.id)
       .order('expiry_date', { ascending: true, nullsFirst: false }),
     supabase
       .from('employee_visas')
       .select('id, visa_type, visa_number, expiry_date, status, reminder_days, remarks')
-      .eq('employee_id', data.id)
+      .eq('employee_id', employeeData.id)
       .order('expiry_date', { ascending: true }),
   ]);
 
@@ -707,7 +726,7 @@ export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppS
     const fallbackSalaryResult = await supabase
       .from('employee_salary_profiles')
       .select(EMPLOYEE_SALARY_PROFILE_SELECT_LEGACY)
-      .eq('employee_id', data.id)
+      .eq('employee_id', employeeData.id)
       .maybeSingle();
 
     if (fallbackSalaryResult.error) {
@@ -733,7 +752,7 @@ export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppS
     visas = ((visasResult.data ?? []) as EmployeeVisaRow[]).map(mapEmployeeVisa);
   }
 
-  return mapEmployeeDetail(data as EmployeeDetailQueryRow, salaryProfile, documents, visas);
+  return mapEmployeeDetail(employeeData, salaryProfile, documents, visas);
 }
 
 async function fetchOptions(table: 'positions' | 'banks' | 'companies' | 'branches', user?: AppShellUser) {
@@ -828,6 +847,29 @@ export async function fetchSavedPayrollBonusPresets(): Promise<SavedPayrollBonus
     name: row.name as string,
     tiers: normalizePayrollBonusTiers(row.tiers),
   }));
+}
+
+export async function fetchSavedShopCommissionPresets(): Promise<SavedShopCommissionPresetRecord[]> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('saved_shop_commission_presets')
+    .select('id, name, rules')
+    .order('name');
+
+  if (error) {
+    console.error('Failed to load saved shop commission presets from Supabase:', error.message);
+    return [{ id: 'tai_wai_shop', name: '大圍鋪數', rules: createMoonIrisTaiWaiShopCommissionRules() }];
+  }
+
+  const presets = (data ?? [])
+    .map((row) => ({
+      id: row.id as string,
+      name: (row.name as string | null)?.trim() || '鋪數方案',
+      rules: normalizeCommissionRules(row.rules).filter((rule) => rule.metric === 'shop'),
+    }))
+    .filter((preset) => preset.rules.length > 0);
+
+  return presets.length > 0 ? presets : [{ id: 'tai_wai_shop', name: '大圍鋪數', rules: createMoonIrisTaiWaiShopCommissionRules() }];
 }
 
 export type DashboardData = {
@@ -1006,12 +1048,17 @@ export async function fetchCommissionRateTiers(): Promise<CommissionRateTier[]> 
 export type PayrollEmployeeSummary = {
   employeeCode: string;
   nameZh: string;
+  nameEn: string | null;
   alias: string | null;
+  gender: EmployeeDetailRecord['gender'];
+  identityType: EmployeeDetailRecord['identityType'];
   identityNumber: string | null;
+  phone: string | null;
   branchName: string | null;
   positionCode: string | null;
   positionNameZh: string | null;
   hireDate: string;
+  employmentEndDate: string | null;
   dateOfBirth: string | null;
   salaryType: EmployeeDetailRecord['salaryType'];
   baseSalary: number;
@@ -1053,7 +1100,7 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
   const supabase = await createServerSupabaseClient();
   const buildQuery = (profileSelect: string) => supabase
     .from('employees')
-    .select(`employee_code, name_zh, alias, identity_number, hire_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
+    .select(`employee_code, name_zh, name_en, alias, gender, identity_type, identity_number, phone, hire_date, employment_end_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
     .eq('employment_status', 'active')
     .order('employee_code');
 
@@ -1073,9 +1120,14 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
   return ((data ?? []) as unknown as {
     employee_code: string;
     name_zh: string;
+    name_en: string | null;
     alias: string | null;
+    gender: EmployeeDetailRecord['gender'] | null;
     identity_number: string | null;
+    identity_type: EmployeeDetailRecord['identityType'] | null;
+    phone: string | null;
     hire_date: string;
+    employment_end_date: string | null;
     date_of_birth: string | null;
     position: { code: string | null; name_zh: string | null } | { code: string | null; name_zh: string | null }[] | null;
     branch: NamedLookup;
@@ -1086,17 +1138,23 @@ export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEm
     const commissionRedeemRate = sp?.commission_redeem_rate ? Number(sp.commission_redeem_rate) : null;
     const commissionSalesRate = sp?.commission_sales_rate ? Number(sp.commission_sales_rate) : null;
     const commissionSgmRate = sp?.commission_sgm_rate ? Number(sp.commission_sgm_rate) : null;
-    const salesAmountRatePercent = sp?.sales_amount_rate_percent ? Number(sp.sales_amount_rate_percent) : null;
+    const rawSalesAmountRatePercent = sp?.sales_amount_rate_percent ? Number(sp.sales_amount_rate_percent) : null;
+    const salesAmountRatePercent = rawSalesAmountRatePercent !== null && Number.isFinite(rawSalesAmountRatePercent) ? rawSalesAmountRatePercent : null;
     const commissionCustomTiers = normalizeCustomCommissionTiers(sp?.commission_custom_tiers ?? null);
     return {
       employeeCode: row.employee_code,
       nameZh: row.name_zh,
+      nameEn: row.name_en,
       alias: row.alias,
+      gender: row.gender ?? 'other',
+      identityType: row.identity_type ?? 'hkid',
       identityNumber: row.identity_number,
+      phone: row.phone,
       branchName: normalizeLookupValue(row.branch).nameZh,
       positionCode: Array.isArray(row.position) ? (row.position[0]?.code ?? null) : (row.position?.code ?? null),
       positionNameZh: Array.isArray(row.position) ? (row.position[0]?.name_zh ?? null) : (row.position?.name_zh ?? null),
       hireDate: row.hire_date,
+      employmentEndDate: row.employment_end_date,
       dateOfBirth: row.date_of_birth,
       salaryType: sp?.salary_type ?? null,
       baseSalary: sp?.base_salary ? Number(sp.base_salary) : 0,
@@ -1218,6 +1276,255 @@ export type PayrollAttendanceRecord = {
   packageNoPayHandling: PackageNoPayHandling | null;
   packageNoPaySelectionRequired: boolean;
 };
+
+export type RollingCommissionAverageRecord = {
+  employeeCode: string;
+  cutoffMonth: string;
+  totalCommission: number;
+  eligibleDays: number;
+  dailyAverageCommission: number;
+  source: 'seed' | 'seed_plus_payroll' | 'payroll' | 'none';
+};
+
+export type CommissionAverageAuditRecord = {
+  employeeCode: string;
+  displayName: string;
+  branchName: string | null;
+  salaryType: EmployeeDetailRecord['salaryType'];
+  cutoffMonth: string;
+  annualLeaveDays: number;
+  statutoryHolidayDays: number;
+  alShDays: number;
+  totalCommission: number;
+  eligibleDays: number;
+  dailyAverageCommission: number;
+  alShAverageCommissionPay: number;
+  fixedDailyWage: number;
+  legalDailyAverageWage: number;
+  legalMinimumAlShTopUp: number;
+  finalAlShAverageCommissionPay: number;
+  complianceStatus: 'ok' | 'needs_review';
+  complianceRemark: string | null;
+  source: RollingCommissionAverageRecord['source'];
+  seedTotalCommission: number;
+  seedEligibleDays: number;
+  monthlySourceCount: number;
+  monthlySourceTotal: number;
+  monthlySourceDays: number;
+  mappingStatus: string | null;
+  mappingSourceCode: string | null;
+  mappingRemark: string | null;
+};
+
+function getPreviousYearMonth(yearMonth: string) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) return yearMonth;
+  return `${month === 1 ? year - 1 : year}-${String(month === 1 ? 12 : month - 1).padStart(2, '0')}`;
+}
+
+function addYearMonths(yearMonth: string, offset: number) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) return yearMonth;
+  const date = new Date(year, month - 1 + offset, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export async function fetchRollingCommissionAverages(user: AppShellUser, selectedMonth: string): Promise<Record<string, RollingCommissionAverageRecord>> {
+  const employees = await fetchPayrollSummary(user);
+  if (employees.length === 0) return {};
+
+  const employeeCodes = employees.map((employee) => employee.employeeCode);
+  const cutoffMonth = getPreviousYearMonth(selectedMonth);
+  const windowStartMonth = addYearMonths(cutoffMonth, -11);
+  const supabase = await createServerSupabaseClient();
+
+  const [seedResult, monthlyResult] = await Promise.all([
+    supabase
+      .from('employee_commission_average_seed')
+      .select('employee_code, total_commission, eligible_days, daily_average_commission, period_start, period_end')
+      .in('employee_code', employeeCodes),
+    supabase
+      .from('employee_commission_average_monthly')
+      .select('employee_code, year_month, average_commission_amount, eligible_days')
+      .in('employee_code', employeeCodes)
+      .gte('year_month', '2026-04')
+      .gte('year_month', windowStartMonth)
+      .lte('year_month', cutoffMonth),
+  ]);
+
+  if ((seedResult.error && !isMissingColumnError(seedResult.error.message)) || (monthlyResult.error && !isMissingColumnError(monthlyResult.error.message))) {
+    console.warn('Failed to load rolling commission average sources:', seedResult.error?.message ?? monthlyResult.error?.message);
+  }
+
+  const seedRows = seedResult.error ? [] : ((seedResult.data ?? []) as Array<{ employee_code: string; total_commission: number | string | null; eligible_days: number | string | null; daily_average_commission: number | string | null; period_start: string; period_end: string }>);
+  const monthlyRows = monthlyResult.error ? [] : ((monthlyResult.data ?? []) as Array<{ employee_code: string; year_month: string; average_commission_amount: number | string | null; eligible_days: number | string | null }>);
+  const monthlyByCode = new Map<string, typeof monthlyRows>();
+  for (const row of monthlyRows) {
+    const list = monthlyByCode.get(row.employee_code) ?? [];
+    list.push(row);
+    monthlyByCode.set(row.employee_code, list);
+  }
+  const seedByCode = new Map(seedRows.map((row) => [row.employee_code, row]));
+
+  return Object.fromEntries(employeeCodes.map((employeeCode) => {
+    const seed = seedByCode.get(employeeCode);
+    const monthly = monthlyByCode.get(employeeCode) ?? [];
+    const monthlyTotal = monthly.reduce((sum, row) => sum + Number(row.average_commission_amount ?? 0), 0);
+    const monthlyDays = monthly.reduce((sum, row) => sum + Number(row.eligible_days ?? 0), 0);
+    const seedTotal = seed && windowStartMonth <= '2026-03' ? Number(seed.total_commission ?? 0) : 0;
+    const seedDays = seed && windowStartMonth <= '2026-03' ? Number(seed.eligible_days ?? 0) : 0;
+    const totalCommission = seedTotal + monthlyTotal;
+    const eligibleDays = Math.min(365, Math.max(seedDays + monthlyDays, seedDays, monthly.length > 0 ? 365 : 0));
+    const dailyAverageCommission = eligibleDays > 0 ? totalCommission / eligibleDays : 0;
+    const source = seedTotal > 0 && monthlyTotal > 0 ? 'seed_plus_payroll' : seedTotal > 0 ? 'seed' : monthlyTotal > 0 ? 'payroll' : 'none';
+    return [employeeCode, {
+      employeeCode,
+      cutoffMonth,
+      totalCommission: Math.round(totalCommission * 100) / 100,
+      eligibleDays,
+      dailyAverageCommission: Math.round(dailyAverageCommission * 10000) / 10000,
+      source,
+    } satisfies RollingCommissionAverageRecord];
+  }));
+}
+
+function roundAuditMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function getCalendarDaysForYearMonth(yearMonth: string) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) return 30;
+  return new Date(year, month, 0).getDate();
+}
+
+export async function fetchCommissionAverageAuditRecords(user: AppShellUser, selectedMonth: string): Promise<CommissionAverageAuditRecord[]> {
+  const employees = await fetchPayrollSummary(user);
+  if (employees.length === 0) return [];
+
+  const employeeCodes = employees.map((employee) => employee.employeeCode);
+  const cutoffMonth = getPreviousYearMonth(selectedMonth);
+  const windowStartMonth = addYearMonths(cutoffMonth, -11);
+  const supabase = await createServerSupabaseClient();
+
+  const [rolling, attendance, seedResult, monthlyResult, mappingResult] = await Promise.all([
+    fetchRollingCommissionAverages(user, selectedMonth),
+    fetchPayrollAttendanceRecords(user, selectedMonth),
+    supabase
+      .from('employee_commission_average_seed')
+      .select('employee_code, total_commission, eligible_days, source_file, source_row')
+      .in('employee_code', employeeCodes),
+    supabase
+      .from('employee_commission_average_monthly')
+      .select('employee_code, year_month, average_commission_amount, eligible_days')
+      .in('employee_code', employeeCodes)
+      .gte('year_month', '2026-04')
+      .gte('year_month', windowStartMonth)
+      .lte('year_month', cutoffMonth),
+    supabase
+      .from('commission_average_employee_mappings')
+      .select('source_code, matched_employee_code, match_status, remark'),
+  ]);
+
+  if (seedResult.error && !isMissingColumnError(seedResult.error.message)) {
+    console.warn('Failed to load commission average seed audit rows:', seedResult.error.message);
+  }
+  if (monthlyResult.error && !isMissingColumnError(monthlyResult.error.message)) {
+    console.warn('Failed to load commission average monthly audit rows:', monthlyResult.error.message);
+  }
+  if (mappingResult.error && !isMissingColumnError(mappingResult.error.message)) {
+    console.warn('Failed to load commission average mapping audit rows:', mappingResult.error.message);
+  }
+
+  const seedByCode = new Map(((seedResult.data ?? []) as Array<{ employee_code: string; total_commission: number | string | null; eligible_days: number | string | null }>).map((row) => [row.employee_code, row]));
+  const monthlyByCode = new Map<string, Array<{ employee_code: string; average_commission_amount: number | string | null; eligible_days: number | string | null }>>();
+  for (const row of (monthlyResult.data ?? []) as Array<{ employee_code: string; average_commission_amount: number | string | null; eligible_days: number | string | null }>) {
+    const list = monthlyByCode.get(row.employee_code) ?? [];
+    list.push(row);
+    monthlyByCode.set(row.employee_code, list);
+  }
+  const mappingByCode = new Map<string, { source_code: string | null; match_status: string | null; remark: string | null }>();
+  for (const row of (mappingResult.data ?? []) as Array<{ source_code: string | null; matched_employee_code: string | null; match_status: string | null; remark: string | null }>) {
+    if (row.matched_employee_code && employeeCodes.includes(row.matched_employee_code)) {
+      mappingByCode.set(row.matched_employee_code, row);
+    }
+  }
+
+  return employees.map((employee) => {
+    const average = rolling[employee.employeeCode] ?? {
+      employeeCode: employee.employeeCode,
+      cutoffMonth,
+      totalCommission: 0,
+      eligibleDays: 0,
+      dailyAverageCommission: 0,
+      source: 'none' as const,
+    };
+    const attendanceRecord = attendance[employee.employeeCode];
+    const annualLeaveDays = Number(attendanceRecord?.annualLeaveDays ?? 0);
+    const statutoryHolidayDays = Number(attendanceRecord?.statutoryHolidayDays ?? 0);
+    const alShDays = annualLeaveDays + statutoryHolidayDays;
+    const seed = seedByCode.get(employee.employeeCode);
+    const monthlyRows = monthlyByCode.get(employee.employeeCode) ?? [];
+    const monthlySourceTotal = monthlyRows.reduce((sum, row) => sum + Number(row.average_commission_amount ?? 0), 0);
+    const monthlySourceDays = monthlyRows.reduce((sum, row) => sum + Number(row.eligible_days ?? 0), 0);
+    const mapping = mappingByCode.get(employee.employeeCode);
+    const calendarDays = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0
+      ? attendanceRecord.calendarDays
+      : getCalendarDaysForYearMonth(selectedMonth);
+    const fixedMonthlyWage = employee.baseSalary + employee.allowanceAmount + employee.transportAllowance + employee.attendanceBonusAmount + employee.briefingBonus + employee.bookingBonus;
+    const fixedDailyWage = calendarDays > 0 ? roundAuditMoney(fixedMonthlyWage / calendarDays) : 0;
+    const legalDailyAverageWage = roundAuditMoney(fixedDailyWage + average.dailyAverageCommission);
+    const legalMinimumAlShTopUp = roundAuditMoney(Math.max(0, (legalDailyAverageWage - fixedDailyWage) * alShDays));
+    const alShAverageCommissionPay = roundAuditMoney(average.dailyAverageCommission * alShDays);
+    const finalAlShAverageCommissionPay = roundAuditMoney(Math.max(alShAverageCommissionPay, legalMinimumAlShTopUp));
+    const complianceRemark = alShDays > 0 && average.source === 'none'
+      ? 'AL/SH 有日數但沒有 rolling 365 平均佣金 source，需人工確認。'
+      : null;
+
+    return {
+      employeeCode: employee.employeeCode,
+      displayName: employee.alias || employee.nameZh || employee.nameEn || employee.employeeCode,
+      branchName: employee.branchName,
+      salaryType: employee.salaryType,
+      cutoffMonth: average.cutoffMonth,
+      annualLeaveDays,
+      statutoryHolidayDays,
+      alShDays,
+      totalCommission: average.totalCommission,
+      eligibleDays: average.eligibleDays,
+      dailyAverageCommission: average.dailyAverageCommission,
+      alShAverageCommissionPay,
+      fixedDailyWage,
+      legalDailyAverageWage,
+      legalMinimumAlShTopUp,
+      finalAlShAverageCommissionPay,
+      complianceStatus: complianceRemark ? 'needs_review' : 'ok',
+      complianceRemark,
+      source: average.source,
+      seedTotalCommission: Number(seed?.total_commission ?? 0),
+      seedEligibleDays: Number(seed?.eligible_days ?? 0),
+      monthlySourceCount: monthlyRows.length,
+      monthlySourceTotal: Math.round(monthlySourceTotal * 100) / 100,
+      monthlySourceDays,
+      mappingStatus: mapping?.match_status ?? null,
+      mappingSourceCode: mapping?.source_code ?? null,
+      mappingRemark: mapping?.remark ?? null,
+    } satisfies CommissionAverageAuditRecord;
+  }).filter((record, index) => {
+    const employee = employees[index];
+    return (
+      Boolean(employee.commissionMethod && employee.commissionMethod !== 'none') ||
+      employee.commissionRules.some((rule) => rule.enabled) ||
+      (employee.salesAmountRatePercent ?? 0) > 0 ||
+      employee.streetPromoterEnabled ||
+      employee.telesalesEnabled ||
+      employee.shopBonusEnabled ||
+      employee.salaryType === 'package' ||
+      employee.packageCommissionAmount > 0 ||
+      record.source !== 'none'
+    );
+  });
+}
 
 export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMonth: string): Promise<Record<string, PayrollAttendanceRecord>> {
   const employees = (await fetchPayrollSummary(user)).map((employee) => employee.employeeCode);

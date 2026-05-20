@@ -14,7 +14,7 @@ alter table public.employee_salary_profiles
     or jsonb_typeof(commission_rules) = 'array'
   );
 
-comment on column public.employee_salary_profiles.commission_rules is 'Generic commission rules: [{code,name,type,metric,enabled,stackable,tiers:[{minAmount,maxAmount,rate,amount}]}]. Types: rate, bar. Metrics: redeem, sales, salesAmountTotal, job, sgm.';
+comment on column public.employee_salary_profiles.commission_rules is 'Generic commission rules: [{code,name,type,metric,enabled,stackable,tiers:[{minAmount,maxAmount,rate,amount}]}]. Types: rate, bar. Metrics: redeem, sales, salesAmountTotal, shop, job, sgm.';
 
 with target_employees as (
   select id

@@ -11,15 +11,18 @@ import {
   fetchCommissionRateTiers,
   fetchSavedCommissionPresets,
   fetchSavedPayrollBonusPresets,
+  fetchSavedShopCommissionPresets,
   fetchPayrollBonusConfigCatalog,
 } from '@/src/lib/employees/queries';
 
 export default function PeoplePage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
+  const profileQueryKey = searchParams?.toString() ?? '';
   const employeeId = searchParams?.get('id') ?? null;
   const [listData, setListData] = useState<any>(null);
   const [profileData, setProfileData] = useState<Record<string, unknown> | null>(null);
+  const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   // Load employee list
@@ -33,7 +36,9 @@ export default function PeoplePage() {
   // Load single employee profile when ?id= is present
   useEffect(() => {
     if (!user || !employeeId) return;
-    setProfileData(null);
+    if (loadedProfileId !== employeeId) {
+      setProfileData(null);
+    }
     setNotFound(false);
     Promise.all([
       fetchEmployeeDetailByCode(employeeId, user),
@@ -41,12 +46,14 @@ export default function PeoplePage() {
       fetchCommissionRateTiers(),
       fetchSavedCommissionPresets(),
       fetchSavedPayrollBonusPresets(),
+      fetchSavedShopCommissionPresets(),
       fetchPayrollBonusConfigCatalog(),
-    ]).then(([employee, options, commissionTiers, savedCommissionPresets, savedPayrollBonusPresets, payrollBonusConfig]) => {
+    ]).then(([employee, options, commissionTiers, savedCommissionPresets, savedPayrollBonusPresets, savedShopCommissionPresets, payrollBonusConfig]) => {
       if (!employee) { setNotFound(true); return; }
-      setProfileData({ employee, options, commissionTiers, savedCommissionPresets, savedPayrollBonusPresets, payrollBonusConfig });
+      setProfileData({ employee, options, commissionTiers, savedCommissionPresets, savedPayrollBonusPresets, savedShopCommissionPresets, payrollBonusConfig });
+      setLoadedProfileId(employeeId);
     }).catch(console.error);
-  }, [user, employeeId]);
+  }, [user, employeeId, profileQueryKey, loadedProfileId]);
 
   if (!user) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
 
@@ -61,6 +68,7 @@ export default function PeoplePage() {
         commissionTiers={profileData.commissionTiers as any}
         savedCommissionPresets={profileData.savedCommissionPresets as any}
         savedPayrollBonusPresets={profileData.savedPayrollBonusPresets as any}
+        savedShopCommissionPresets={profileData.savedShopCommissionPresets as any}
         payrollBonusConfig={profileData.payrollBonusConfig as any}
       />
     );

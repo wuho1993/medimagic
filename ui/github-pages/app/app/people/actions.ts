@@ -56,14 +56,14 @@ function getNullablePercentageNumber(formData: FormData, key: string) {
     return null;
   }
 
-  const normalized = value.replace(/[%,$\s]/g, '');
+  const normalized = value.replace(/[％%,$，\s]/g, '');
   if (!normalized) {
     return null;
   }
 
   const parsed = Number(normalized);
-  if (Number.isNaN(parsed)) {
-    throw new Error(`${key} must be a valid number.`);
+  if (!Number.isFinite(parsed)) {
+    return null;
   }
 
   return parsed;

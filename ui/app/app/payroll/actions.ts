@@ -71,6 +71,15 @@ type LatestPayrollEmployeeDefaults = Partial<PayrollEmployeeSummary> & {
   telesalesEnabled?: boolean;
 };
 
+export type PayrollReviewEntry = {
+  issueKey: string;
+  employeeCode: string;
+  issueType: string;
+  reason: string;
+  action?: string | null;
+  detail?: Record<string, unknown>;
+};
+
 
 export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): Promise<{ success: true; employee: LatestPayrollEmployeeDefaults } | { error: string }> {
   const user = await getCurrentUser();
@@ -360,5 +369,99 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
     return { error: upsertError.message };
   }
 
+  if (yearMonth >= '2026-04') {
+    const averageRows = nonEmpty
+      .filter((entry) => codeToId.has(entry.employeeCode))
+      .map((entry) => ({
+        employee_code: entry.employeeCode,
+        year_month: yearMonth,
+        average_commission_amount: entry.totalCommission > 0 ? entry.totalCommission : 0,
+        source: 'payroll',
+        updated_at: new Date().toISOString(),
+      }));
+
+    if (averageRows.length > 0) {
+      const averageResult = await supabase
+        .from('employee_commission_average_monthly')
+        .upsert(averageRows, { onConflict: 'employee_code,year_month,source' });
+
+      if (averageResult.error && !isMissingColumnError(averageResult.error.message)) {
+        return { error: averageResult.error.message };
+      }
+    }
+  }
+
   return { success: true, count: rows.length };
+}
+
+export async function fetchPayrollReviewAnswers(yearMonth: string): Promise<Record<string, string>> {
+  const user = await getCurrentUser();
+  if (!user || !canAccessRoute(user.role, 'payroll')) {
+    return {};
+  }
+
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+    return {};
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('payroll_submission_reviews')
+    .select('issue_key, reason')
+    .eq('year_month', yearMonth);
+
+  if (error) {
+    if (isMissingColumnError(error.message) || error.message.includes('does not exist')) {
+      console.warn('Payroll review table is not available yet:', error.message);
+      return {};
+    }
+    console.error('Failed to load payroll review answers:', error.message);
+    return {};
+  }
+
+  return Object.fromEntries((data ?? []).map((row) => [String(row.issue_key), String(row.reason)]));
+}
+
+export async function savePayrollReviewAnswers(yearMonth: string, entries: PayrollReviewEntry[]) {
+  const user = await getCurrentUser();
+  if (!user || !canAccessRoute(user.role, 'payroll')) {
+    return { error: 'Unauthorized' };
+  }
+
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+    return { error: 'Invalid year-month format' };
+  }
+
+  const filteredEntries = entries.filter((entry) => entry.issueKey && entry.employeeCode && entry.issueType && entry.reason);
+  if (filteredEntries.length === 0) {
+    return { success: true, saved: 0 };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const payload = filteredEntries.map((entry) => ({
+    year_month: yearMonth,
+    employee_code: entry.employeeCode,
+    issue_key: entry.issueKey,
+    issue_type: entry.issueType,
+    reason: entry.reason,
+    action: entry.action ?? null,
+    detail: entry.detail ?? {},
+    updated_by: null,
+    created_by: null,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('payroll_submission_reviews')
+    .upsert(payload, { onConflict: 'year_month,issue_key' });
+
+  if (error) {
+    if (isMissingColumnError(error.message) || error.message.includes('does not exist')) {
+      console.warn('Payroll review table is not available yet:', error.message);
+      return { success: true, saved: 0, warning: 'Payroll review table is not available yet.' };
+    }
+    return { error: error.message };
+  }
+
+  return { success: true, saved: payload.length };
 }

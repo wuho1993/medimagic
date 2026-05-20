@@ -1,4 +1,4 @@
-export const COMMISSION_RULE_METRICS = ['redeem', 'sales', 'salesAmountTotal', 'job', 'sgm'] as const;
+export const COMMISSION_RULE_METRICS = ['redeem', 'sales', 'salesAmountTotal', 'shop', 'job', 'sgm'] as const;
 
 export type CommissionRuleMetric = typeof COMMISSION_RULE_METRICS[number];
 
@@ -154,6 +154,58 @@ export function createYanLyBarCommissionRules(): CommissionRule[] {
   ]);
 }
 
+export function createMoonIrisTaiWaiShopCommissionRules(): CommissionRule[] {
+  return normalizeCommissionRules([
+    {
+      code: 'shop_rate_commission',
+      name: '大圍鋪數佣金',
+      type: 'rate',
+      metric: 'shop',
+      enabled: true,
+      stackable: false,
+      tiers: [
+        { minAmount: 0, maxAmount: 799999.99, rate: 0.03 },
+        { minAmount: 800000, maxAmount: 999999.99, rate: 0.032 },
+        { minAmount: 1000000, maxAmount: 1199999.99, rate: 0.034 },
+        { minAmount: 1200000, maxAmount: 1399999.99, rate: 0.036 },
+        { minAmount: 1400000, maxAmount: 1599999.99, rate: 0.038 },
+        { minAmount: 1600000, maxAmount: null, rate: 0.04 },
+      ],
+    },
+  ]);
+}
+
 export function serializeCommissionRules(rules: CommissionRule[]) {
   return JSON.stringify(normalizeCommissionRules(rules), null, 2);
+}
+
+export function createCommissionRulesFromLegacyCustomTiers(
+  name: string | null,
+  tiers: Array<{ commissionType: 'redeem' | 'sales' | 'sgm'; minAmount: number; maxAmount: number | null; rate: number }>,
+): CommissionRule[] {
+  const labelMap = {
+    redeem: 'Redeem',
+    sales: 'Sales',
+    sgm: 'SGM',
+  } as const;
+
+  return normalizeCommissionRules(
+    (['redeem', 'sales', 'sgm'] as const).map((metric) => {
+      const metricTiers = tiers.filter((tier) => tier.commissionType === metric && tier.rate > 0);
+      if (metricTiers.length === 0) return null;
+      return {
+        code: `${metric}_rate_commission`,
+        name: `${name || 'Custom'} ${labelMap[metric]} Rate`,
+        type: 'rate',
+        metric,
+        enabled: true,
+        stackable: false,
+        tiers: metricTiers.map((tier) => ({
+          minAmount: tier.minAmount,
+          maxAmount: tier.maxAmount,
+          rate: tier.rate,
+        })),
+      };
+    }).filter(Boolean),
+  );
 }

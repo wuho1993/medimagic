@@ -56,14 +56,14 @@ function getNullablePercentageNumber(formData: FormData, key: string) {
     return null;
   }
 
-  const normalized = value.replace(/[%,$\s]/g, '');
+  const normalized = value.replace(/[％%,$，\s]/g, '');
   if (!normalized) {
     return null;
   }
 
   const parsed = Number(normalized);
-  if (Number.isNaN(parsed)) {
-    throw new Error(`${key} must be a valid number.`);
+  if (!Number.isFinite(parsed)) {
+    return null;
   }
 
   return parsed;
@@ -317,10 +317,15 @@ export async function createEmployee(formData: FormData) {
     annual_leave_days: getNullableNumber(formData, 'annualLeaveDays'),
     probation_end_date: probationEndDate,
     employment_end_date: getNullableValue(formData, 'employmentEndDate'),
+    termination_reason: getNullableValue(formData, 'terminationReason'),
+    final_payroll_month: getNullableValue(formData, 'finalPayrollMonth'),
     notes: getNullableValue(formData, 'notes'),
   };
 
-  const { error } = await supabase.from('employees').insert(payload);
+  const currentResult = await supabase.from('employees').insert(payload);
+  const { error } = currentResult.error && isMissingColumnError(currentResult.error.message)
+    ? await supabase.from('employees').insert((({ termination_reason, final_payroll_month, ...legacyPayload }) => legacyPayload)(payload))
+    : currentResult;
 
   if (error) {
     throw new Error(error.message);
@@ -390,10 +395,15 @@ export async function updateEmployee(formData: FormData) {
     annual_leave_days: getNullableNumber(formData, 'annualLeaveDays'),
     probation_end_date: probationEndDate,
     employment_end_date: getNullableValue(formData, 'employmentEndDate'),
+    termination_reason: getNullableValue(formData, 'terminationReason'),
+    final_payroll_month: getNullableValue(formData, 'finalPayrollMonth'),
     notes: getNullableValue(formData, 'notes'),
   };
 
-  const { error: employeeError } = await supabase.from('employees').update(employeePayload).eq('id', employeeId);
+  const currentEmployeeResult = await supabase.from('employees').update(employeePayload).eq('id', employeeId);
+  const employeeError = currentEmployeeResult.error && isMissingColumnError(currentEmployeeResult.error.message)
+    ? (await supabase.from('employees').update((({ termination_reason, final_payroll_month, ...legacyPayload }) => legacyPayload)(employeePayload)).eq('id', employeeId)).error
+    : currentEmployeeResult.error;
 
   if (employeeError) {
     throw new Error(employeeError.message);
