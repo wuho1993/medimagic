@@ -1,0 +1,5 @@
+See `20260520_import_missing_commission_average_seed_rows.sql` for the SQL editor copy.
+
+This backfill has already been applied through Supabase REST on 2026-05-20.
+
+Key fix: SF011 Sylvia was present in `Mar_SALARY統計2026.xlsx` YEAR2 row 120 but missing from the first seed import. The backfill imports all missing active HRMS employees from the workbook and keeps SF363/SF373/SF259 excluded.

@@ -1120,6 +1120,10 @@ function getAppliedCommissionDisplayName(
   mainRules: CommissionRule[],
   labels: EmployeeProfileLabels,
 ) {
+  if (employee.streetPromoterEnabled && (!employee.commissionMethod || employee.commissionMethod === 'none') && mainRules.length === 0) {
+    return labels.fields.streetPromoterEnabled;
+  }
+
   if (employee.commissionMethod !== 'custom') {
     return employee.commissionMethod ? labels.commissionMethods[employee.commissionMethod] : labels.emptyValue;
   }

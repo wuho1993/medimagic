@@ -1673,6 +1673,10 @@ ${tablePreview}`;
     });
   };
 
+  const openAverageWagesPage = () => {
+    window.location.assign(`/medimagic/app/payroll/average-wages?month=${encodeURIComponent(selectedMonth)}`);
+  };
+
   const rows = employees.map((sourceEmployee) => {
     const emp = liveEmployeeDefaults[sourceEmployee.employeeCode] ?? sourceEmployee;
     const savedRecord = savedRecordByCode.get(emp.employeeCode);
@@ -2579,13 +2583,14 @@ ${tablePreview}`;
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href={`/app/payroll/average-wages?month=${selectedMonth}`}
+          <button
+            type="button"
+            onClick={openAverageWagesPage}
             className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-100"
           >
             <Calculator className="h-4 w-4" />
             365平均佣金
-          </Link>
+          </button>
           <button
             type="button"
             onClick={handleSave}

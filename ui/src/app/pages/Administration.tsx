@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Columns3, Database, Plus, Save, Settings2, ShieldCheck, Trash2, Users } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -30,6 +30,21 @@ const translations = {
       noPackage: '本月冇包佣',
       proRate: '包佣按上班日數統計',
       save: '儲存 Payroll 設定',
+    },
+    testMode: {
+      title: 'Intranet Test Mode',
+      description: '用同一個 Supabase database 做 demo 測試。開始時會 snapshot 現有資料；按完成或關閉視窗時會還原 snapshot，清走測試資料。',
+      warning: '請勿喺其他人同時輸入正式資料時使用，因為完成測試會還原整個 public app tables。',
+      inactive: '未開啟',
+      active: '測試中',
+      start: '開始 Test Mode',
+      finish: '完成並清除測試資料',
+      restoring: '還原中…',
+      starting: '建立 snapshot…',
+      tables: 'Tables',
+      rows: 'Rows',
+      startedAt: '開始時間',
+      sqlMissing: '如顯示 SQL function/table missing，請先執行 supabase/migrations/20260521010000_add_test_mode_snapshot.sql。',
     },
     fields: {
       title: '員工欄位管理',
@@ -80,6 +95,21 @@ const translations = {
       proRate: '包佣按上班日数统计',
       save: '保存 Payroll 设定',
     },
+    testMode: {
+      title: 'Intranet Test Mode',
+      description: '使用同一个 Supabase database 做 demo 测试。开始时会 snapshot 现有资料；完成或关闭窗口时会恢复 snapshot，清走测试资料。',
+      warning: '请勿在其他人同时输入正式资料时使用，因为完成测试会恢复整个 public app tables。',
+      inactive: '未开启',
+      active: '测试中',
+      start: '开始 Test Mode',
+      finish: '完成并清除测试资料',
+      restoring: '恢复中…',
+      starting: '建立 snapshot…',
+      tables: 'Tables',
+      rows: 'Rows',
+      startedAt: '开始时间',
+      sqlMissing: '如显示 SQL function/table missing，请先执行 supabase/migrations/20260521010000_add_test_mode_snapshot.sql。',
+    },
     fields: {
       title: '员工字段管理',
       description: '控制员工资料表单和资料结构使用哪些字段。',
@@ -128,6 +158,21 @@ const translations = {
       noPackage: 'No package commission this month',
       proRate: 'Pro-rate package by worked days',
       save: 'Save Payroll Settings',
+    },
+    testMode: {
+      title: 'Intranet Test Mode',
+      description: 'Use the same Supabase database for demos. Starting test mode snapshots current data; finishing or closing the window restores the snapshot and wipes test changes.',
+      warning: 'Do not use this while other users are entering real data. Finish restores all public app tables.',
+      inactive: 'Inactive',
+      active: 'Active',
+      start: 'Start Test Mode',
+      finish: 'Finish and wipe test data',
+      restoring: 'Restoring…',
+      starting: 'Creating snapshot…',
+      tables: 'Tables',
+      rows: 'Rows',
+      startedAt: 'Started at',
+      sqlMissing: 'If SQL function/table missing appears, run supabase/migrations/20260521010000_add_test_mode_snapshot.sql first.',
     },
     fields: {
       title: 'Employee Field Management',
@@ -257,6 +302,131 @@ function LookupSection({
   );
 }
 
+type TestModeSession = {
+  id: string;
+  status: string;
+  started_at: string;
+  table_count: number;
+  row_count: number;
+  created_by_email?: string | null;
+};
+
+function TestModePanel({ labels }: { labels: typeof translations.en.testMode }) {
+  const [session, setSession] = useState<TestModeSession | null>(null);
+  const [busy, setBusy] = useState<'start' | 'finish' | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const loadStatus = async () => {
+    const response = await fetch('/medimagic/api/test-mode', { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Failed to load test mode status.');
+    }
+
+    setSession(data.activeSession ?? null);
+    if (data.activeSession?.id) {
+      window.localStorage.setItem('medi_magic_test_mode_session', data.activeSession.id);
+    } else {
+      window.localStorage.removeItem('medi_magic_test_mode_session');
+    }
+  };
+
+  useEffect(() => {
+    loadStatus().catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
+  }, []);
+
+  useEffect(() => {
+    const finishOnUnload = () => {
+      const sessionId = window.localStorage.getItem('medi_magic_test_mode_session');
+      if (!sessionId) return;
+      const body = JSON.stringify({ action: 'finish', sessionId });
+      navigator.sendBeacon('/medimagic/api/test-mode', new Blob([body], { type: 'application/json' }));
+      window.localStorage.removeItem('medi_magic_test_mode_session');
+    };
+
+    window.addEventListener('beforeunload', finishOnUnload);
+    return () => window.removeEventListener('beforeunload', finishOnUnload);
+  }, []);
+
+  const start = async () => {
+    setBusy('start');
+    setMessage(null);
+    try {
+      const response = await fetch('/medimagic/api/test-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start' }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Failed to start test mode.');
+      await loadStatus();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const finish = async () => {
+    if (!session?.id) return;
+    setBusy('finish');
+    setMessage(null);
+    try {
+      const response = await fetch('/medimagic/api/test-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'finish', sessionId: session.id }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Failed to finish test mode.');
+      window.localStorage.removeItem('medi_magic_test_mode_session');
+      setSession(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className={`rounded-2xl border p-5 shadow-sm ${session ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-slate-500" />
+            <h3 className="font-semibold text-slate-900">{labels.title}</h3>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${session ? 'bg-amber-200 text-amber-900' : 'bg-slate-100 text-slate-600'}`}>{session ? labels.active : labels.inactive}</span>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{labels.description}</p>
+          <p className="mt-2 text-xs font-medium text-amber-800">{labels.warning}</p>
+          <p className="mt-1 text-xs text-slate-500">{labels.sqlMissing}</p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          {session ? (
+            <button type="button" onClick={finish} disabled={busy !== null} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60">
+              {busy === 'finish' ? labels.restoring : labels.finish}
+            </button>
+          ) : (
+            <button type="button" onClick={start} disabled={busy !== null} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
+              {busy === 'start' ? labels.starting : labels.start}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {session ? (
+        <div className="grid gap-3 text-sm md:grid-cols-3">
+          <div className="rounded-xl bg-white px-4 py-3"><div className="text-xs text-slate-500">{labels.startedAt}</div><div className="mt-1 font-semibold text-slate-900">{new Date(session.started_at).toLocaleString()}</div></div>
+          <div className="rounded-xl bg-white px-4 py-3"><div className="text-xs text-slate-500">{labels.tables}</div><div className="mt-1 font-semibold text-slate-900">{session.table_count}</div></div>
+          <div className="rounded-xl bg-white px-4 py-3"><div className="text-xs text-slate-500">{labels.rows}</div><div className="mt-1 font-semibold text-slate-900">{session.row_count}</div></div>
+        </div>
+      ) : null}
+
+      {message ? <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{message}</div> : null}
+    </section>
+  );
+}
+
 export default function Administration({ children, canManageUsers, fieldConfigs, payrollSettings, positions, banks, companies, branches, hidePayrollSettings }: AdministrationProps) {
   const [activeTab, setActiveTab] = useState(0);
   const t = useTranslation(translations);
@@ -295,6 +465,8 @@ export default function Administration({ children, canManageUsers, fieldConfigs,
           <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
             {activeTab === 0 ? (
               <div className="space-y-4">
+                {canManageUsers ? <TestModePanel labels={t.testMode} /> : null}
+
                 {!hidePayrollSettings && (
                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-2">

@@ -18,7 +18,7 @@ export default function BrandLogo({
   return (
     <div className={className}>
       <Image
-        src="/medi-magic-logo.png"
+        src="/medimagic/medi-magic-logo.png"
         alt="Medi Magic"
         width={width}
         height={height}

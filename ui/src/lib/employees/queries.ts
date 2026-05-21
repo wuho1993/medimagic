@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/src/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/src/lib/supabase/admin';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { hasBranchAccess, hasCompanyAccess } from '@/src/lib/auth/access';
 import type { AppShellUser } from '@/src/lib/auth/session';
 import { createLegacyCustomCommissionTiers, normalizeCustomCommissionName, normalizeCustomCommissionTiers, type CustomCommissionTier } from './custom-commission';
@@ -18,6 +19,8 @@ import {
 import { createMoonIrisTaiWaiShopCommissionRules, normalizeCommissionRules, type CommissionRule } from './commission-rules';
 import { EMPLOYEE_DOCUMENT_BUCKET, type EmployeeDocumentType } from './document-storage';
 import type { EmployeeEmploymentType } from './employment';
+
+type QuerySupabaseClient = SupabaseClient<any, any, any>;
 
 export type EmployeeDirectoryRecord = {
   id: string;
@@ -1096,8 +1099,8 @@ export type PayrollEmployeeSummary = {
   shopBonusScheme: ShopBonusScheme | null;
 };
 
-export async function fetchPayrollSummary(user: AppShellUser): Promise<PayrollEmployeeSummary[]> {
-  const supabase = await createServerSupabaseClient();
+export async function fetchPayrollSummary(user: AppShellUser, supabaseClient?: QuerySupabaseClient): Promise<PayrollEmployeeSummary[]> {
+  const supabase = supabaseClient ?? await createServerSupabaseClient();
   const buildQuery = (profileSelect: string) => supabase
     .from('employees')
     .select(`employee_code, name_zh, name_en, alias, gender, identity_type, identity_number, phone, hire_date, employment_end_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
@@ -1329,14 +1332,14 @@ function addYearMonths(yearMonth: string, offset: number) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export async function fetchRollingCommissionAverages(user: AppShellUser, selectedMonth: string): Promise<Record<string, RollingCommissionAverageRecord>> {
-  const employees = await fetchPayrollSummary(user);
+export async function fetchRollingCommissionAverages(user: AppShellUser, selectedMonth: string, supabaseClient?: QuerySupabaseClient): Promise<Record<string, RollingCommissionAverageRecord>> {
+  const employees = await fetchPayrollSummary(user, supabaseClient);
   if (employees.length === 0) return {};
 
   const employeeCodes = employees.map((employee) => employee.employeeCode);
   const cutoffMonth = getPreviousYearMonth(selectedMonth);
   const windowStartMonth = addYearMonths(cutoffMonth, -11);
-  const supabase = await createServerSupabaseClient();
+  const supabase = supabaseClient ?? await createServerSupabaseClient();
 
   const [seedResult, monthlyResult] = await Promise.all([
     supabase
@@ -1398,18 +1401,18 @@ function getCalendarDaysForYearMonth(yearMonth: string) {
   return new Date(year, month, 0).getDate();
 }
 
-export async function fetchCommissionAverageAuditRecords(user: AppShellUser, selectedMonth: string): Promise<CommissionAverageAuditRecord[]> {
-  const employees = await fetchPayrollSummary(user);
+export async function fetchCommissionAverageAuditRecords(user: AppShellUser, selectedMonth: string, supabaseClient?: QuerySupabaseClient): Promise<CommissionAverageAuditRecord[]> {
+  const employees = await fetchPayrollSummary(user, supabaseClient);
   if (employees.length === 0) return [];
 
   const employeeCodes = employees.map((employee) => employee.employeeCode);
   const cutoffMonth = getPreviousYearMonth(selectedMonth);
   const windowStartMonth = addYearMonths(cutoffMonth, -11);
-  const supabase = await createServerSupabaseClient();
+  const supabase = supabaseClient ?? await createServerSupabaseClient();
 
   const [rolling, attendance, seedResult, monthlyResult, mappingResult] = await Promise.all([
-    fetchRollingCommissionAverages(user, selectedMonth),
-    fetchPayrollAttendanceRecords(user, selectedMonth),
+    fetchRollingCommissionAverages(user, selectedMonth, supabase),
+    fetchPayrollAttendanceRecords(user, selectedMonth, supabase),
     supabase
       .from('employee_commission_average_seed')
       .select('employee_code, total_commission, eligible_days, source_file, source_row')
@@ -1526,13 +1529,13 @@ export async function fetchCommissionAverageAuditRecords(user: AppShellUser, sel
   });
 }
 
-export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMonth: string): Promise<Record<string, PayrollAttendanceRecord>> {
-  const employees = (await fetchPayrollSummary(user)).map((employee) => employee.employeeCode);
+export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMonth: string, supabaseClient?: QuerySupabaseClient): Promise<Record<string, PayrollAttendanceRecord>> {
+  const employees = (await fetchPayrollSummary(user, supabaseClient)).map((employee) => employee.employeeCode);
   if (employees.length === 0) {
     return {};
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = supabaseClient ?? await createServerSupabaseClient();
   const { data, error } = await supabase
     .from('payroll_attendance_records')
     .select('employee_code, year_month, calendar_days, worked_days, off_days, statutory_holiday_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, attendance_deduction_amount, remaining_deduction_amount, prorated_package_commission, actual_commission_amount, effective_commission_amount, package_no_pay_handling, package_no_pay_selection_required')
