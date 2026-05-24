@@ -12,7 +12,7 @@ import type { PayrollEmployeeSummary, CommissionRateTier, MonthlyCommissionRecor
 import { calculateStreetPromoterCommission, calculateTelesalesCommission, calculateTotalCommission } from '@/src/lib/employees/commission';
 import { calculateCustomCommission, normalizeCustomCommissionName } from '@/src/lib/employees/custom-commission';
 import { calculateCommissionRules } from '@/src/lib/employees/commission-rules';
-import { calculatePayrollBonus, calculateShopBonus, calculateShopTargetPercent, type PayrollBonusConfigCatalog } from '@/src/lib/employees/payroll-bonus';
+import { calculatePayrollBonus, calculateShopBonus, calculateShopTargetPercent, createLegacyPayrollBonusConfigCatalog, type PayrollBonusConfigCatalog } from '@/src/lib/employees/payroll-bonus';
 import { getMonthEndDate, isMpfContributionEligible } from '@/src/lib/employees/employment';
 import { fetchLatestPayrollEmployeeDefaults, saveMonthlyCommission, savePayrollReviewAnswers, updatePayrollImportEmployeeCode } from '@/app/app/payroll/actions';
 
@@ -1273,7 +1273,7 @@ function getPayrollBonusDisplayName(
   return labels.bonus1;
 }
 
-export default function Payroll({ employees, commissionTiers, savedRecords, attendanceRecords, defaultPackageNoPayHandling, commissionAvg, selectedMonth: initialMonth, payrollBonusConfig, initialPayrollReviewAnswers = {}, rollingCommissionAverages = {} }: PayrollProps) {
+export default function Payroll({ employees = [], commissionTiers = [], savedRecords = [], attendanceRecords = {}, defaultPackageNoPayHandling, commissionAvg = {}, selectedMonth: initialMonth, payrollBonusConfig = createLegacyPayrollBonusConfigCatalog(), initialPayrollReviewAnswers = {}, rollingCommissionAverages = {} }: PayrollProps) {
   const { lang } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
