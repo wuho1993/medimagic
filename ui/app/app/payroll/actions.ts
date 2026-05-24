@@ -18,6 +18,12 @@ function isMissingColumnError(message: string | null | undefined) {
   );
 }
 
+function getCalendarDaysForYearMonth(yearMonth: string) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) return 30;
+  return new Date(year, month, 0).getDate();
+}
+
 type CommissionEntry = {
   employeeCode: string;
   mpfEeApplied: boolean;
@@ -79,6 +85,57 @@ export type PayrollReviewEntry = {
   action?: string | null;
   detail?: Record<string, unknown>;
 };
+
+export async function updatePayrollImportEmployeeCode(currentEmployeeCode: string, newEmployeeCode: string): Promise<{ success: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || !canAccessRoute(user.role, 'payroll')) {
+    return { error: 'Unauthorized' };
+  }
+
+  const currentCode = currentEmployeeCode.trim();
+  const targetCode = newEmployeeCode.trim().toUpperCase();
+  if (!currentCode || !targetCode) {
+    return { error: 'Missing employee code' };
+  }
+  if (currentCode.toUpperCase() === targetCode) {
+    return { success: true };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data: currentEmployee, error: currentError } = await supabase
+    .from('employees')
+    .select('employee_code')
+    .eq('employee_code', currentCode)
+    .maybeSingle();
+  if (currentError) {
+    return { error: currentError.message };
+  }
+  if (!currentEmployee) {
+    return { error: `Employee ${currentCode} not found` };
+  }
+
+  const { data: existingEmployee, error: existingError } = await supabase
+    .from('employees')
+    .select('employee_code')
+    .ilike('employee_code', targetCode)
+    .maybeSingle();
+  if (existingError) {
+    return { error: existingError.message };
+  }
+  if (existingEmployee) {
+    return { error: `Employee code ${targetCode} already exists` };
+  }
+
+  const { error } = await supabase
+    .from('employees')
+    .update({ employee_code: targetCode, updated_at: new Date().toISOString() })
+    .eq('employee_code', currentCode);
+
+  if (error) {
+    return { error: error.message };
+  }
+  return { success: true };
+}
 
 
 export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): Promise<{ success: true; employee: LatestPayrollEmployeeDefaults } | { error: string }> {
@@ -230,6 +287,10 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
     return { error: 'Invalid year-month format' };
   }
 
+  if (yearMonth < '2026-04') {
+    return { error: '2026-04 之前屬於歷史糧期，已鎖定，不能用公式流程覆寫。' };
+  }
+
   const nonEmpty = entries.filter((e) => (
     e.mpfEeApplied ||
     e.mpfErApplied ||
@@ -376,6 +437,7 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
         employee_code: entry.employeeCode,
         year_month: yearMonth,
         average_commission_amount: entry.totalCommission > 0 ? entry.totalCommission : 0,
+        eligible_days: getCalendarDaysForYearMonth(yearMonth),
         source: 'payroll',
         updated_at: new Date().toISOString(),
       }));

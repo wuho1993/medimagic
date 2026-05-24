@@ -140,13 +140,26 @@ begin
         table_name
     loop
       if jsonb_array_length(v_snapshot.rows) > 0 then
-        execute format(
-          'insert into %I.%I select * from jsonb_populate_recordset(null::%I.%I, $1)',
-          v_snapshot.schema_name,
-          v_snapshot.table_name,
-          v_snapshot.schema_name,
-          v_snapshot.table_name
-        ) using v_snapshot.rows;
+        if v_snapshot.table_name = 'branch_label_mappings' then
+          execute '
+            insert into public.branch_label_mappings
+            select r.*
+            from jsonb_populate_recordset(null::public.branch_label_mappings, $1) as r
+            where exists (
+              select 1
+              from public.branches b
+              where b.id = r.branch_id
+            )'
+          using v_snapshot.rows;
+        else
+          execute format(
+            'insert into %I.%I select * from jsonb_populate_recordset(null::%I.%I, $1)',
+            v_snapshot.schema_name,
+            v_snapshot.table_name,
+            v_snapshot.schema_name,
+            v_snapshot.table_name
+          ) using v_snapshot.rows;
+        end if;
       end if;
     end loop;
 

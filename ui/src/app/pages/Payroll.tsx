@@ -3,9 +3,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type KeyboardEvent, type WheelEvent } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { Calculator, ChevronDown, ChevronUp, CreditCard, Download, Save, TrendingUp, X } from 'lucide-react';
+import { Calculator, CalendarDays, ChevronDown, ChevronUp, CreditCard, Download, Search, TrendingUp, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import YearMonthPicker from '../components/YearMonthPicker';
 import { useLanguage } from '../i18n/LanguageContext';
 import type { PayrollEmployeeSummary, CommissionRateTier, MonthlyCommissionRecord, PackageNoPayHandling, PayrollAttendanceRecord, RollingCommissionAverageRecord } from '@/src/lib/employees/queries';
 import { calculateStreetPromoterCommission, calculateTelesalesCommission, calculateTotalCommission } from '@/src/lib/employees/commission';
@@ -13,7 +14,7 @@ import { calculateCustomCommission, normalizeCustomCommissionName } from '@/src/
 import { calculateCommissionRules } from '@/src/lib/employees/commission-rules';
 import { calculatePayrollBonus, calculateShopBonus, calculateShopTargetPercent, type PayrollBonusConfigCatalog } from '@/src/lib/employees/payroll-bonus';
 import { getMonthEndDate, isMpfContributionEligible } from '@/src/lib/employees/employment';
-import { fetchLatestPayrollEmployeeDefaults, saveMonthlyCommission, savePayrollReviewAnswers } from '@/app/app/payroll/actions';
+import { fetchLatestPayrollEmployeeDefaults, saveMonthlyCommission, savePayrollReviewAnswers, updatePayrollImportEmployeeCode } from '@/app/app/payroll/actions';
 
 type PayrollProps = {
   employees: PayrollEmployeeSummary[];
@@ -23,6 +24,7 @@ type PayrollProps = {
   defaultPackageNoPayHandling: PackageNoPayHandling;
   commissionAvg: Record<string, number>;
   selectedMonth: string;
+  attendanceMonth: string;
   payrollBonusConfig: PayrollBonusConfigCatalog;
   initialPayrollReviewAnswers?: Record<string, PayrollReviewReason>;
   rollingCommissionAverages?: Record<string, RollingCommissionAverageRecord>;
@@ -30,6 +32,7 @@ type PayrollProps = {
 
 type PayrollImportRow = {
   employeeCode: string;
+  employeeName?: string;
   redeem?: number;
   sales?: number;
   salesAmountTotal?: number;
@@ -37,9 +40,24 @@ type PayrollImportRow = {
   sgm?: number;
 };
 
+type PayrollImportType = 'all' | 'redeem' | 'sales' | 'job' | 'sgm';
+
+type PendingImportMapping = {
+  sourceCode: string;
+  selectedEmployeeCode: string;
+  skipped: boolean;
+  rememberedEmployeeCode: string | null;
+  matchedBy: 'code' | 'remembered' | 'name' | null;
+  matchedName: string | null;
+  linkedSourceCode: string | null;
+  row: PayrollImportRow;
+};
+
 const MPF_RATE = 0.05;
 const MPF_CAP = 1500; // Both employee and employer cap at HK$1,500
 const LATE_ATTENDANCE_BONUS_THRESHOLD_MINUTES = 30;
+const ALL_FILTER_VALUE = '__all__';
+const PAYROLL_IMPORT_MAPPING_STORAGE_KEY = 'medi_magic_payroll_import_code_mappings';
 
 function calcMpf(relevantIncome: number) {
   const contribution = Math.min(relevantIncome * MPF_RATE, MPF_CAP);
@@ -54,6 +72,16 @@ function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function payrollStatusLabel(status: PayrollEmployeeSummary['employmentStatus']) {
+  const map: Record<PayrollEmployeeSummary['employmentStatus'], string> = {
+    active: '在職',
+    on_leave: '休假',
+    resigned: '已離職',
+    terminated: '已終止',
+  };
+  return map[status] ?? status;
+}
+
 function formatEnglishPayslipMonth(yearMonth: string) {
   const [year, month] = yearMonth.split('-').map(Number);
   if (!year || !month) {
@@ -61,6 +89,32 @@ function formatEnglishPayslipMonth(yearMonth: string) {
   }
 
   return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(year, month - 1, 1));
+}
+
+function normalizeImportCode(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function normalizeImportName(value: string | null | undefined) {
+  return (value ?? '')
+    .toLowerCase()
+    .replace(/[\s·・,，.。()（）/\\_-]+/g, '')
+    .trim();
+}
+
+function loadPayrollImportMappings() {
+  if (typeof window === 'undefined') return {} as Record<string, string>;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(PAYROLL_IMPORT_MAPPING_STORAGE_KEY) ?? '{}') as Record<string, string>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {} as Record<string, string>;
+  }
+}
+
+function savePayrollImportMappings(mappings: Record<string, string>) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(PAYROLL_IMPORT_MAPPING_STORAGE_KEY, JSON.stringify(mappings));
 }
 
 function formatEmpfDate(value: string | Date | null | undefined) {
@@ -384,11 +438,14 @@ type PayrollReviewIssue = {
 
 const translations = {
   'zh-TW': {
-    title: '薪資月結總覽',
-    subtitle: '以現有員工薪金設定計算每月出糧概覽。',
+    title: '薪酬管理',
+    subtitle: '以現有員工薪酬設定計算每月出糧概覽。',
     cols: { code: '編號', name: '姓名', branch: '分店', base: '底薪', allowance: '津貼', bonus: '獎金', commission: '佣金', mpfEe: 'MPF(僱員)', mpfEr: 'MPF(僱主)', net: '實發', payDay: '出糧日' },
     totals: '合計',
+    employees: '員工數',
+    branches: '分店數',
     noData: '暫無薪資資料。',
+    autoSave: '自動儲存',
     save: '儲存佣金',
     saving: '儲存中...',
     saved: '已儲存',
@@ -525,11 +582,14 @@ const translations = {
     },
   },
   'zh-CN': {
-    title: '薪资月结总览',
-    subtitle: '以现有员工薪金设定计算每月发薪概览。',
+    title: '薪酬管理',
+    subtitle: '以现有员工薪酬设定计算每月发薪概览。',
     cols: { code: '编号', name: '姓名', branch: '分店', base: '底薪', allowance: '津贴', bonus: '奖金', commission: '佣金', mpfEe: 'MPF(雇员)', mpfEr: 'MPF(雇主)', net: '实发', payDay: '发薪日' },
     totals: '合计',
+    employees: '员工数',
+    branches: '分店数',
     noData: '暂无薪资资料。',
+    autoSave: '自动保存',
     save: '保存佣金',
     saving: '保存中...',
     saved: '已保存',
@@ -666,11 +726,14 @@ const translations = {
     },
   },
   en: {
-    title: 'Monthly Payroll Overview',
+    title: 'Payroll Management',
     subtitle: 'Projected payroll based on current salary settings.',
     cols: { code: 'Code', name: 'Name', branch: 'Branch', base: 'Base', allowance: 'Allowance', bonus: 'Bonus', commission: 'Commission', mpfEe: 'MPF (EE)', mpfEr: 'MPF (ER)', net: 'Net Pay', payDay: 'Pay Day' },
     totals: 'Totals',
+    employees: 'Employees',
+    branches: 'Branches',
     noData: 'No payroll data yet.',
+    autoSave: 'Auto Save',
     save: 'Save Commission',
     saving: 'Saving...',
     saved: 'Saved',
@@ -1027,20 +1090,25 @@ function buildInitialWorkUnits(
 ): Record<string, EmployeeWorkUnits> {
   const init: Record<string, EmployeeWorkUnits> = {};
   for (const record of savedRecords) {
+    const attendanceRecord = attendanceRecords[record.employeeCode];
     init[record.employeeCode] = {
-      workedDays: attendanceRecords[record.employeeCode]?.workedDays > 0
-        ? String(attendanceRecords[record.employeeCode].workedDays)
+      workedDays: attendanceRecord?.workedDays > 0
+        ? String(attendanceRecord.workedDays)
         : record.workedDays > 0
           ? String(record.workedDays)
           : '',
-      workedHours: record.workedHours > 0 ? String(record.workedHours) : '',
+      workedHours: attendanceRecord?.workedHours > 0
+        ? String(attendanceRecord.workedHours)
+        : record.workedHours > 0
+          ? String(record.workedHours)
+          : '',
     };
   }
 
   for (const [employeeCode, attendanceRecord] of Object.entries(attendanceRecords)) {
     init[employeeCode] = {
       workedDays: attendanceRecord.workedDays > 0 ? String(attendanceRecord.workedDays) : (init[employeeCode]?.workedDays ?? ''),
-      workedHours: init[employeeCode]?.workedHours ?? '',
+      workedHours: attendanceRecord.workedHours > 0 ? String(attendanceRecord.workedHours) : (init[employeeCode]?.workedHours ?? ''),
     };
   }
 
@@ -1211,14 +1279,23 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const fmtPayslipAmount = (v: number) => new Intl.NumberFormat('en-HK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const salaryMonth = selectedMonth;
+  const isHistoricalPayrollMonth = salaryMonth < '2026-04';
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [mpfExportStatus, setMpfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
-  const [importType, setImportType] = useState<'all' | 'redeem' | 'sales' | 'job' | 'sgm'>('all');
+  const [importType, setImportType] = useState<PayrollImportType | ''>('');
   const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'error'>('idle');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importKey, setImportKey] = useState(0);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [manualImportText, setManualImportText] = useState('');
+  const [pendingImportMappings, setPendingImportMappings] = useState<PendingImportMapping[]>([]);
+  const [employeeSearchDrafts, setEmployeeSearchDrafts] = useState<Record<string, string>>({});
+  const [employeeSearchQueries, setEmployeeSearchQueries] = useState<Record<string, string>>({});
+  const [importMappingSectionsOpen, setImportMappingSectionsOpen] = useState({ matched: false, unmatched: true, skipped: false });
+  const [importMonth, setImportMonth] = useState(selectedMonth);
   const [isAiChatbotOpen, setIsAiChatbotOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string }>>([
     { role: 'ai', text: lang === 'zh-CN' ? '你好！我是 AI 薪资助手。请选择导入类型并上传文件，我会自动为您提取对应的数据。' : (lang === 'en' ? 'Hello! I am your AI Payroll Assistant. Select the import type and upload your file to begin.' : '你好！我是 AI 薪資助手。請選擇匯入類別並上載檔案，我會為您自動分析及提取數據。') }
@@ -1230,6 +1307,42 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [chatMessages, isAiChatbotOpen]);
+
+  useEffect(() => {
+    if (!isAiChatbotOpen) return;
+    askForMissingImportInputs();
+  }, [importMonth, importType, isAiChatbotOpen]);
+
+  const employeeCodeByNormalizedCode = useMemo(() => new Map(employees.map((employee) => [normalizeImportCode(employee.employeeCode), employee.employeeCode])), [employees]);
+  const employeeCodeByNormalizedName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const employee of employees) {
+      for (const rawName of [employee.alias, employee.nameZh, employee.nameEn]) {
+        const normalizedName = normalizeImportName(rawName);
+        if (normalizedName && !map.has(normalizedName)) {
+          map.set(normalizedName, employee.employeeCode);
+        }
+      }
+    }
+    return map;
+  }, [employees]);
+  const findImportMappingLinkedSource = (targetEmployeeCode: string, sourceCode: string) => {
+    const normalizedTarget = normalizeImportCode(targetEmployeeCode);
+    const normalizedSource = normalizeImportCode(sourceCode);
+    const storedMappings = loadPayrollImportMappings();
+    const linked = Object.entries(storedMappings).find(([storedSource, storedTarget]) => (
+      normalizeImportCode(storedTarget) === normalizedTarget && normalizeImportCode(storedSource) !== normalizedSource
+    ));
+    return linked?.[0] ?? null;
+  };
+  const employeeOptions = useMemo(() => employees.map((employee) => ({
+    code: employee.employeeCode,
+    label: `${employee.employeeCode} · ${employee.alias || employee.nameZh}${employee.branchName ? ` · ${employee.branchName}` : ''}`,
+  })), [employees]);
+
+  useEffect(() => {
+    setPendingImportMappings([]);
+  }, [salaryMonth]);
   const [isPayslipModalOpen, setIsPayslipModalOpen] = useState(false);
   const [selectedPayslipCodes, setSelectedPayslipCodes] = useState<string[]>([]);
   const [activePayslipPdfEntry, setActivePayslipPdfEntry] = useState<PayslipPdfEntry | null>(null);
@@ -1238,8 +1351,8 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const [payrollReviewAnswers, setPayrollReviewAnswers] = useState<Record<string, PayrollReviewReason>>(initialPayrollReviewAnswers);
   const [editVersion, setEditVersion] = useState(0);
   const payrollReferenceDate = useMemo(
-    () => getMonthEndDate(selectedMonth) ?? new Date(),
-    [selectedMonth],
+    () => getMonthEndDate(salaryMonth) ?? new Date(),
+    [salaryMonth],
   );
   const latestEditVersionRef = useRef(0);
   const saveStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1254,6 +1367,11 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   const [liveEmployeeDefaults, setLiveEmployeeDefaults] = useState<Record<string, PayrollEmployeeSummary>>(() => Object.fromEntries(employees.map((employee) => [employee.employeeCode, employee])));
   const [resyncingCodes, setResyncingCodes] = useState<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [payrollSearch, setPayrollSearch] = useState('');
+  const [companyFilter, setCompanyFilter] = useState(ALL_FILTER_VALUE);
+  const [branchFilter, setBranchFilter] = useState(ALL_FILTER_VALUE);
+  const [typeFilter, setTypeFilter] = useState(ALL_FILTER_VALUE);
+  const [statusFilter, setStatusFilter] = useState(ALL_FILTER_VALUE);
   const savedRecordByCode = useMemo(
     () => new Map(savedRecords.map((record) => [record.employeeCode, record])),
     [savedRecords],
@@ -1262,6 +1380,10 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   useEffect(() => {
     setSelectedMonth(initialMonth);
   }, [initialMonth]);
+
+  useEffect(() => {
+    setImportMonth(selectedMonth);
+  }, [selectedMonth]);
 
   useEffect(() => {
     setEmpVolumes(buildInitialVolumes(savedRecords));
@@ -1379,16 +1501,134 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     });
   };
 
+  const setPendingImportMappingEmployee = (sourceCode: string, employeeCode: string) => {
+    setPendingImportMappings((current) => current.map((mapping) => (
+      mapping.sourceCode === sourceCode
+        ? { ...mapping, selectedEmployeeCode: employeeCode, skipped: false, linkedSourceCode: employeeCode ? findImportMappingLinkedSource(employeeCode, sourceCode) : null }
+        : mapping
+    )));
+  };
+
+  const togglePendingImportMappingSkip = (sourceCode: string) => {
+    setPendingImportMappings((current) => current.map((mapping) => (
+      mapping.sourceCode === sourceCode
+        ? { ...mapping, skipped: !mapping.skipped, selectedEmployeeCode: mapping.skipped ? mapping.selectedEmployeeCode : '', linkedSourceCode: null }
+        : mapping
+    )));
+  };
+
+  const setEmployeeSearchDraft = (sourceCode: string, value: string) => {
+    setEmployeeSearchDrafts((current) => ({ ...current, [sourceCode]: value }));
+  };
+
+  const applyEmployeeSearch = (sourceCode: string) => {
+    setEmployeeSearchQueries((current) => ({
+      ...current,
+      [sourceCode]: (employeeSearchDrafts[sourceCode] ?? '').trim(),
+    }));
+  };
+
+  const applyResolvedImportMappings = async (mappings: PendingImportMapping[]) => {
+    const conflictMapping = mappings.find((mapping) => mapping.selectedEmployeeCode && mapping.linkedSourceCode && normalizeImportCode(mapping.linkedSourceCode) !== normalizeImportCode(mapping.sourceCode));
+    if (conflictMapping) {
+      const message = lang === 'en'
+        ? `This employee is already linked to import code ${conflictMapping.linkedSourceCode}. Do you want to overwrite it with ${conflictMapping.sourceCode}?`
+        : `呢位員工已經連結咗匯入編號 ${conflictMapping.linkedSourceCode}。要唔要改做連結 ${conflictMapping.sourceCode}？`;
+      if (!window.confirm(message)) {
+        return;
+      }
+    }
+
+    const rowsToApply = mappings
+      .filter((mapping) => mapping.selectedEmployeeCode && !mapping.skipped)
+      .map((mapping) => ({ ...mapping.row, employeeCode: mapping.selectedEmployeeCode }));
+
+    if (rowsToApply.length === 0) {
+      setImportStatus('error');
+      setImportMessage('請先為要匯入嘅員工選擇對應，或者全部略過。');
+      return;
+    }
+
+    const storedMappings = loadPayrollImportMappings();
+    for (const mapping of mappings) {
+      if (mapping.selectedEmployeeCode && !mapping.skipped) {
+        storedMappings[normalizeImportCode(mapping.sourceCode)] = mapping.selectedEmployeeCode;
+      }
+    }
+    savePayrollImportMappings(storedMappings);
+    updateImportedVolumes(rowsToApply);
+    markDirty();
+
+    const dbUpdateTargets = mappings.filter((mapping) => (
+      mapping.selectedEmployeeCode && !mapping.skipped && normalizeImportCode(mapping.selectedEmployeeCode) !== normalizeImportCode(mapping.sourceCode)
+    ));
+    const updatedDbCodes: string[] = [];
+    for (const mapping of dbUpdateTargets) {
+      const shouldUpdate = window.confirm(
+        lang === 'en'
+          ? `Do you also want to update employee ${mapping.selectedEmployeeCode} in the database to code ${normalizeImportCode(mapping.sourceCode)}? This will be skipped if the code already exists.`
+          : `要唔要同時將資料庫員工 ${mapping.selectedEmployeeCode} 嘅員工編號改為 ${normalizeImportCode(mapping.sourceCode)}？如果目標編號已存在，系統會拒絕。`,
+      );
+      if (!shouldUpdate) continue;
+      const result = await updatePayrollImportEmployeeCode(mapping.selectedEmployeeCode, mapping.sourceCode);
+      if ('error' in result) {
+        window.alert(`未能更新員工編號 ${mapping.selectedEmployeeCode} → ${normalizeImportCode(mapping.sourceCode)}：${result.error}`);
+        continue;
+      }
+      updatedDbCodes.push(`${mapping.selectedEmployeeCode} → ${normalizeImportCode(mapping.sourceCode)}`);
+    }
+
+    setPendingImportMappings([]);
+    setImportStatus('success');
+    const successMsg = lang === 'zh-CN'
+      ? `已确认并导入 ${rowsToApply.length} 位员工的数据。下次同一编号会预先选择，但仍会再确认。`
+      : lang === 'en'
+        ? `Confirmed and imported ${rowsToApply.length} employee rows. The same code will be preselected next time, but you will still be asked to confirm.`
+        : `已確認並匯入 ${rowsToApply.length} 位員工的數據。下次同一編號會預先選擇，但仍會再確認。`;
+    const finalMsg = updatedDbCodes.length > 0 ? `${successMsg}\n已更新資料庫員工編號：${updatedDbCodes.join('、')}` : successMsg;
+    setImportMessage(finalMsg);
+    setChatMessages((prev) => [...prev, { role: 'ai', text: finalMsg }]);
+    setPendingImportFile(null);
+    setImportKey((prev) => prev + 1);
+  };
+
   const handlePayrollImport = async (file: File | null) => {
+    if (importStatus === 'importing') {
+      return;
+    }
+
+    if (importMonth && importMonth < '2026-04') {
+      const message = '2026-04 之前屬於歷史糧期，已鎖定，不能用 AI 匯入覆寫。';
+      setImportStatus('error');
+      setImportMessage(message);
+      setChatMessages((prev) => [...prev, { role: 'ai', text: message }]);
+      return;
+    }
+
     if (!file) {
+      return;
+    }
+
+    if (askForMissingImportInputs()) {
+      return;
+    }
+
+    if (isPending) {
+      const message = lang === 'zh-CN' ? '正在切换月份，请稍后再匯入。' : lang === 'en' ? 'Changing month. Please import after the month finishes loading.' : '正在切換月份，請等載入完成後再匯入。';
+      setImportStatus('error');
+      setImportMessage(message);
+      setChatMessages((prev) => [...prev, { role: 'ai', text: message }]);
       return;
     }
 
     setImportStatus('importing');
     setImportMessage(null);
+    setEmployeeSearchDrafts({});
+    setEmployeeSearchQueries({});
+    setImportMappingSectionsOpen({ matched: false, unmatched: true, skipped: false });
     setChatMessages((prev) => [
       ...prev,
-      { role: 'user', text: lang === 'zh-CN' ? `已上传文件：${file.name} (类型: ${importType})` : (lang === 'en' ? `Uploaded file: ${file.name} (Type: ${importType})` : `已上載檔案：${file.name} (類別: ${importType})`) }
+      { role: 'user', text: lang === 'zh-CN' ? `已上传文件：${file.name} (月份: ${importMonth}, 类型: ${importType})` : (lang === 'en' ? `Uploaded file: ${file.name} (Month: ${importMonth}, Type: ${importType})` : `已上載檔案：${file.name} (月份: ${importMonth}, 類別: ${importType})`) }
     ]);
 
     try {
@@ -1457,7 +1697,7 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
       const fieldHint = importType === 'all'
         ? 'employee code plus any redeem, sales, salesAmountTotal, job, and sgm values available'
         : `employee code plus the ${importType} value`;
-      const tablePreview = rows.slice(0, 20).map((row) => row.map((cell) => cell || '').join(' | ')).join('\n');
+      const tablePreview = rows.map((row, index) => `${index + 1}. ${row.map((cell) => cell || '').join(' | ')}`).join('\n');
       const header = rows[0]?.map((cell) => cell || '').join(' | ') ?? '';
       const prompt = `You are a payroll import assistant. Extract ${fieldHint} from the uploaded payroll table.
 Return only valid JSON. The output must be a JSON array of objects. Each object must include a string field named "employeeCode" and numeric fields where applicable. Do not include any explanation or extra text.
@@ -1471,34 +1711,28 @@ ${header}
 Table rows:
 ${tablePreview}`;
 
-      // 3. Call Gemini
-      let apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
-      if (!apiKey || apiKey === 'AIzaSyD5iJ0f4FoGt0YSaYUsl__07KPDODj8nLE') {
-        apiKey = 'AIzaSyAO95czrm4aNoJmalE0Ia-md15UyWKxNbA';
-      }
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-      const aiResponse = await fetch(endpoint, {
+      // 3. Call server-side AI proxy
+      const aiResponse = await fetch('/medimagic/api/payroll/ai-import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 800 },
-        }),
+        body: JSON.stringify({ prompt: `Import month: ${importMonth}\nImport type: ${importType}\n${prompt}` }),
       });
 
       if (!aiResponse.ok) {
-        const errorText = await aiResponse.text();
-        throw new Error(`Google API request failed (${aiResponse.status}): ${errorText}`);
+        const errorPayload = await aiResponse.json().catch(() => null) as { error?: string } | null;
+        throw new Error(errorPayload?.error ?? `AI API request failed (${aiResponse.status})`);
       }
 
-      const aiData = await aiResponse.json();
-      let aiText = '';
-      if (aiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        aiText = aiData.candidates[0].content.parts[0].text;
+      const aiData = await aiResponse.json().catch(() => null) as { text?: string; error?: string } | null;
+      if (!aiData) {
+        throw new Error('AI proxy returned invalid JSON.');
       }
+      if (aiData.error) {
+        throw new Error(aiData.error);
+      }
+      const aiText = aiData.text ?? '';
 
       const jsonMatch = aiText.match(/\[\s*[\s\S]*\]/m) || aiText.match(/\{[\s\S]*\}/m);
       if (!jsonMatch) {
@@ -1516,6 +1750,7 @@ ${tablePreview}`;
         const raw = item as Record<string, unknown>;
         const employeeCode = String(raw.employeeCode ?? raw.employee_code ?? '').trim();
         if (!employeeCode) continue;
+        const employeeName = String(raw.employeeName ?? raw.employee_name ?? raw.name ?? raw.alias ?? '').trim();
 
         const parseNumber = (field: string) => {
           const rawValue = raw[field];
@@ -1526,6 +1761,7 @@ ${tablePreview}`;
 
         parsedRows.push({
           employeeCode,
+          employeeName: employeeName || undefined,
           redeem: parseNumber('redeem'),
           sales: parseNumber('sales'),
           salesAmountTotal: parseNumber('salesAmountTotal'),
@@ -1534,10 +1770,51 @@ ${tablePreview}`;
         });
       }
 
-      updateImportedVolumes(parsedRows);
-      markDirty();
-      setImportStatus('success');
-      const successMsg = lang === 'zh-CN' ? `成功提取并导入了 ${parsedRows.length} 位员工的数据！` : (lang === 'en' ? `Successfully extracted and imported data for ${parsedRows.length} employees!` : `成功提取並匯入了 ${parsedRows.length} 位員工的數據！`);
+      const storedMappings = loadPayrollImportMappings();
+      const mappingsToConfirm: PendingImportMapping[] = [];
+
+      for (const row of parsedRows) {
+        const normalizedCode = normalizeImportCode(row.employeeCode);
+        const matchedEmployeeCode = employeeCodeByNormalizedCode.get(normalizedCode);
+        const normalizedName = normalizeImportName(row.employeeName);
+        const matchedEmployeeByName = normalizedName ? employeeCodeByNormalizedName.get(normalizedName) ?? null : null;
+        const rememberedEmployeeCode = storedMappings[normalizedCode] ?? null;
+        const rememberedValidCode = rememberedEmployeeCode && employeeCodeByNormalizedCode.has(normalizeImportCode(rememberedEmployeeCode))
+          ? rememberedEmployeeCode
+          : null;
+        const selectedEmployeeCode = matchedEmployeeCode || rememberedValidCode || matchedEmployeeByName || '';
+        mappingsToConfirm.push({
+          sourceCode: row.employeeCode,
+          selectedEmployeeCode,
+          skipped: false,
+          rememberedEmployeeCode: rememberedValidCode ?? rememberedEmployeeCode,
+          matchedBy: matchedEmployeeCode ? 'code' : rememberedValidCode ? 'remembered' : matchedEmployeeByName ? 'name' : null,
+          matchedName: row.employeeName ?? null,
+          linkedSourceCode: selectedEmployeeCode ? findImportMappingLinkedSource(selectedEmployeeCode, row.employeeCode) : null,
+          row,
+        });
+      }
+
+      if (mappingsToConfirm.length > 0) {
+        setPendingImportMappings(mappingsToConfirm);
+        setPendingImportFile(null);
+        setImportStatus('idle');
+        const matchedCount = mappingsToConfirm.filter((mapping) => Boolean(mapping.selectedEmployeeCode)).length;
+        const unmatchedCount = mappingsToConfirm.length - matchedCount;
+        const mappingMsg = lang === 'zh-CN'
+          ? `已解析 ${mappingsToConfirm.length} 位员工。${matchedCount} 位已识别，${unmatchedCount} 位未匹配，请先确认全部对应后再匯入。`
+          : lang === 'en'
+            ? `Parsed ${mappingsToConfirm.length} employee rows. ${matchedCount} are matched and ${unmatchedCount} are still unknown. Please confirm all mappings before import.`
+            : `已解析 ${mappingsToConfirm.length} 位員工。${matchedCount} 位已識別，${unmatchedCount} 位未匹配，請先確認全部對應後再匯入。`;
+        setImportMessage(mappingMsg);
+        setChatMessages((prev) => [...prev, { role: 'ai', text: mappingMsg }]);
+        setImportKey((prev) => prev + 1);
+        return;
+      }
+
+      setImportStatus('error');
+      setPendingImportFile(null);
+      const successMsg = lang === 'zh-CN' ? '未解析到任何员工资料。' : (lang === 'en' ? 'No employee rows were parsed.' : '未解析到任何員工資料。');
       setImportMessage(successMsg);
       setChatMessages((prev) => [...prev, { role: 'ai', text: successMsg }]);
       setImportKey((prev) => prev + 1);
@@ -1548,6 +1825,22 @@ ${tablePreview}`;
       setChatMessages((prev) => [...prev, { role: 'ai', text: lang === 'zh-CN' ? `抱歉，导入过程中发生错误：${errorMsg}` : (lang === 'en' ? `Sorry, an error occurred during import: ${errorMsg}` : `抱歉，匯入過程中發生錯誤：${errorMsg}`) }]);
       setImportKey((prev) => prev + 1);
     }
+  };
+
+  const handleManualPayrollImport = () => {
+    const trimmed = manualImportText.trim();
+    if (!trimmed) {
+      setImportStatus('error');
+      setImportMessage(lang === 'zh-CN' ? '请先输入或贴上要分析的内容。' : lang === 'en' ? 'Enter or paste payroll data first.' : '請先輸入或貼上要分析的內容。');
+      return;
+    }
+
+    if (askForMissingImportInputs()) {
+      return;
+    }
+
+    const file = new File([trimmed], 'manual-payroll-input.txt', { type: 'text/plain' });
+    void handlePayrollImport(file);
   };
 
   const getImportStatusText = () => {
@@ -1673,6 +1966,70 @@ ${tablePreview}`;
     });
   };
 
+  const handleImportMonthChange = (value: string) => {
+    setImportMonth(value);
+    handleMonthChange(value);
+  };
+
+  const getMissingImportQuestion = () => {
+    const missingMonth = !importMonth;
+    const missingType = !importType;
+    if (!missingMonth && !missingType) return null;
+
+    if (lang === 'zh-CN') {
+      if (missingMonth && missingType) return '请先告诉我这份文件要导入哪个月份，以及属于哪个类别？';
+      if (missingMonth) return '请先告诉我这份文件要导入哪个月份？';
+      return '请先告诉我这份文件属于哪个类别？例如 Sales、Redeem、Job 或 SGM。';
+    }
+
+    if (lang === 'en') {
+      if (missingMonth && missingType) return 'Which month and import type should I use for this file?';
+      if (missingMonth) return 'Which month should I import this file into?';
+      return 'Which import type is this file for? For example Sales, Redeem, Job, or SGM.';
+    }
+
+    if (missingMonth && missingType) return '請先話我知呢份檔案要匯入邊個月份，同埋係邊一個類別？';
+    if (missingMonth) return '請先話我知呢份檔案要匯入邊個月份？';
+    return '請先話我知呢份檔案係邊一個類別？例如 Sales、Redeem、Job 或 SGM。';
+  };
+
+  const askForMissingImportInputs = () => {
+    const question = getMissingImportQuestion();
+    if (!question) return false;
+    setImportStatus('idle');
+    setImportMessage(question);
+    setChatMessages((prev) => (prev.at(-1)?.text === question ? prev : [...prev, { role: 'ai', text: question }]));
+    return true;
+  };
+
+  const stagePayrollImportFile = (file: File | null) => {
+    if (!file) return;
+
+    setPendingImportFile(file);
+    setImportStatus('idle');
+    const message = lang === 'zh-CN'
+      ? `已选择文件：${file.name}。请确认月份和类别，然后按「确认分析文件」。`
+      : lang === 'en'
+        ? `Selected file: ${file.name}. Confirm the month and type, then click "Confirm Analyze File".`
+        : `已選擇檔案：${file.name}。請確認月份同類別，然後撳「確認分析檔案」。`;
+    setImportMessage(message);
+    setChatMessages((prev) => [...prev, { role: 'user', text: lang === 'zh-CN' ? `已选择文件：${file.name}` : lang === 'en' ? `Selected file: ${file.name}` : `已選擇檔案：${file.name}` }, { role: 'ai', text: message }]);
+    askForMissingImportInputs();
+  };
+
+  const confirmPendingPayrollImportFile = () => {
+    if (!pendingImportFile) {
+      const message = lang === 'zh-CN' ? '请先选择或拖拽文件。' : lang === 'en' ? 'Choose or drag a file first.' : '請先選擇或拖拽檔案。';
+      setImportMessage(message);
+      setChatMessages((prev) => [...prev, { role: 'ai', text: message }]);
+      return;
+    }
+
+    void handlePayrollImport(pendingImportFile);
+  };
+
+  const displayedMonth = salaryMonth;
+
   const openAverageWagesPage = () => {
     window.location.assign(`/medimagic/app/payroll/average-wages?month=${encodeURIComponent(selectedMonth)}`);
   };
@@ -1690,10 +2047,13 @@ ${tablePreview}`;
     const isDailyEmployee = emp.salaryType === 'daily';
     const isHourlyEmployee = emp.salaryType === 'hourly';
     const attendanceDrivenWorkedDays = isDailyEmployee && Boolean(attendanceRecord);
+    const attendanceDrivenWorkedHours = isHourlyEmployee && (attendanceRecord?.workedHours ?? 0) > 0;
     const workedDays = attendanceDrivenWorkedDays
       ? (attendanceRecord?.workedDays ?? 0)
       : Number(unitInput.workedDays) || 0;
-    const workedHours = Number(unitInput.workedHours) || 0;
+    const workedHours = attendanceDrivenWorkedHours
+      ? (attendanceRecord?.workedHours ?? 0)
+      : Number(unitInput.workedHours) || 0;
     const hasWorkedDays = attendanceDrivenWorkedDays || unitInput.workedDays !== '';
     const hasWorkedHours = unitInput.workedHours !== '';
     const attendanceNoPayDays = getAttendanceNoPayDays(attendanceRecord);
@@ -1737,7 +2097,7 @@ ${tablePreview}`;
     const bookingBonus = scaledBasisCompensation.bookingBonus;
     const payrollCalendarDays = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0
       ? attendanceRecord.calendarDays
-      : getCalendarDaysForMonth(selectedMonth);
+      : getCalendarDaysForMonth(salaryMonth);
     const fixedDailyWage = payrollCalendarDays > 0
       ? roundMoney((calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + briefingBonus + attendanceBonus + bookingBonus) / payrollCalendarDays)
       : 0;
@@ -1859,6 +2219,7 @@ ${tablePreview}`;
       hasWorkedDays,
       hasWorkedHours,
       attendanceDrivenWorkedDays,
+      attendanceDrivenWorkedHours,
       hasLateDays,
       lateDays: attendanceRecord?.lateDays ?? 0,
       attendanceNoPayDays,
@@ -1933,7 +2294,33 @@ ${tablePreview}`;
     };
   });
 
-  const totals = rows.reduce((acc, r) => ({
+  const filterOptions = useMemo(() => {
+    const uniqueOptions = (values: Array<string | null | undefined>) => Array.from(new Set(values.filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    return {
+      companies: uniqueOptions(rows.map((row) => row.companyNameZh || row.companyType)),
+      branches: uniqueOptions(rows.map((row) => row.branchName)),
+      types: uniqueOptions(rows.map((row) => row.salaryType || row.employmentType)),
+      statuses: uniqueOptions(rows.map((row) => row.employmentStatus)),
+    };
+  }, [rows]);
+
+  const filteredRows = rows.filter((row) => {
+    const normalizedSearch = payrollSearch.trim().toLowerCase();
+    const companyValue = row.companyNameZh || row.companyType;
+    const typeValue = row.salaryType || row.employmentType;
+    const searchText = [row.employeeCode, row.nameZh, row.nameEn, row.alias, row.positionNameZh, row.branchName, companyValue]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return (!normalizedSearch || searchText.includes(normalizedSearch))
+      && (companyFilter === ALL_FILTER_VALUE || companyValue === companyFilter)
+      && (branchFilter === ALL_FILTER_VALUE || row.branchName === branchFilter)
+      && (typeFilter === ALL_FILTER_VALUE || typeValue === typeFilter)
+      && (statusFilter === ALL_FILTER_VALUE || row.employmentStatus === statusFilter);
+  });
+
+  const totals = filteredRows.reduce((acc, r) => ({
     base: acc.base + r.calculatedBaseSalary,
     allowance: acc.allowance + r.allowanceAmount + r.transportAllowance,
     bonus: acc.bonus + r.bonus,
@@ -2004,7 +2391,7 @@ ${tablePreview}`;
     lateDays: row.lateDays,
     noPayDays: row.attendanceNoPayDays,
     branchName: row.branchName ?? null,
-    selectedMonth,
+    selectedMonth: salaryMonth,
     rawBaseSalary: row.rawCalculatedBaseSalary,
     rawAllowanceAmount: row.rawAllowanceAmount,
     rawTransportAllowance: row.rawTransportAllowance,
@@ -2062,7 +2449,7 @@ ${tablePreview}`;
   }));
 
   const payrollReviewIssues = useMemo<PayrollReviewIssue[]>(() => {
-    const [year, month] = selectedMonth.split('-').map(Number);
+    const [year, month] = salaryMonth.split('-').map(Number);
     const monthStart = year && month ? new Date(year, month - 1, 1) : null;
     const monthEnd = year && month ? new Date(year, month, 0) : null;
 
@@ -2148,12 +2535,26 @@ ${tablePreview}`;
 
       return issues;
     });
-  }, [rows, selectedMonth, empVolumes, monthlyBonuses]);
+  }, [rows, salaryMonth, empVolumes, monthlyBonuses]);
 
   const payrollReviewCanProceed = payrollReviewIssues.every((issue) => {
     const answer = payrollReviewAnswers[issue.key];
     return Boolean(answer) && answer !== 'not_ready';
   });
+
+  const payrollReviewIgnorePayload = payrollReviewIssues.map((issue) => ({
+    issueKey: issue.key,
+    employeeCode: issue.employeeCode,
+    issueType: issue.type,
+    reason: (!payrollReviewAnswers[issue.key] || payrollReviewAnswers[issue.key] === 'not_ready' ? 'confirmed' : payrollReviewAnswers[issue.key]) as PayrollReviewReason,
+    action: payrollReviewAction ?? 'payslip',
+    detail: {
+      employeeName: issue.employeeName,
+      branchName: issue.branchName,
+      title: issue.title,
+      detail: issue.detail,
+    },
+  }));
 
   const hasMeaningfulEntries = (entries: ReturnType<typeof buildEntries>) => entries.some((entry) => (
     entry.mpfEeApplied ||
@@ -2267,7 +2668,7 @@ ${tablePreview}`;
     }
 
     const action = payrollReviewAction;
-    await savePayrollReviewAnswers(selectedMonth, payrollReviewIssues.map((issue) => ({
+    await savePayrollReviewAnswers(salaryMonth, payrollReviewIssues.map((issue) => ({
       issueKey: issue.key,
       employeeCode: issue.employeeCode,
       issueType: issue.type,
@@ -2281,6 +2682,22 @@ ${tablePreview}`;
       },
     })));
     setIsPayrollReviewOpen(false);
+    setPayrollReviewAction(null);
+    if (action === 'payslip') {
+      openPayslipModalAfterReview();
+      return;
+    }
+    exportMpfBatchAfterReview();
+  };
+
+  const ignoreAndProceedAfterPayrollReview = async () => {
+    if (!payrollReviewAction) {
+      return;
+    }
+
+    await savePayrollReviewAnswers(salaryMonth, payrollReviewIgnorePayload);
+    setIsPayrollReviewOpen(false);
+    const action = payrollReviewAction;
     setPayrollReviewAction(null);
     if (action === 'payslip') {
       openPayslipModalAfterReview();
@@ -2354,6 +2771,14 @@ ${tablePreview}`;
   };
 
   const persistEntries = (version: number, trigger: 'manual' | 'auto') => {
+    if (isHistoricalPayrollMonth) {
+      if (trigger === 'manual') {
+        setSaveStatus('error');
+        queueSaveStatusReset();
+      }
+      return;
+    }
+
     const entries = buildEntries();
 
     if (!hasMeaningfulEntries(entries) && savedRecords.length === 0) {
@@ -2366,7 +2791,7 @@ ${tablePreview}`;
 
     setSaveStatus('saving');
     startTransition(async () => {
-      const result = await saveMonthlyCommission(selectedMonth, entries);
+      const result = await saveMonthlyCommission(salaryMonth, entries);
       if (result.success) {
         if (latestEditVersionRef.current === version) {
           setEditVersion(0);
@@ -2380,7 +2805,7 @@ ${tablePreview}`;
     });
   };
 
-  const handleSave = () => {
+  const handleAutoSaveNow = () => {
     persistEntries(latestEditVersionRef.current, 'manual');
   };
 
@@ -2413,7 +2838,7 @@ ${tablePreview}`;
   };
 
   const exportMpfBatchAfterReview = () => {
-    const { from, to } = getContributionPeriod(selectedMonth);
+    const { from, to } = getContributionPeriod(salaryMonth);
     const mpfRows = rows.filter((row) => !isExcludedByPayrollReview(row.employeeCode) && row.mpfEnabled && (row.mpfEe > 0 || row.mpfEr > 0));
 
     if (mpfRows.length === 0) {
@@ -2509,7 +2934,7 @@ ${tablePreview}`;
     ];
     });
 
-    downloadCsv(`empf-contribution-bulk-upload-v1.5-${selectedMonth}.csv`, [headers, ...body]);
+    downloadCsv(`empf-contribution-bulk-upload-v1.5-${salaryMonth}.csv`, [headers, ...body]);
     setMpfExportStatus('idle');
   };
 
@@ -2530,7 +2955,7 @@ ${tablePreview}`;
     }, 900);
 
     return () => clearTimeout(timeout);
-  }, [editVersion, selectedMonth]);
+  }, [editVersion, salaryMonth]);
 
   const typeLabel = (type: string) => {
     const map: Record<string, string> = { redeem: t.tierCard.redeem, sales: t.tierCard.sales, sgm: t.tierCard.sgm };
@@ -2553,95 +2978,215 @@ ${tablePreview}`;
   const toggleRowClasses = 'flex cursor-pointer items-center gap-3 px-1 py-1 text-sm font-medium text-slate-700';
   const subtleStatClasses = 'space-y-0.5 rounded-md bg-slate-50 px-2.5 py-2';
   const simpleRowClasses = 'grid gap-2 border-t border-slate-100 py-3 md:grid-cols-[minmax(0,1fr)_180px_140px] md:items-center';
+  const toolbarButtonClasses = 'inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#D4AF37] hover:text-[#B38E18] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50';
+  const primaryButtonClasses = 'inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#D4AF37] to-[#C8A228] px-5 text-sm font-semibold text-white shadow-md shadow-amber-200/40 transition-all hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0';
+  const metricCardClasses = 'h-full rounded-xl border border-slate-200 bg-white p-5 shadow-sm';
+  const matchedImportMappings = pendingImportMappings.filter((mapping) => Boolean(mapping.selectedEmployeeCode) && !mapping.skipped);
+  const unmatchedImportMappings = pendingImportMappings.filter((mapping) => !mapping.selectedEmployeeCode && !mapping.skipped);
+  const skippedImportMappings = pendingImportMappings.filter((mapping) => mapping.skipped);
+
+  const renderImportMappingCard = (mapping: PendingImportMapping) => {
+    const searchQuery = employeeSearchQueries[mapping.sourceCode]?.trim().toLowerCase() ?? '';
+    const filteredEmployeeOptions = searchQuery
+      ? employeeOptions.filter((employee) => employee.label.toLowerCase().includes(searchQuery) || employee.code.toLowerCase().includes(searchQuery))
+      : employeeOptions;
+
+    return (
+      <div key={mapping.sourceCode} className={`rounded-xl border p-3 ${mapping.skipped ? 'border-slate-200 bg-slate-50 opacity-70' : mapping.selectedEmployeeCode ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-200 bg-white'}`}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold text-slate-800">匯入編號：{mapping.sourceCode}</div>
+          {mapping.matchedBy === 'code' ? <div className="text-[11px] font-medium text-emerald-700">已用員工編號直接匹配</div> : null}
+          {mapping.rememberedEmployeeCode ? <div className="text-[11px] font-medium text-amber-700">已記住上次選擇，請再次確認</div> : null}
+          {!mapping.rememberedEmployeeCode && mapping.matchedBy === 'name' ? <div className="text-[11px] font-medium text-emerald-700">已用姓名「{mapping.matchedName}」預先匹配</div> : null}
+        </div>
+        {mapping.row.employeeName ? <div className="mb-2 text-xs text-slate-500">匯入姓名：{mapping.row.employeeName}</div> : null}
+        <div className="mb-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_88px]">
+          <div className="relative">
+            <input
+              type="search"
+              value={employeeSearchDrafts[mapping.sourceCode] ?? ''}
+              onChange={(event) => {
+                setEmployeeSearchDraft(mapping.sourceCode, event.target.value);
+                setEmployeeSearchQueries((current) => ({ ...current, [mapping.sourceCode]: event.target.value.trim() }));
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  applyEmployeeSearch(mapping.sourceCode);
+                }
+              }}
+              placeholder="搜尋員工編號 / 姓名 / 分店"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-[#D4AF37] focus:bg-white focus:ring-2 focus:ring-[#D4AF37]/15"
+            />
+            {((employeeSearchDrafts[mapping.sourceCode] ?? '').trim().length > 0) ? (
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                {filteredEmployeeOptions.slice(0, 8).length > 0 ? filteredEmployeeOptions.slice(0, 8).map((employee) => (
+                  <button
+                    key={`${mapping.sourceCode}-${employee.code}-suggestion`}
+                    type="button"
+                    onClick={() => {
+                      setPendingImportMappingEmployee(mapping.sourceCode, employee.code);
+                      setEmployeeSearchDraft(mapping.sourceCode, employee.label);
+                      setEmployeeSearchQueries((current) => ({ ...current, [mapping.sourceCode]: employee.label }));
+                    }}
+                    className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 last:border-b-0 hover:bg-amber-50"
+                  >
+                    <span className="min-w-0 truncate">{employee.label}</span>
+                    <span className="shrink-0 text-xs text-slate-400">選取</span>
+                  </button>
+                )) : (
+                  <div className="px-3 py-2 text-sm text-slate-500">冇符合結果</div>
+                )}
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => applyEmployeeSearch(mapping.sourceCode)}
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#D4AF37] hover:text-[#B38E18]"
+          >
+            搜尋
+          </button>
+        </div>
+        <select
+          value={mapping.selectedEmployeeCode}
+          onChange={(event) => setPendingImportMappingEmployee(mapping.sourceCode, event.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+        >
+          <option value="">選擇員工...</option>
+          {filteredEmployeeOptions.map((employee) => (
+            <option key={`${mapping.sourceCode}-${employee.code}`} value={employee.code}>{employee.label}</option>
+          ))}
+        </select>
+        {searchQuery ? <div className="mt-1 text-[11px] text-slate-500">搜尋結果：{filteredEmployeeOptions.length} 位</div> : null}
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => togglePendingImportMappingSkip(mapping.sourceCode)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mapping.skipped ? 'bg-slate-700 text-white hover:bg-slate-800' : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}
+          >
+            {mapping.skipped ? '取消略過' : '略過'}
+          </button>
+          {mapping.skipped ? <span className="text-xs font-medium text-slate-500">已略過，唔會匯入</span> : null}
+        </div>
+        {mapping.linkedSourceCode ? (
+          <p className="mt-2 text-xs font-medium text-rose-600">注意：呢位員工已經連結過匯入編號 {mapping.linkedSourceCode}。</p>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
-          <p className="mt-1 text-sm text-slate-500">{t.subtitle}</p>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-4 w-full">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex flex-col">
-              <label className="mb-1 block text-xs font-medium text-slate-500">{t.month}</label>
-              <input type="month" value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]" />
-            </div>
-            <div className="flex flex-col pt-5">
-              <button
-                type="button"
-                onClick={() => setIsAiChatbotOpen(true)}
-                className="group relative flex h-10 items-center gap-2 overflow-hidden rounded-lg bg-gradient-to-r from-[#D4AF37] to-[#C5A028] px-4 font-semibold text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-95"
-              >
-                <div className="absolute inset-0 bg-white/20 opacity-0 transition-opacity group-hover:opacity-100" />
-                <span className="relative flex h-5 w-5 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-                  <span className="h-2 w-2 animate-ping rounded-full bg-white opacity-75" />
-                  <span className="absolute h-2 w-2 rounded-full bg-white" />
-                </span>
-                ✨ {t.aiImportTitle}
-              </button>
-            </div>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{t.title}</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={openAverageWagesPage}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-100"
-          >
-            <Calculator className="h-4 w-4" />
-            365平均佣金
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isPending}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
-              saveStatus === 'saving' ? 'bg-slate-500 text-white' :
-              saveStatus === 'saved' ? 'bg-emerald-500 text-white' :
-              saveStatus === 'error' ? 'bg-rose-500 text-white' :
-              'bg-[#D4AF37] text-white hover:bg-[#C5A028]'
-            } disabled:opacity-50`}
-          >
-            <Save className="h-4 w-4" />
-            {(isPending || saveStatus === 'saving') ? t.saving : saveStatus === 'saved' ? t.saved : saveStatus === 'error' ? t.saveFail : t.save}
-          </button>
-          <button
-            type="button"
-            onClick={openPayslipModal}
-            disabled={exportStatus === 'exporting'}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
-              exportStatus === 'exporting' ? 'bg-slate-500 text-white' :
-              exportStatus === 'error' ? 'bg-rose-500 text-white' :
-              'bg-white text-slate-800 border border-slate-200 hover:border-[#D4AF37] hover:text-[#B38E18]'
-            } disabled:opacity-50`}
-          >
-            <Download className="h-4 w-4" />
-            {exportStatus === 'exporting' ? t.exportingPayslip : exportStatus === 'error' ? t.exportPayslipFail : t.exportPayslip}
-          </button>
-          <button
-            type="button"
-            onClick={handleExportMpfBatch}
-            disabled={mpfExportStatus === 'exporting'}
-            title={mpfExportStatus === 'error' ? t.exportMpfNoData : undefined}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
-              mpfExportStatus === 'exporting' ? 'bg-slate-500 text-white' :
-              mpfExportStatus === 'error' ? 'bg-rose-500 text-white' :
-              'bg-white text-slate-800 border border-slate-200 hover:border-[#D4AF37] hover:text-[#B38E18]'
-            } disabled:opacity-50`}
-          >
-            <Download className="h-4 w-4" />
-            {mpfExportStatus === 'exporting' ? t.exportingPayslip : mpfExportStatus === 'error' ? t.exportMpfNoData : t.exportMpf}
-          </button>
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-center shadow-sm">
-            <div className="text-xs font-medium text-slate-500">{t.totals}</div>
-            <div className="text-lg font-bold text-slate-900">{fmt(totals.net)}</div>
-          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <button type="button" onClick={handleAutoSaveNow} disabled={isHistoricalPayrollMonth} className={`${toolbarButtonClasses} whitespace-nowrap bg-slate-50 text-slate-700 hover:border-slate-300 hover:text-slate-900`}>
+              <CalendarDays className="h-4 w-4" />
+              {(isPending || saveStatus === 'saving') ? t.saving : saveStatus === 'saved' ? t.saved : saveStatus === 'error' ? t.saveFail : t.autoSave}
+            </button>
+
+            <button type="button" onClick={() => setIsAiChatbotOpen(true)} className={`${primaryButtonClasses} whitespace-nowrap px-4`}>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">✨</span>
+              {t.aiImportTitle}
+            </button>
+
+            <button type="button" onClick={openAverageWagesPage} className={`${toolbarButtonClasses} whitespace-nowrap bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800`}>
+              <Calculator className="h-4 w-4" />
+              {t.avg365}
+            </button>
+
+            <button type="button" onClick={openPayslipModal} disabled={exportStatus === 'exporting'} className={`${toolbarButtonClasses} whitespace-nowrap ${exportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
+              <Download className="h-4 w-4" />
+              {exportStatus === 'exporting' ? t.exportingPayslip : exportStatus === 'error' ? t.exportPayslipFail : t.exportPayslip}
+            </button>
+
+            <button type="button" onClick={handleExportMpfBatch} disabled={mpfExportStatus === 'exporting'} title={mpfExportStatus === 'error' ? t.exportMpfNoData : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${mpfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
+              <Download className="h-4 w-4" />
+              {mpfExportStatus === 'exporting' ? t.exportingPayslip : mpfExportStatus === 'error' ? t.exportMpfNoData : t.exportMpf}
+            </button>
           </div>
         </div>
-      </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 auto-rows-fr md:grid-cols-4">
+          <YearMonthPicker
+            value={displayedMonth}
+            onChange={handleMonthChange}
+            label={t.month}
+            lang={lang}
+            className="h-full"
+          />
+
+          <div className={metricCardClasses}>
+            <div className="flex h-full flex-col justify-center gap-1">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.employees}</div>
+              <div className="text-3xl font-bold tracking-tight text-slate-900">{rows.length}</div>
+            </div>
+          </div>
+
+          <div className={metricCardClasses}>
+            <div className="flex h-full flex-col justify-center gap-1">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.branches}</div>
+              <div className="text-3xl font-bold tracking-tight text-slate-900">{filterOptions.branches.length}</div>
+            </div>
+          </div>
+
+          <div className={metricCardClasses}>
+            <div className="flex h-full flex-col justify-center gap-1">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.totals}</div>
+              <div className="text-3xl font-bold tracking-tight text-slate-900">{fmt(totals.net)}</div>
+            </div>
+          </div>
+        </div>
+
+      </section>
 
       {/* Payroll Table */}
-      {rows.length === 0 ? (
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={payrollSearch}
+              onChange={(event) => setPayrollSearch(event.target.value)}
+              className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#D4AF37] focus:bg-white focus:ring-4 focus:ring-[#D4AF37]/10"
+              placeholder="搜尋員工編號、姓名、別名或職位..."
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <select value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)} className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10">
+              <option value={ALL_FILTER_VALUE}>所有公司</option>
+              {filterOptions.companies.map((company) => <option key={company} value={company}>{company}</option>)}
+            </select>
+            <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10">
+              <option value={ALL_FILTER_VALUE}>所有分店</option>
+              {filterOptions.branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+            </select>
+            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10">
+              <option value={ALL_FILTER_VALUE}>所有類型</option>
+              {filterOptions.types.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10">
+              <option value={ALL_FILTER_VALUE}>所有狀態</option>
+              {filterOptions.statuses.map((status) => <option key={status} value={status}>{payrollStatusLabel(status as PayrollEmployeeSummary['employmentStatus'])}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <p className="text-xs text-slate-500">顯示 {filteredRows.length} / {rows.length} 位員工。列表會受登入帳戶公司及分店權限限制。</p>
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+              <span className="h-2 w-2 rounded-full bg-[#D4AF37]" />
+              已套用篩選條件
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {filteredRows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center">
           <CreditCard className="mx-auto mb-3 h-10 w-10 text-slate-300" />
           <p className="text-sm text-slate-500">{t.noData}</p>
@@ -2667,7 +3212,7 @@ ${tablePreview}`;
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => {
+                {filteredRows.map((row) => {
                   const isExpanded = expandedRows.has(row.employeeCode);
                   const vol = getVolumes(row.employeeCode);
                   const monthlyBonus = getMonthlyBonus(row.employeeCode, row);
@@ -2749,13 +3294,18 @@ ${tablePreview}`;
                                       type="number"
                                       min="0"
                                       step="0.5"
-                                      className={inputClasses}
+                                      className={`${inputClasses} ${row.attendanceDrivenWorkedHours ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                                       value={getWorkUnits(row.employeeCode).workedHours}
                                       onChange={(e) => setWorkUnit(row.employeeCode, 'workedHours', e.target.value)}
                                       onKeyDown={preventAccidentalNumberStep}
                                       onWheel={preventAccidentalNumberScroll}
                                       placeholder="0"
+                                      disabled={row.attendanceDrivenWorkedHours}
+                                      readOnly={row.attendanceDrivenWorkedHours}
                                     />
+                                    {row.attendanceDrivenWorkedHours ? (
+                                      <p className="mt-1 text-[11px] text-slate-500">出勤管理已輸入鐘數，Payroll 會自動同步。</p>
+                                    ) : null}
                                   </div>
                                 ) : null}
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
@@ -3554,6 +4104,13 @@ ${tablePreview}`;
                 </button>
                 <button
                   type="button"
+                  onClick={() => void ignoreAndProceedAfterPayrollReview()}
+                  className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
+                >
+                  忽略並繼續
+                </button>
+                <button
+                  type="button"
                   onClick={proceedAfterPayrollReview}
                   disabled={!payrollReviewCanProceed}
                   className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
@@ -3627,7 +4184,7 @@ ${tablePreview}`;
                     </div>
                     <div className="text-right text-xs text-slate-500">
                       <div>{fmtDec(entry.netAmount)}</div>
-                      <div>{selectedMonth}</div>
+                      <div>{entry.selectedMonth}</div>
                     </div>
                   </label>
                 );
@@ -3657,16 +4214,16 @@ ${tablePreview}`;
       ) : null}
 
       {isAiChatbotOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm transition-all sm:p-6">
-          <div className="flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl ring-1 ring-slate-200/50 sm:h-[80vh]">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 shadow-sm">
+        <div className="fixed inset-0 z-[60] bg-slate-950/45 backdrop-blur-sm">
+          <div className="mx-auto flex h-full w-full max-w-5xl flex-col bg-white shadow-2xl ring-1 ring-slate-200/70 sm:rounded-3xl sm:my-4 sm:h-[calc(100vh-2rem)]">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#B38E18] text-white shadow-sm">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#D4AF37] text-white shadow-sm">
                   ✨
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">AI Payroll Assistant</h2>
-                  <p className="text-xs text-slate-500">{t.aiImportHint}</p>
+                  <h2 className="text-lg font-semibold text-slate-900">AI Payroll Assistant</h2>
+                  <p className="text-sm text-slate-500">{t.aiImportHint}</p>
                 </div>
               </div>
               <button
@@ -3678,69 +4235,187 @@ ${tablePreview}`;
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${msg.role === 'user' ? 'bg-[#D4AF37] text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-none'}`}>
-                    {msg.text}
+            <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
+              <div className="space-y-3">
+                {chatMessages.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[min(42rem,85%)] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${msg.role === 'user' ? 'bg-[#D4AF37] text-white rounded-br-md' : 'bg-white text-slate-800 ring-1 ring-slate-200 rounded-bl-md'}`}>
+                      {msg.text}
+                    </div>
                   </div>
-                </div>
-              ))}
-              {importStatus === 'importing' && (
-                <div className="flex justify-start">
-                  <div className="max-w-[85%] rounded-2xl rounded-bl-none border border-slate-100 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37] [animation-delay:-0.3s]" />
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37] [animation-delay:-0.15s]" />
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
-                      <span className="ml-1">{t.aiImportUploading}</span>
-                    </span>
+                ))}
+
+                {pendingImportMappings.length > 0 ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                    <div className="mb-3">
+                      <div className="text-sm font-semibold text-slate-900">請確認所有員工對應</div>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">系統只會喺你按「確認所有對應並匯入」之後先寫入畫面；已識別員工都會列出畀你覆核。</p>
+                      <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                        <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-amber-200">總數：{pendingImportMappings.length}</div>
+                        <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-rose-200">未配對：{unmatchedImportMappings.length}</div>
+                        <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">略過：{skippedImportMappings.length}</div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setImportMappingSectionsOpen((current) => ({ ...current, matched: !current.matched }))}
+                      className="mb-2 flex w-full items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-sm font-semibold text-emerald-800"
+                    >
+                      <span>已配對 ({matchedImportMappings.length})</span>
+                      <span>{importMappingSectionsOpen.matched ? '收合' : '展開'}</span>
+                    </button>
+                    {importMappingSectionsOpen.matched ? (
+                      <div className="mb-3 space-y-2">
+                        {matchedImportMappings.map((mapping) => renderImportMappingCard(mapping))}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => setImportMappingSectionsOpen((current) => ({ ...current, unmatched: !current.unmatched }))}
+                      className="mb-2 flex w-full items-center justify-between rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-sm font-semibold text-amber-800"
+                    >
+                      <span>未配對 ({unmatchedImportMappings.length})</span>
+                      <span>{importMappingSectionsOpen.unmatched ? '收合' : '展開'}</span>
+                    </button>
+                    {importMappingSectionsOpen.unmatched ? (
+                      <div className="space-y-2">
+                        {unmatchedImportMappings.map((mapping) => renderImportMappingCard(mapping))}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => setImportMappingSectionsOpen((current) => ({ ...current, skipped: !current.skipped }))}
+                      className="mb-2 mt-3 flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-semibold text-slate-700"
+                    >
+                      <span>已略過 ({skippedImportMappings.length})</span>
+                      <span>{importMappingSectionsOpen.skipped ? '收合' : '展開'}</span>
+                    </button>
+                    {importMappingSectionsOpen.skipped ? (
+                      <div className="space-y-2">
+                        {skippedImportMappings.map((mapping) => renderImportMappingCard(mapping))}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => applyResolvedImportMappings(pendingImportMappings)}
+                      disabled={pendingImportMappings.some((mapping) => !mapping.selectedEmployeeCode && !mapping.skipped)}
+                      className="mt-3 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      確認所有對應並匯入
+                    </button>
                   </div>
-                </div>
-              )}
-              <div ref={chatBottomRef} />
+                ) : null}
+
+                {importStatus === 'importing' ? (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37] [animation-delay:-0.3s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37] [animation-delay:-0.15s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
+                        <span className="ml-1">{t.aiImportUploading}</span>
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+                <div ref={chatBottomRef} />
+              </div>
             </div>
 
-            <div className="border-t border-slate-200 bg-white p-4">
-              <div className="mx-auto flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">{t.aiImportTypeLabel}</label>
-                  <select
-                    value={importType}
-                    onChange={(e) => setImportType(e.target.value as 'all' | 'redeem' | 'sales' | 'job' | 'sgm')}
-                    disabled={importStatus === 'importing'}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37] disabled:opacity-60"
-                  >
-                    <option value="all">{t.aiImportTypeAll}</option>
-                    <option value="redeem">{t.tierCard.redeem}</option>
-                    <option value="sales">{t.tierCard.sales}</option>
-                    <option value="job">Job</option>
-                    <option value="sgm">{t.tierCard.sgm}</option>
-                  </select>
+            <div className="border-t border-slate-200 bg-white p-4 sm:p-5">
+              <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <YearMonthPicker
+                    value={importMonth}
+                    onChange={handleImportMonthChange}
+                    label={lang === 'zh-CN' ? '匯入月份' : lang === 'en' ? 'Import Month' : '匯入月份'}
+                    lang={lang}
+                    className="h-full"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">{t.aiImportTypeLabel}</label>
+                    <select
+                      value={importType}
+                      onChange={(e) => setImportType(e.target.value as PayrollImportType | '')}
+                      disabled={importStatus === 'importing' || isPending}
+                      className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-[#D4AF37] focus:bg-white focus:ring-4 focus:ring-[#D4AF37]/10 disabled:opacity-60"
+                    >
+                      <option value="">{lang === 'zh-CN' ? '请先选择类别' : lang === 'en' ? 'Choose import type' : '請先選擇類別'}</option>
+                      <option value="all">{t.aiImportTypeAll}</option>
+                      <option value="redeem">{t.tierCard.redeem}</option>
+                      <option value="sales">{t.tierCard.sales}</option>
+                      <option value="job">Job</option>
+                      <option value="sgm">{t.tierCard.sgm}</option>
+                    </select>
+                  </div>
+
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">{lang === 'zh-CN' ? '上传文件' : lang === 'en' ? 'Upload File' : '上載檔案'}</label>
+                    <label
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        stagePayrollImportFile(event.dataTransfer.files?.[0] ?? null);
+                      }}
+                      className={`relative flex h-11 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed px-4 text-sm font-medium transition ${importStatus === 'importing' || isPending ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400' : 'border-[#D4AF37]/35 bg-amber-50/30 text-slate-700 hover:border-[#D4AF37] hover:bg-amber-50/70'}`}
+                    >
+                      <input
+                        key={importKey}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        disabled={importStatus === 'importing' || isPending}
+                        onChange={(event) => stagePayrollImportFile(event.target.files?.[0] ?? null)}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                      />
+                      <Download className="mr-2 h-4 w-4 text-[#D4AF37]" />
+                      {lang === 'zh-CN' ? '选择或拖拽文件' : lang === 'en' ? 'Choose or drag file' : '選擇或拖拽檔案'}
+                    </label>
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    {lang === 'zh-CN' ? '上传文件' : lang === 'en' ? 'Upload File' : '上載檔案'}
-                  </label>
-                  <label className={`relative flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-6 transition-colors ${importStatus === 'importing' ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60' : 'border-[#D4AF37]/40 bg-amber-50/30 hover:border-[#D4AF37] hover:bg-amber-50/80'}`}>
-                    <input
-                      key={importKey}
-                      type="file"
-                      accept=".xlsx,.xls,.csv"
-                      disabled={importStatus === 'importing'}
-                      onChange={(event) => handlePayrollImport(event.target.files?.[0] ?? null)}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                    />
-                    <div className="flex flex-col items-center gap-2 text-center">
-                      <div className="rounded-full bg-white p-2 shadow-sm ring-1 ring-slate-900/5">
-                        <Download className="h-5 w-5 text-[#D4AF37]" />
-                      </div>
-                      <div className="text-sm font-medium text-slate-700">
-                        {lang === 'zh-CN' ? '点击或拖拽文件到此处' : lang === 'en' ? 'Click or drag file here' : '點擊或拖拽檔案到此處'}
-                      </div>
-                      <div className="text-xs text-slate-500">.xlsx, .csv</div>
+                {pendingImportFile ? (
+                  <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-800">{lang === 'zh-CN' ? '已选择文件' : lang === 'en' ? 'Selected file' : '已選擇檔案'}</div>
+                      <div className="truncate text-xs text-slate-600">{pendingImportFile.name}</div>
                     </div>
-                  </label>
+                    <button
+                      type="button"
+                      onClick={confirmPendingPayrollImportFile}
+                      disabled={importStatus === 'importing' || isPending}
+                      className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-[#D4AF37] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {lang === 'zh-CN' ? '确认分析文件' : lang === 'en' ? 'Confirm Analyze File' : '確認分析檔案'}
+                    </button>
+                  </div>
+                ) : null}
+                <p className="text-xs text-slate-500">會寫入你揀緊嘅月份，唔再根據頁面自動推算上月。</p>
+
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">{lang === 'zh-CN' ? '输入或贴上资料' : lang === 'en' ? 'Type Or Paste Data' : '輸入或貼上資料'}</label>
+                  <textarea
+                    value={manualImportText}
+                    onChange={(event) => setManualImportText(event.target.value)}
+                    disabled={importStatus === 'importing' || isPending}
+                    rows={3}
+                    placeholder={lang === 'zh-CN' ? '例如：员工编号 redeem sales job...' : lang === 'en' ? 'Example: employee code redeem sales job...' : '例如：員工編號 redeem sales job...'}
+                    className="min-h-[88px] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#D4AF37] focus:bg-white focus:ring-4 focus:ring-[#D4AF37]/10 disabled:opacity-60"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs text-slate-500">{importMessage ?? t.aiImportHint}</div>
+                  <button
+                    type="button"
+                    onClick={handleManualPayrollImport}
+                    disabled={importStatus === 'importing' || isPending || manualImportText.trim().length === 0}
+                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#D4AF37] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {lang === 'zh-CN' ? '分析输入内容' : lang === 'en' ? 'Analyze Text' : '分析輸入內容'}
+                  </button>
                 </div>
               </div>
             </div>

@@ -1057,6 +1057,10 @@ export type PayrollEmployeeSummary = {
   identityType: EmployeeDetailRecord['identityType'];
   identityNumber: string | null;
   phone: string | null;
+  companyType: EmployeeDirectoryRecord['companyType'];
+  companyNameZh: string | null;
+  employmentType: EmployeeDirectoryRecord['employmentType'];
+  employmentStatus: EmployeeDirectoryRecord['employmentStatus'];
   branchName: string | null;
   positionCode: string | null;
   positionNameZh: string | null;
@@ -1103,8 +1107,7 @@ export async function fetchPayrollSummary(user: AppShellUser, supabaseClient?: Q
   const supabase = supabaseClient ?? await createServerSupabaseClient();
   const buildQuery = (profileSelect: string) => supabase
     .from('employees')
-    .select(`employee_code, name_zh, name_en, alias, gender, identity_type, identity_number, phone, hire_date, employment_end_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
-    .eq('employment_status', 'active')
+    .select(`employee_code, name_zh, name_en, alias, gender, identity_type, identity_number, phone, company_type, employment_type, employment_status, hire_date, employment_end_date, date_of_birth, position:positions(code, name_zh), company:companies(name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
     .order('employee_code');
 
   const scopedCurrentQuery = applyScopeFilters(buildQuery(PAYROLL_SUMMARY_PROFILE_SELECT_CURRENT), user);
@@ -1129,10 +1132,14 @@ export async function fetchPayrollSummary(user: AppShellUser, supabaseClient?: Q
     identity_number: string | null;
     identity_type: EmployeeDetailRecord['identityType'] | null;
     phone: string | null;
+    company_type: EmployeeDirectoryRecord['companyType'];
+    employment_type: EmployeeDirectoryRecord['employmentType'];
+    employment_status: EmployeeDirectoryRecord['employmentStatus'];
     hire_date: string;
     employment_end_date: string | null;
     date_of_birth: string | null;
     position: { code: string | null; name_zh: string | null } | { code: string | null; name_zh: string | null }[] | null;
+    company: NamedLookup;
     branch: NamedLookup;
     employee_salary_profiles: { salary_type: EmployeeDetailRecord['salaryType']; base_salary: number | string | null; package_commission_amount: number | string | null; allowance_amount: number | string | null; attendance_bonus_amount: number | string | null; transport_allowance: number | string | null; briefing_bonus: number | string | null; booking_bonus: number | string | null; mpf_enabled: boolean | null; pay_day_primary: number | null; pay_day_secondary: number | null; commission_method: string | null; commission_custom_name: string | null; commission_custom_tiers: unknown | null; commission_rules: unknown | null; commission_redeem_rate: number | string | null; commission_sales_rate: number | string | null; commission_sgm_rate: number | string | null; sales_amount_rate_percent: number | string | null; sales_bonus_enabled: boolean | null; sales_bonus_rate: number | string | null; sales_bonus_custom_name: string | null; sales_bonus_custom_tiers: unknown | null; redeem_bonus_enabled: boolean | null; redeem_bonus_custom_name: string | null; redeem_bonus_custom_tiers: unknown | null; payroll_bonus_enabled: boolean | null; payroll_bonus_scheme: PayrollBonusScheme | null; street_promoter_enabled: boolean | null; telesales_enabled: boolean | null; shop_bonus_enabled: boolean | null; shop_bonus_custom_name: string | null; shop_bonus_custom_tiers: unknown | null; shop_bonus_scheme: ShopBonusScheme | null } | null;
   }[]).map((row) => {
@@ -1153,6 +1160,10 @@ export async function fetchPayrollSummary(user: AppShellUser, supabaseClient?: Q
       identityType: row.identity_type ?? 'hkid',
       identityNumber: row.identity_number,
       phone: row.phone,
+      companyType: row.company_type,
+      companyNameZh: normalizeLookupValue(row.company).nameZh,
+      employmentType: row.employment_type,
+      employmentStatus: row.employment_status,
       branchName: normalizeLookupValue(row.branch).nameZh,
       positionCode: Array.isArray(row.position) ? (row.position[0]?.code ?? null) : (row.position?.code ?? null),
       positionNameZh: Array.isArray(row.position) ? (row.position[0]?.name_zh ?? null) : (row.position?.name_zh ?? null),
@@ -1257,6 +1268,7 @@ export type PayrollAttendanceRecord = {
   yearMonth: string;
   calendarDays: number;
   workedDays: number;
+  workedHours: number;
   offDays: number;
   statutoryHolidayDays: number;
   birthdayLeaveDays: number;
@@ -1332,6 +1344,47 @@ function addYearMonths(yearMonth: string, offset: number) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function getYearMonthStartDate(yearMonth: string) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) return null;
+  return new Date(year, month - 1, 1);
+}
+
+function getYearMonthEndDate(yearMonth: string) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) return null;
+  return new Date(year, month, 0);
+}
+
+function countInclusiveDays(start: Date, end: Date) {
+  const startTime = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const endTime = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.max(0, Math.floor((endTime - startTime) / 86400000) + 1);
+}
+
+function calculateSeedOverlap(seed: { total_commission: number | string | null; eligible_days: number | string | null; daily_average_commission?: number | string | null; period_start: string; period_end: string }, windowStartMonth: string, cutoffMonth: string) {
+  const windowStart = getYearMonthStartDate(windowStartMonth);
+  const cutoffEnd = getYearMonthEndDate(cutoffMonth);
+  const seedStart = new Date(seed.period_start);
+  const seedEnd = new Date(seed.period_end);
+  if (!windowStart || !cutoffEnd || Number.isNaN(seedStart.getTime()) || Number.isNaN(seedEnd.getTime())) {
+    return { total: 0, days: 0 };
+  }
+
+  const overlapStart = new Date(Math.max(windowStart.getTime(), seedStart.getTime()));
+  const overlapEnd = new Date(Math.min(cutoffEnd.getTime(), seedEnd.getTime()));
+  const overlapDays = countInclusiveDays(overlapStart, overlapEnd);
+  if (overlapDays <= 0) {
+    return { total: 0, days: 0 };
+  }
+
+  const seedDays = Number(seed.eligible_days ?? 0);
+  const seedTotal = Number(seed.total_commission ?? 0);
+  const dailyAverage = Number(seed.daily_average_commission ?? 0) || (seedDays > 0 ? seedTotal / seedDays : 0);
+  const days = seedDays > 0 ? Math.min(overlapDays, seedDays) : overlapDays;
+  return { total: dailyAverage * days, days };
+}
+
 export async function fetchRollingCommissionAverages(user: AppShellUser, selectedMonth: string, supabaseClient?: QuerySupabaseClient): Promise<Record<string, RollingCommissionAverageRecord>> {
   const employees = await fetchPayrollSummary(user, supabaseClient);
   if (employees.length === 0) return {};
@@ -1374,10 +1427,11 @@ export async function fetchRollingCommissionAverages(user: AppShellUser, selecte
     const monthly = monthlyByCode.get(employeeCode) ?? [];
     const monthlyTotal = monthly.reduce((sum, row) => sum + Number(row.average_commission_amount ?? 0), 0);
     const monthlyDays = monthly.reduce((sum, row) => sum + Number(row.eligible_days ?? 0), 0);
-    const seedTotal = seed && windowStartMonth <= '2026-03' ? Number(seed.total_commission ?? 0) : 0;
-    const seedDays = seed && windowStartMonth <= '2026-03' ? Number(seed.eligible_days ?? 0) : 0;
+    const seedOverlap = seed ? calculateSeedOverlap(seed, windowStartMonth, cutoffMonth) : { total: 0, days: 0 };
+    const seedTotal = seedOverlap.total;
+    const seedDays = seedOverlap.days;
     const totalCommission = seedTotal + monthlyTotal;
-    const eligibleDays = Math.min(365, Math.max(seedDays + monthlyDays, seedDays, monthly.length > 0 ? 365 : 0));
+    const eligibleDays = Math.min(365, seedDays + monthlyDays);
     const dailyAverageCommission = eligibleDays > 0 ? totalCommission / eligibleDays : 0;
     const source = seedTotal > 0 && monthlyTotal > 0 ? 'seed_plus_payroll' : seedTotal > 0 ? 'seed' : monthlyTotal > 0 ? 'payroll' : 'none';
     return [employeeCode, {
@@ -1549,6 +1603,25 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
     return {};
   }
 
+  let workedHoursByCode: Record<string, number> = {};
+  const attendanceHoursResult = await supabase
+    .from('monthly_attendance_records')
+    .select('worked_hours, employees!inner(employee_code)')
+    .eq('year_month', yearMonth)
+    .in('employees.employee_code', employees);
+
+  if (!attendanceHoursResult.error) {
+    workedHoursByCode = Object.fromEntries(((attendanceHoursResult.data ?? []) as Array<{
+      worked_hours: number | string | null;
+      employees: { employee_code: string } | { employee_code: string }[] | null;
+    }>).map((row) => {
+      const employee = Array.isArray(row.employees) ? row.employees[0] : row.employees;
+      return [employee?.employee_code ?? '', Number(row.worked_hours ?? 0)];
+    }).filter(([employeeCode]) => Boolean(employeeCode)));
+  } else if (!isMissingColumnError(attendanceHoursResult.error.message)) {
+    console.warn(`Failed to load attendance worked hours for ${yearMonth}:`, attendanceHoursResult.error.message);
+  }
+
   return Object.fromEntries(
     ((data ?? []) as Array<{
       employee_code: string;
@@ -1583,6 +1656,7 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
         yearMonth: row.year_month,
         calendarDays: Number(row.calendar_days ?? 0),
         workedDays: Number(row.worked_days ?? 0),
+        workedHours: workedHoursByCode[row.employee_code] ?? 0,
         offDays: Number(row.off_days ?? 0),
         statutoryHolidayDays: Number(row.statutory_holiday_days ?? 0),
         birthdayLeaveDays: Number(row.birthday_leave_days ?? 0),
@@ -1800,6 +1874,7 @@ export type AttendanceManagementMonthlyRecord = {
   branchSection: string | null;
   calendarDays: number | null;
   workedDays: number | null;
+  workedHours: number | null;
   offDays: number | null;
   statutoryHolidayDays: number | null;
   totalDays: number | null;
@@ -1918,6 +1993,22 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
     };
   }
 
+  let workedHoursByEmployeeMonth: Record<string, number> = {};
+  const workedHoursResult = await supabase
+    .from('monthly_attendance_records')
+    .select('employee_id, year_month, worked_hours')
+    .in('employee_id', employeeIds);
+
+  if (!workedHoursResult.error) {
+    workedHoursByEmployeeMonth = Object.fromEntries(((workedHoursResult.data ?? []) as Array<{
+      employee_id: string;
+      year_month: string;
+      worked_hours: number | string | null;
+    }>).map((row) => [`${row.employee_id}:${row.year_month}`, Number(row.worked_hours ?? 0)]));
+  } else if (!isMissingColumnError(workedHoursResult.error.message)) {
+    console.warn('Failed to load attendance worked hours from Supabase:', workedHoursResult.error.message);
+  }
+
   const records = ((data ?? []) as {
     employee_id: string;
     employee_code: string;
@@ -1960,6 +2051,7 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
     branchSection: row.branch_section,
     calendarDays: row.calendar_days === null ? null : Number(row.calendar_days),
     workedDays: row.worked_days === null ? null : Number(row.worked_days),
+    workedHours: workedHoursByEmployeeMonth[`${row.employee_id}:${row.year_month}`] ?? null,
     offDays: row.off_days === null ? null : Number(row.off_days),
     statutoryHolidayDays: row.statutory_holiday_days === null ? null : Number(row.statutory_holiday_days),
     totalDays: row.total_days === null ? null : Number(row.total_days),

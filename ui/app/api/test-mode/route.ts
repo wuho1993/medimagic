@@ -1,13 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { getRouteUser } from '@/src/lib/supabase/route';
 import { getSupabaseEnv } from '@/src/lib/supabase/config';
 
 const ACTIVE_TEST_MODE_SESSION_COOKIE = 'medi_magic_test_mode_session';
 
+function loadLocalSupabaseCredentials() {
+  try {
+    const raw = readFileSync(resolve(process.cwd(), 'supabase-credentials.txt'), 'utf8');
+    return raw.split(/\r?\n/).reduce<Record<string, string>>((result, line) => {
+      const index = line.indexOf('=');
+      if (index <= 0 || line.trim().startsWith('#')) return result;
+      result[line.slice(0, index).trim()] = line.slice(index + 1).trim();
+      return result;
+    }, {});
+  } catch {
+    return {};
+  }
+}
+
 function createServiceClient() {
-  const { url } = getSupabaseEnv();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const credentials = loadLocalSupabaseCredentials();
+  const { url: envUrl } = getSupabaseEnv();
+  const url = credentials.SUPABASE_URL || credentials.NEXT_PUBLIC_SUPABASE_URL || envUrl;
+  const serviceRoleKey = credentials.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!serviceRoleKey) {
     throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY. Test mode needs service role access to snapshot and restore data.');

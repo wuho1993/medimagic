@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, ChevronDown, ChevronRight, ExternalLink, ZoomIn, ZoomOut, SaveAll, X } from 'lucide-react';
 import Link from 'next/link';
 import { saveAttendanceManagementRecord } from '@/app/app/leaves/actions';
+import YearMonthPicker from '../components/YearMonthPicker';
 import { useLanguage } from '../i18n/LanguageContext';
 import type {
   AttendanceDeductionBasis,
@@ -42,6 +43,7 @@ type ColumnDefinition = {
 
 type EditableAttendanceField =
   | 'workedDays'
+  | 'workedHours'
   | 'offDays'
   | 'statutoryHolidayDays'
   | 'birthdayLeaveDays'
@@ -91,6 +93,7 @@ const editableDayFields: EditableAttendanceField[] = [
 ];
 
 const editableHourFields: EditableAttendanceField[] = [
+  'workedHours',
   'prevMonthRemainingHours',
   'makeupHours',
   'overtimeHours',
@@ -103,14 +106,14 @@ const editableFields: EditableAttendanceField[] = [...editableDayFields, ...edit
 const translations = {
   'zh-TW': {
     title: '出勤管理',
-    subtitle: '以員工 Profile 分店資料分類，同一頁顯示每月出勤總表。',
     month: '月份',
     total: '員工數',
     groups: '分店數',
-    matching: '關聯規則',
-    matchingValue: '員工編號為主，譯名 / 英文名 / 別名只作核對；分店分類以員工 Profile 為準。',
+    totalWorkedDays: '合計出勤日數',
     closeTab: '關閉分頁',
     openFocusView: '開新分頁',
+    prev: '上一月',
+    next: '下一月',
     collapseBranch: '收合分店',
     expandBranch: '展開分店',
     zoomOut: '縮小',
@@ -134,7 +137,7 @@ const translations = {
     attendanceModeHints: {
       monthly: '計薪日數預設為當月日數；如曾手動修改，新月份會沿用最近一次手動值。',
       daily: '日薪員工仍使用同一個計薪日數欄位，可手動修改並沿用最近一次手動值。',
-      hourly: '時薪員工可保留計薪日數作出勤核對；工時仍於薪資月結輸入。',
+      hourly: '時薪員工只需輸入計薪鐘數；計薪日數及其他日數欄位會隱藏，避免混淆。',
       package: 'Package 保留 package 規則；計薪日數可手動修改，不因兼職身份改成日薪/時薪。',
       street_promoter: '街霸按特殊佣金規則處理；計薪日數可作出勤核對。',
       unset: '未設定計薪方式：計薪日數仍可儲存，請再到員工 Profile 確認。',
@@ -149,6 +152,7 @@ const translations = {
       name: 'Items',
       calendarDays: '計薪日數',
       workedDays: '上班',
+      workedHours: '計薪鐘數',
       offDays: '例假 (OFF)',
       statutoryHolidayDays: '計算勞工假 (SH)',
       birthdayLeaveDays: '生日假 (BL)',
@@ -174,14 +178,14 @@ const translations = {
   },
   'zh-CN': {
     title: '出勤管理',
-    subtitle: '以员工 Profile 分店资料分类，同一页显示每月出勤总表。',
     month: '月份',
     total: '员工数',
     groups: '分店数',
-    matching: '关联规则',
-    matchingValue: '员工编号为主，译名 / 英文名 / 别名只作核对；分店分类以员工 Profile 为准。',
+    totalWorkedDays: '合计出勤日数',
     closeTab: '关闭分页',
     openFocusView: '开新分页',
+    prev: '上一月',
+    next: '下一月',
     collapseBranch: '收合分店',
     expandBranch: '展开分店',
     zoomOut: '缩小',
@@ -205,7 +209,7 @@ const translations = {
     attendanceModeHints: {
       monthly: '计薪日数预设为当月日数；如曾手动修改，新月份会沿用最近一次手动值。',
       daily: '日薪员工仍使用同一个计薪日数栏位，可手动修改并沿用最近一次手动值。',
-      hourly: '时薪员工可保留计薪日数作出勤核对；工时仍于薪资月结输入。',
+      hourly: '时薪员工只需输入计薪钟数；计薪日数及其他日数栏位会隐藏，避免混淆。',
       package: 'Package 保留 package 规则；计薪日数可手动修改，不因兼职身份改成日薪/时薪。',
       street_promoter: '街霸按特殊佣金规则处理；计薪日数可作出勤核对。',
       unset: '未设置计薪方式：计薪日数仍可储存，请再到员工 Profile 确认。',
@@ -220,6 +224,7 @@ const translations = {
       name: 'Items',
       calendarDays: '计薪日数',
       workedDays: '上班',
+      workedHours: '计薪钟数',
       offDays: '例假 (OFF)',
       statutoryHolidayDays: '计算劳工假 (SH)',
       birthdayLeaveDays: '生日假 (BL)',
@@ -245,14 +250,14 @@ const translations = {
   },
   en: {
     title: 'Attendance Management',
-    subtitle: 'Show the monthly attendance sheet on one page, grouped by branch from the employee profile.',
     month: 'Month',
     total: 'Employees',
     groups: 'Branches',
-    matching: 'Matching Rule',
-    matchingValue: 'Primary: employee code. Secondary: translated names / alias. Branch grouping comes from the employee profile.',
+    totalWorkedDays: 'Total Worked Days',
     closeTab: 'Close Tab',
     openFocusView: 'Open New Tab',
+    prev: 'Previous Month',
+    next: 'Next Month',
     collapseBranch: 'Collapse Branch',
     expandBranch: 'Expand Branch',
     zoomOut: 'Zoom Out',
@@ -276,7 +281,7 @@ const translations = {
     attendanceModeHints: {
       monthly: 'Payroll days default to the month length; manual changes carry forward to new months.',
       daily: 'Daily staff use the same payroll-days field; manual changes carry forward.',
-      hourly: 'Hourly staff can keep payroll days for attendance checks; hours remain in Payroll.',
+      hourly: 'Hourly staff only need paid hours; payroll-day and day-count fields are hidden to avoid confusion.',
       package: 'Package rules remain unchanged; payroll days can be edited without forcing daily/hourly payroll.',
       street_promoter: 'Street promoters use special commission rules; payroll days can be kept for attendance checks.',
       unset: 'Salary type is unset. Payroll days can still be saved; confirm the profile separately.',
@@ -291,6 +296,7 @@ const translations = {
       name: 'Items',
       calendarDays: 'Calendar Days',
       workedDays: 'Worked',
+      workedHours: 'Paid Hours',
       offDays: 'OFF',
       statutoryHolidayDays: 'SH',
       birthdayLeaveDays: 'BL',
@@ -315,13 +321,6 @@ const translations = {
     },
   },
 } as const;
-
-function formatMonthLabel(value: string, lang: keyof typeof translations) {
-  const [year, month] = value.split('-');
-  if (!year || !month) return value;
-  if (lang === 'en') return `${year}-${month}`;
-  return `${year}年${month}月`;
-}
 
 function displayName(employee: EmployeeDirectoryRecord) {
   return employee.alias || employee.nameZh || employee.nameEn;
@@ -386,25 +385,6 @@ function getDaysInMonth(yearMonth: string) {
   const [year, month] = yearMonth.split('-').map(Number);
   if (!year || !month) return null;
   return new Date(year, month, 0).getDate();
-}
-
-function formatYearMonth(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function addMonths(yearMonth: string, offset: number) {
-  const [year, month] = yearMonth.split('-').map(Number);
-  if (!year || !month) return yearMonth;
-  return formatYearMonth(new Date(year, month - 1 + offset, 1));
-}
-
-function buildMonthOptions(months: string[], defaultMonth: string, selectedMonth: string) {
-  const currentMonth = formatYearMonth(new Date());
-  const options = new Set<string>([...months, defaultMonth, selectedMonth, currentMonth]);
-  for (let offset = -12; offset <= 3; offset += 1) {
-    options.add(addMonths(currentMonth, offset));
-  }
-  return Array.from(options).filter((month) => /^\d{4}-\d{2}$/.test(month)).sort((left, right) => right.localeCompare(left));
 }
 
 function toDraftNumber(value: number | null | undefined) {
@@ -509,7 +489,8 @@ function createDraftRow(
 
   return {
     calendarDays,
-    workedDays: toDraftNumber(row.record?.workedDays),
+    workedDays: row.salaryType === 'hourly' ? '' : toDraftNumber(row.record?.workedDays),
+    workedHours: toDraftNumber(row.record?.workedHours),
     offDays: toDraftNumber(row.record?.offDays),
     statutoryHolidayDays: toDraftNumber(row.record?.statutoryHolidayDays),
     birthdayLeaveDays: toDraftNumber(row.record?.birthdayLeaveDays),
@@ -537,6 +518,7 @@ function calculateDraftTotal(draft: AttendanceDraftRow) {
 }
 
 function getEffectiveCalendarDays(row: CombinedAttendanceRow, draft: AttendanceDraftRow) {
+  if (row.salaryType === 'hourly') return 0;
   return draft.calendarDays;
 }
 
@@ -605,11 +587,6 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   const selectedMonthDays = getDaysInMonth(selectedMonth);
   const recordMap = useMemo(() => buildMonthlyRecordMap(records), [records]);
   const historyMap = useMemo(() => buildEmployeeHistoryMap(records), [records]);
-  const monthOptions = useMemo(
-    () => buildMonthOptions(overview.months, overview.defaultMonth, selectedMonth),
-    [overview.defaultMonth, overview.months, selectedMonth],
-  );
-
   const rows = useMemo(
     () => buildCombinedRows(overview.employees, records, selectedMonth, overview.deductionBasisByEmployeeCode),
     [overview.employees, overview.deductionBasisByEmployeeCode, records, selectedMonth],
@@ -818,12 +795,17 @@ export default function AttendanceManagement({ overview, focusMode = false, init
     }
   };
 
+  const totalWorkedDays = useMemo(
+    () => records.reduce((sum, record) => sum + Number(record.workedDays ?? 0), 0),
+    [records],
+  );
+
   const openFocusView = () => {
     const params = new URLSearchParams({
       month: selectedMonth,
       scale: tableScale.toFixed(2),
     });
-    window.open(`/app/attendance/focus?${params.toString()}`, '_blank', 'noopener,noreferrer');
+    window.open(`/medimagic/app/attendance/focus?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleSaveRow = async (row: CombinedAttendanceRow) => {
@@ -845,7 +827,8 @@ export default function AttendanceManagement({ overview, focusMode = false, init
       yearMonth: selectedMonth,
       branchSection: row.record?.branchSection ?? row.employee.branchCode ?? row.employee.branchNameZh,
       calendarDays: getEffectiveCalendarDays(row, draft),
-      workedDays: parseDraftNumber(draft.workedDays),
+      workedDays: row.salaryType === 'hourly' ? 0 : parseDraftNumber(draft.workedDays),
+      workedHours: parseDraftNumber(draft.workedHours),
       offDays: parseDraftNumber(draft.offDays),
       statutoryHolidayDays: parseDraftNumber(draft.statutoryHolidayDays),
       birthdayLeaveDays: parseDraftNumber(draft.birthdayLeaveDays),
@@ -878,6 +861,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
         branchSection: serverRecord.branch_section,
         calendarDays: serverRecord.calendar_days,
         workedDays: serverRecord.worked_days,
+        workedHours: serverRecord.worked_hours,
         offDays: serverRecord.off_days,
         statutoryHolidayDays: serverRecord.statutory_holiday_days,
         totalDays: serverRecord.total_days,
@@ -958,6 +942,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
       cellClassName: 'w-18 min-w-18 bg-rose-50 font-semibold',
     },
     { key: 'workedDays', label: t.cols.workedDays, className: 'w-16 min-w-16 bg-amber-200', cellClassName: 'w-16 min-w-16' },
+    { key: 'workedHours', label: t.cols.workedHours, className: 'w-18 min-w-18 bg-sky-200', cellClassName: 'w-18 min-w-18' },
     { key: 'offDays', label: t.cols.offDays, className: 'w-22 min-w-22 bg-amber-200', cellClassName: 'w-22 min-w-22' },
     { key: 'statutoryHolidayDays', label: t.cols.statutoryHolidayDays, className: 'w-30 min-w-30 bg-amber-200', cellClassName: 'w-30 min-w-30' },
     { key: 'birthdayLeaveDays', label: t.cols.birthdayLeaveDays, className: 'w-24 min-w-24 bg-amber-200', cellClassName: 'w-24 min-w-24' },
@@ -1016,112 +1001,65 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   return (
     <>
       <div className={panelClassName}>
-      <div className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-3xl">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{t.title}</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{t.subtitle}</p>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">{t.title}</h1>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <button type="button" onClick={() => void handleSaveAll()} disabled={dirtyRows.size === 0} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#B8871A] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap">
+                <SaveAll className="h-4 w-4" />
+                {t.save} {dirtyRows.size > 0 ? `(${dirtyRows.size})` : ''}
+              </button>
+
+              {!focusMode ? (
+                <button type="button" onClick={openFocusView} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#bf9a24] whitespace-nowrap">
+                  <ExternalLink className="h-4 w-4" />
+                  {t.openFocusView}
+                </button>
+              ) : (
+                <button type="button" onClick={() => window.close()} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 whitespace-nowrap">
+                  <X className="h-4 w-4" />
+                  {t.closeTab}
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            <label className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-xs font-semibold text-slate-500">{t.month}</div>
-              <select
+          <div className="mt-4 grid grid-cols-1 gap-4 auto-rows-fr md:grid-cols-4">
+            <div className="h-full rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <YearMonthPicker
                 value={selectedMonth}
-                onChange={(event) => handleMonthChange(event.target.value)}
-                className="mt-1 min-w-40 bg-transparent text-sm font-semibold text-slate-900 outline-none"
-              >
-                {monthOptions.map((month) => (
-                  <option key={month} value={month}>
-                    {formatMonthLabel(month, lang)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-xs font-semibold text-slate-500">{t.total}</div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">{rows.length}</div>
+                onChange={handleMonthChange}
+                label={t.month}
+                lang={lang}
+                className="h-full"
+              />
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-xs font-semibold text-slate-500">{t.groups}</div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">{groupedRows.length}</div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-xs font-semibold text-slate-500">{t.viewScale}</div>
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTableScale((current) => clampScale(current - 0.05))}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100"
-                  aria-label={t.zoomOut}
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTableScale(1)}
-                  className="inline-flex min-w-16 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                  {Math.round(tableScale * 100)}%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTableScale((current) => clampScale(current + 0.05))}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100"
-                  aria-label={t.zoomIn}
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </button>
+            <div className="h-full rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+              <div className="flex h-full flex-col justify-center gap-1">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.total}</div>
+                <div className="text-3xl font-bold tracking-tight text-slate-900">{rows.length}</div>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void handleSaveAll()}
-              disabled={dirtyRows.size === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[#B8871A] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <SaveAll className="h-4 w-4" />
-              {t.save} {dirtyRows.size > 0 ? `(${dirtyRows.size})` : ''}
-            </button>
+            <div className="h-full rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+              <div className="flex h-full flex-col justify-center gap-1">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.groups}</div>
+                <div className="text-3xl font-bold tracking-tight text-slate-900">{groupedRows.length}</div>
+              </div>
+            </div>
 
-            {!focusMode ? (
-              <button
-                type="button"
-                onClick={openFocusView}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-[#D4AF37] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#bf9a24]"
-              >
-                <ExternalLink className="h-4 w-4" />
-                {t.openFocusView}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => window.close()}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700"
-              >
-                <X className="h-4 w-4" />
-                {t.closeTab}
-              </button>
-            )}
+            <div className="h-full rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+              <div className="flex h-full flex-col justify-center gap-1">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.totalWorkedDays}</div>
+                <div className="text-3xl font-bold tracking-tight text-slate-900">{totalWorkedDays}</div>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-700">{t.matching}</div>
-            <p className="mt-1 text-sm text-slate-500">{t.matchingValue}</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-700">{t.empty}</div>
-            <p className="mt-1 text-sm text-slate-500">{formatMonthLabel(selectedMonth, lang)}</p>
-          </div>
-        </div>
-      </div>
+        </section>
 
       {groupedRows.length === 0 ? (
         <div className="rounded-4xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
@@ -1261,6 +1199,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                             </td>
                           );
                         } else if (column.key === 'calendarDays') {
+                          const isHourlyEmployee = row.salaryType === 'hourly';
                           return (
                             <td
                               key={column.key}
@@ -1268,18 +1207,28 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                             >
                               <input
                                 inputMode="decimal"
-                                value={draft.calendarDays === 0 ? '' : String(draft.calendarDays)}
+                                value={isHourlyEmployee || draft.calendarDays === 0 ? '' : String(draft.calendarDays)}
                                 onChange={(event) => updateCalendarDays(row.employee.id, event.target.value)}
-                                className="w-full rounded-md border border-slate-200 bg-white px-1 py-1 text-center text-[11px] font-medium text-slate-800 outline-none transition focus:border-[#B8871A]"
+                                className={`w-full rounded-md border border-slate-200 px-1 py-1 text-center text-[11px] font-medium outline-none transition focus:border-[#B8871A] ${isHourlyEmployee ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'bg-white text-slate-800'}`}
+                                disabled={isHourlyEmployee}
+                                readOnly={isHourlyEmployee}
                               />
                             </td>
                           );
                         } else if (editableFields.includes(column.key as EditableAttendanceField)) {
                           const fieldKey = column.key as EditableAttendanceField;
+                          const isHourlyWorkedDays = row.salaryType === 'hourly' && fieldKey === 'workedDays';
+                          const isHourlyLockedField = row.salaryType === 'hourly' && fieldKey !== 'workedHours' && fieldKey !== 'accumulatedOtHours';
+                          const isNonHourlyWorkedHours = row.salaryType !== 'hourly' && fieldKey === 'workedHours';
                           const isReadOnlyAutoField = fieldKey === 'accumulatedOtHours'
+                            || isHourlyWorkedDays
+                            || isHourlyLockedField
+                            || isNonHourlyWorkedHours
                             || (fieldKey === 'prevMonthRemainingHours' && isPrevMonthRemainingHoursAuto);
                           const displayValue = fieldKey === 'accumulatedOtHours'
                             ? (accumulatedOtHours === 0 ? '' : String(accumulatedOtHours))
+                            : isHourlyWorkedDays || isHourlyLockedField || isNonHourlyWorkedHours
+                              ? ''
                             : draft[fieldKey];
                           return (
                             <td
@@ -1430,6 +1379,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                             </td>
                           );
                         } else if (column.key === 'calendarDays') {
+                          const isHourlyEmployee = row.salaryType === 'hourly';
                           return (
                             <td
                               key={column.key}
@@ -1437,18 +1387,28 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                             >
                               <input
                                 inputMode="decimal"
-                                value={draft.calendarDays === 0 ? '' : String(draft.calendarDays)}
+                                value={isHourlyEmployee || draft.calendarDays === 0 ? '' : String(draft.calendarDays)}
                                 onChange={(event) => updateCalendarDays(row.employee.id, event.target.value)}
-                                className="w-full rounded-md border border-slate-200 bg-white px-1 py-1 text-center text-[11px] font-medium text-slate-800 outline-none transition focus:border-[#B8871A]"
+                                className={`w-full rounded-md border border-slate-200 px-1 py-1 text-center text-[11px] font-medium outline-none transition focus:border-[#B8871A] ${isHourlyEmployee ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'bg-white text-slate-800'}`}
+                                disabled={isHourlyEmployee}
+                                readOnly={isHourlyEmployee}
                               />
                             </td>
                           );
                         } else if (editableFields.includes(column.key as EditableAttendanceField)) {
                           const fieldKey = column.key as EditableAttendanceField;
+                          const isHourlyWorkedDays = row.salaryType === 'hourly' && fieldKey === 'workedDays';
+                          const isHourlyLockedField = row.salaryType === 'hourly' && fieldKey !== 'workedHours' && fieldKey !== 'accumulatedOtHours';
+                          const isNonHourlyWorkedHours = row.salaryType !== 'hourly' && fieldKey === 'workedHours';
                           const isReadOnlyAutoField = fieldKey === 'accumulatedOtHours'
+                            || isHourlyWorkedDays
+                            || isHourlyLockedField
+                            || isNonHourlyWorkedHours
                             || (fieldKey === 'prevMonthRemainingHours' && isPrevMonthRemainingHoursAuto);
                           const displayValue = fieldKey === 'accumulatedOtHours'
                             ? (accumulatedOtHours === 0 ? '' : String(accumulatedOtHours))
+                            : isHourlyWorkedDays || isHourlyLockedField || isNonHourlyWorkedHours
+                              ? ''
                             : draft[fieldKey];
                           return (
                             <td

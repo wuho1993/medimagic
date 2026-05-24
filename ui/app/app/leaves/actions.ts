@@ -8,6 +8,7 @@ type SaveAttendanceInput = {
   branchSection?: string | null;
   calendarDays: number;
   workedDays: number;
+  workedHours: number;
   offDays: number;
   statutoryHolidayDays: number;
   birthdayLeaveDays: number;
@@ -69,6 +70,7 @@ export async function saveAttendanceManagementRecord(input: SaveAttendanceInput)
     branch_section: input.branchSection ?? null,
     calendar_days: sanitizeNumber(input.calendarDays),
     worked_days: sanitizeNumber(input.workedDays),
+    worked_hours: sanitizeNumber(input.workedHours),
     off_days: sanitizeNumber(input.offDays),
     statutory_holiday_days: sanitizeNumber(input.statutoryHolidayDays),
     birthday_leave_days: sanitizeNumber(input.birthdayLeaveDays),
@@ -92,7 +94,7 @@ export async function saveAttendanceManagementRecord(input: SaveAttendanceInput)
   };
 
   const { data, error } = await supabase
-    .from('attendance_management_records')
+    .from('monthly_attendance_records')
     .upsert(payload, { onConflict: 'employee_id,year_month' })
     .select('*')
     .single();
@@ -101,7 +103,14 @@ export async function saveAttendanceManagementRecord(input: SaveAttendanceInput)
     return { success: false, error: error.message };
   }
 
-  return { success: true, record: data };
+  const { data: viewRecord } = await supabase
+    .from('attendance_management_records')
+    .select('*')
+    .eq('employee_id', input.employeeId)
+    .eq('year_month', input.yearMonth)
+    .maybeSingle();
+
+  return { success: true, record: { ...(viewRecord ?? data), worked_hours: data.worked_hours } };
 }
 
 export async function approveLeaveRequest(requestId: string, reviewNotes?: string) {

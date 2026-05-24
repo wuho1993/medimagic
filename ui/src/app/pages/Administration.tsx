@@ -39,6 +39,8 @@ const translations = {
       active: '測試中',
       start: '開始 Test Mode',
       finish: '完成並清除測試資料',
+      finishConfirm: '確認要完成並清除測試資料？',
+      finished: '已完成並清除測試資料。',
       restoring: '還原中…',
       starting: '建立 snapshot…',
       tables: 'Tables',
@@ -103,6 +105,8 @@ const translations = {
       active: '测试中',
       start: '开始 Test Mode',
       finish: '完成并清除测试资料',
+      finishConfirm: '确认要完成并清除测试资料？',
+      finished: '已完成并清除测试资料。',
       restoring: '恢复中…',
       starting: '建立 snapshot…',
       tables: 'Tables',
@@ -167,6 +171,8 @@ const translations = {
       active: 'Active',
       start: 'Start Test Mode',
       finish: 'Finish and wipe test data',
+      finishConfirm: 'Are you sure you want to finish and wipe the test data?',
+      finished: 'Test data has been finished and wiped.',
       restoring: 'Restoring…',
       starting: 'Creating snapshot…',
       tables: 'Tables',
@@ -237,7 +243,15 @@ function LookupSection({
   labels: typeof translations.en.masterData;
   saveLabel: string;
 }) {
-  const requiresCompany = false;
+  const requiresCompany = table === 'branches';
+
+  const fieldGridClassName = requiresCompany
+    ? 'md:grid-cols-[180px_140px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]'
+    : 'md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]';
+
+  const editGridClassName = requiresCompany
+    ? 'md:grid-cols-[180px_140px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]'
+    : 'md:grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)_auto]';
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -246,20 +260,32 @@ function LookupSection({
         <h3 className="font-semibold text-slate-900">{title}</h3>
       </div>
 
-      <form action={createLookupItem} className={`grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 ${requiresCompany ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
+      <form action={createLookupItem} className={`grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 ${fieldGridClassName}`}>
         <input type="hidden" name="table" value={table} />
         {requiresCompany ? (
-          <select name="companyId" required className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20">
-            <option value="">{labels.company}</option>
-            {(companies ?? []).map((company) => (
-              <option key={company.id} value={company.id}>{company.labelZh}</option>
-            ))}
-          </select>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-500">{labels.company}</label>
+            <select name="companyId" required className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20">
+              <option value="">{labels.company}</option>
+              {(companies ?? []).map((company) => (
+                <option key={company.id} value={company.id}>{company.labelZh}</option>
+              ))}
+            </select>
+          </div>
         ) : null}
-        <input name="code" required placeholder={labels.code} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
-        <input name="nameZh" required placeholder={labels.nameZh} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
-        <input name="nameEn" required placeholder={labels.nameEn} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
-        <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-500">{labels.code}</label>
+          <input name="code" required placeholder={labels.code} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-500">{labels.nameZh}</label>
+          <input name="nameZh" required placeholder={labels.nameZh} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-500">{labels.nameEn}</label>
+          <input name="nameEn" required placeholder={labels.nameEn} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
+        </div>
+        <button type="submit" className="inline-flex items-center justify-center gap-2 self-end rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
           <Plus className="h-4 w-4" />
           {labels.add}
         </button>
@@ -270,20 +296,32 @@ function LookupSection({
           <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">{labels.empty}</div>
         ) : (
           items.map((item) => (
-            <form key={item.id} action={createLookupItem} className={`grid gap-3 rounded-xl border border-slate-200 p-4 ${requiresCompany ? 'md:grid-cols-[220px_140px_minmax(0,1fr)_minmax(0,1fr)_auto]' : 'md:grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)_auto]'}`}>
+            <form key={item.id} action={createLookupItem} className={`grid gap-3 rounded-xl border border-slate-200 p-4 ${editGridClassName}`}>
               <input type="hidden" name="table" value={table} />
               <input type="hidden" name="id" value={item.id} />
               {requiresCompany ? (
-                <select name="companyId" defaultValue={item.companyId ?? ''} required className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20">
-                  <option value="">{labels.company}</option>
-                  {(companies ?? []).map((company) => (
-                    <option key={company.id} value={company.id}>{company.labelZh}</option>
-                  ))}
-                </select>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-500">{labels.company}</label>
+                  <select name="companyId" defaultValue={item.companyId ?? ''} required className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20">
+                    <option value="">{labels.company}</option>
+                    {(companies ?? []).map((company) => (
+                      <option key={company.id} value={company.id}>{company.labelZh}</option>
+                    ))}
+                  </select>
+                </div>
               ) : null}
-              <input name="code" defaultValue={item.code} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
-              <input name="nameZh" defaultValue={item.labelZh} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
-              <input name="nameEn" defaultValue={item.labelEn} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500">{labels.code}</label>
+                <input name="code" defaultValue={item.code} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500">{labels.nameZh}</label>
+                <input name="nameZh" defaultValue={item.labelZh} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500">{labels.nameEn}</label>
+                <input name="nameEn" defaultValue={item.labelEn} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20" />
+              </div>
               <div className="flex items-center justify-end gap-2">
                 <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                   <Save className="h-4 w-4" />
@@ -316,9 +354,26 @@ function TestModePanel({ labels }: { labels: typeof translations.en.testMode }) 
   const [busy, setBusy] = useState<'start' | 'finish' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const requestJson = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(input, { ...init, signal: controller.signal });
+      const text = await response.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = { raw: text };
+      }
+      return { response, data };
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  };
+
   const loadStatus = async () => {
-    const response = await fetch('/medimagic/api/test-mode', { cache: 'no-store' });
-    const data = await response.json();
+    const { response, data } = await requestJson('/medimagic/api/test-mode', { cache: 'no-store' });
     if (!response.ok || !data.ok) {
       throw new Error(data.error || 'Failed to load test mode status.');
     }
@@ -352,12 +407,11 @@ function TestModePanel({ labels }: { labels: typeof translations.en.testMode }) 
     setBusy('start');
     setMessage(null);
     try {
-      const response = await fetch('/medimagic/api/test-mode', {
+      const { response, data } = await requestJson('/medimagic/api/test-mode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'start' }),
       });
-      const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'Failed to start test mode.');
       await loadStatus();
     } catch (error) {
@@ -369,18 +423,19 @@ function TestModePanel({ labels }: { labels: typeof translations.en.testMode }) 
 
   const finish = async () => {
     if (!session?.id) return;
+    if (!window.confirm(labels.finishConfirm ?? '確認要完成並清除測試資料？')) return;
     setBusy('finish');
     setMessage(null);
     try {
-      const response = await fetch('/medimagic/api/test-mode', {
+      const { response, data } = await requestJson('/medimagic/api/test-mode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'finish', sessionId: session.id }),
       });
-      const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'Failed to finish test mode.');
       window.localStorage.removeItem('medi_magic_test_mode_session');
-      setSession(null);
+      await loadStatus();
+      setMessage(labels.finished ?? '已完成並清除測試資料。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {

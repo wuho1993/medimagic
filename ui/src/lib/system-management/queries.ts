@@ -37,6 +37,7 @@ type LookupRow = {
   code: string;
   name_zh: string;
   name_en: string;
+  company_id?: string | null;
 };
 
 type SystemSettingRow = {
@@ -50,6 +51,18 @@ const DEFAULT_PAYROLL_SYSTEM_SETTINGS: PayrollSystemSettings = {
 
 function normalizePackageNoPayHandling(value: string | null | undefined): PackageNoPayHandling {
   return value === 'no_package' ? 'no_package' : 'pro_rate';
+}
+
+function dedupeBy<T>(items: T[], keyFn: (item: T) => string) {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const item of items) {
+    const key = keyFn(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
 }
 
 export async function fetchPayrollSystemSettings(): Promise<PayrollSystemSettings> {
@@ -91,7 +104,7 @@ function mapFieldConfig(row: SystemFieldConfigRow): SystemFieldConfig {
 async function fetchLookupOptions(table: 'positions' | 'banks' | 'companies' | 'branches'): Promise<EmployeeDirectoryOption[]> {
   const supabase = await createServerSupabaseClient();
   const query = table === 'branches'
-    ? supabase.from(table).select('id, code, name_zh, name_en').eq('is_active', true).order('name_zh')
+    ? supabase.from(table).select('id, code, name_zh, name_en, company_id').eq('is_active', true).order('name_zh')
     : supabase.from(table).select('id, code, name_zh, name_en').order('name_zh');
 
   const { data, error } = await query;
@@ -104,12 +117,13 @@ async function fetchLookupOptions(table: 'positions' | 'banks' | 'companies' | '
     return [];
   }
 
-  return (data as LookupRow[]).map((row) => ({
+  return dedupeBy((data as LookupRow[]).map((row) => ({
     id: row.id,
     code: row.code,
     labelZh: row.name_zh,
     labelEn: row.name_en,
-  }));
+    companyId: row.company_id ?? null,
+  })), (row) => table === 'branches' ? `${row.companyId ?? ''}:${row.code}` : row.code);
 }
 
 export async function fetchSystemManagementData() {
@@ -135,7 +149,7 @@ export async function fetchSystemManagementData() {
   const payrollSettings = await fetchPayrollSystemSettings();
 
   return {
-    fieldConfigs: ((data ?? []) as SystemFieldConfigRow[]).map(mapFieldConfig),
+    fieldConfigs: dedupeBy(((data ?? []) as SystemFieldConfigRow[]).map(mapFieldConfig), (row) => `${row.moduleKey}:${row.fieldKey}`),
     payrollSettings,
     positions,
     banks,

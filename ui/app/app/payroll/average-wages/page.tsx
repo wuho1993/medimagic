@@ -115,7 +115,7 @@ export default function AverageWagesPage() {
           <p className="mt-1 text-sm text-slate-500">只顯示有佣金相關設定或歷史佣金資料的員工；普通時薪/日薪員工不顯示。</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <label className="mb-1 block text-xs font-medium text-slate-500">出糧月份</label>
+          <label className="mb-1 block text-xs font-medium text-slate-500">薪酬所屬月份</label>
           <input type="month" value={selectedMonth} onChange={(event) => handleMonthChange(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]" />
         </div>
       </div>
