@@ -15,7 +15,7 @@ import type {
 import { CUSTOM_COMMISSION_TYPES, type CustomCommissionTier } from '@/src/lib/employees/custom-commission';
 import type { EmployeeDocumentType } from '@/src/lib/employees/document-storage';
 import { calculateAge, calculateProbationEndDate, EMPLOYEE_EMPLOYMENT_TYPES } from '@/src/lib/employees/employment';
-import { normalizePayrollBonusCustomName, normalizePayrollBonusTiers, normalizeShopBonusTiers, type PayrollBonusConfigCatalog, type PayrollBonusTier, type ShopBonusTier } from '@/src/lib/employees/payroll-bonus';
+import { createLegacyPayrollBonusConfigCatalog, normalizePayrollBonusCustomName, normalizePayrollBonusTiers, normalizeShopBonusTiers, type PayrollBonusConfigCatalog, type PayrollBonusTier, type ShopBonusTier } from '@/src/lib/employees/payroll-bonus';
 import { createCommissionRulesFromLegacyCustomTiers, getCommissionRuleConflictMessages, normalizeCommissionRules, serializeCommissionRules, type CommissionRule, type CommissionRuleMetric, type CommissionRuleType } from '@/src/lib/employees/commission-rules';
 import { updateEmployee } from '@/app/app/people/actions';
 import { deleteEmployeeDocument, uploadEmployeeDocument } from '@/app/app/people/document-actions';
@@ -2262,11 +2262,11 @@ function EmployeeDocumentManager({
 export default function EmployeeProfile({
   employee,
   options,
-  commissionTiers,
-  savedCommissionPresets,
-  savedPayrollBonusPresets,
-  savedShopCommissionPresets,
-  payrollBonusConfig,
+  commissionTiers = [],
+  savedCommissionPresets = [],
+  savedPayrollBonusPresets = [],
+  savedShopCommissionPresets = [],
+  payrollBonusConfig = createLegacyPayrollBonusConfigCatalog(),
 }: EmployeeProfileProps) {
   const router = useRouter();
   const { lang } = useLanguage();
@@ -2281,8 +2281,8 @@ export default function EmployeeProfile({
   const t = translations[lang] ?? translations.en;
   const locale = lang === 'en' ? 'en-HK' : lang === 'zh-CN' ? 'zh-CN' : 'zh-HK';
   const savedPresetsLabel = lang === 'en' ? 'Saved Presets' : lang === 'zh-CN' ? '已保存方案' : '已儲存方案';
-  const standardPayrollBonusSchemes = payrollBonusConfig.payrollBonusSchemes;
-  const standardShopBonusTiers = payrollBonusConfig.shopBonusStandardTiers;
+  const standardPayrollBonusSchemes = payrollBonusConfig?.payrollBonusSchemes ?? createLegacyPayrollBonusConfigCatalog().payrollBonusSchemes;
+  const standardShopBonusTiers = payrollBonusConfig?.shopBonusStandardTiers ?? createLegacyPayrollBonusConfigCatalog().shopBonusStandardTiers;
   const isCustomCommissionSelected = isCustomSchemeSelection(formState.commissionMethod);
   const isCustomBonusSelected = isCustomSchemeSelection(formState.payrollBonusScheme);
   const isCustomShopBonusSelected = formState.shopBonusScheme === 'custom';
