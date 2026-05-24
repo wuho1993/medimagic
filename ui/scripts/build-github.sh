@@ -136,6 +136,16 @@ find "$UI_DIR/out/_next" -name '*.js' | while read -r f; do
   sed -i "s|\"/medi-magic-logo.png\"|\"${BASE_PATH}/medi-magic-logo.png\"|g" "$f"
 done
 
+# 9c. Keep a legacy alias for the payroll page chunk.
+# Some browser/intranet caches still request the old chunk filename.
+PAYROLL_CHUNK_DIR="$UI_DIR/out/_next/static/chunks/app/app/payroll"
+if [ -d "$PAYROLL_CHUNK_DIR" ]; then
+  latest_payroll_chunk="$(ls -t "$PAYROLL_CHUNK_DIR"/page-*.js 2>/dev/null | head -n 1 || true)"
+  if [ -n "$latest_payroll_chunk" ]; then
+    cp "$latest_payroll_chunk" "$PAYROLL_CHUNK_DIR/page-6e32ac77bd35c291.js"
+  fi
+fi
+
 # 10. Create 404.html for SPA-style client-side routing on GitHub Pages
 # When a user navigates directly to a dynamic route (e.g. /app/people/SF001),
 # GitHub Pages serves 404.html which loads the app shell, then client-side
