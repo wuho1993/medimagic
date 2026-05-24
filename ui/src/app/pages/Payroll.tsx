@@ -382,6 +382,7 @@ type PayslipPdfEntry = {
   manualBonus: number;
   manualDeduction: number;
   shopBonus: number;
+  shopCommission: number;
   redeemCommission: number;
   salesCommission: number;
   sgmCommission: number;
@@ -1378,6 +1379,10 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
   );
 
   useEffect(() => {
+    setExpandedRows(new Set());
+  }, [salaryMonth]);
+
+  useEffect(() => {
     setSelectedMonth(initialMonth);
   }, [initialMonth]);
 
@@ -1393,7 +1398,6 @@ export default function Payroll({ employees, commissionTiers, savedRecords, atte
     setPackageNoPayHandlingByCode(buildInitialPackageNoPayHandling(employees, savedRecords, defaultPackageNoPayHandling));
     setLiveEmployeeDefaults(Object.fromEntries(employees.map((employee) => [employee.employeeCode, employee])));
     setResyncingCodes({});
-    setExpandedRows(new Set());
     setPayrollReviewAnswers(initialPayrollReviewAnswers);
     setIsPayrollReviewOpen(false);
     setPayrollReviewAction(null);
@@ -2157,6 +2161,9 @@ ${tablePreview}`;
         payrollBonusConfig.payrollBonusSchemes,
       )
       : createEmptyCommissionResult();
+    const shopCommission = commResult.commissionRuleItems
+      .filter((item) => item.metric === 'shop')
+      .reduce((sum, item) => sum + item.amount, 0);
     const specialCommission = streetPromoterCommission + telesalesCommission;
     const calculatedCommission = commissionCalculationEnabled ? commResult.commissionTotal : 0;
     const hasAttendanceNoPay = attendanceNoPayDays > 0;
@@ -2256,6 +2263,7 @@ ${tablePreview}`;
       shopActualSalesAmount,
       shopTargetPercent,
       shopBonus,
+      shopCommission,
       isStreetPromoter,
       streetPromoterHeadcount,
       streetPromoterCommission,
@@ -2408,6 +2416,7 @@ ${tablePreview}`;
     manualBonus: row.manualBonus,
     manualDeduction: row.totalDeduction,
     shopBonus: row.shopBonus,
+    shopCommission: row.shopCommission,
     redeemCommission: row.commResult.redeem.amount,
     salesCommission: row.commResult.sales.amount,
     sgmCommission: row.commResult.sgm.amount,
@@ -3232,7 +3241,19 @@ ${tablePreview}`;
                       <td className="px-3 py-3 text-right tabular-nums text-slate-700">{fmt(row.calculatedBaseSalary)}</td>
                       <td className="px-3 py-3 text-right tabular-nums text-slate-700">{fmt(row.allowanceAmount + row.transportAllowance)}</td>
                       <td className="px-3 py-3 text-right tabular-nums text-slate-700">{fmt(row.bonus)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-[#D4AF37] font-semibold">{row.displayedCommission > 0 ? fmtDec(row.displayedCommission) : '—'}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-[#D4AF37] font-semibold">
+                        <div className="flex flex-col items-end gap-1">
+                          <span>{row.displayedCommission > 0 ? fmtDec(row.displayedCommission) : '—'}</span>
+                          {(row.commResult.redeem.amount > 0 || row.commResult.sales.amount > 0 || row.commResult.sgm.amount > 0 || row.shopCommission > 0) ? (
+                            <div className="flex flex-wrap justify-end gap-1 text-[10px] font-medium">
+                              {row.commResult.redeem.amount > 0 ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">R {fmtDec(row.commResult.redeem.amount)}</span> : null}
+                              {row.commResult.sales.amount > 0 ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">S {fmtDec(row.commResult.sales.amount)}</span> : null}
+                              {row.commResult.sgm.amount > 0 ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">SGM {fmtDec(row.commResult.sgm.amount)}</span> : null}
+                              {row.shopCommission > 0 ? <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-cyan-700">Shop {fmtDec(row.shopCommission)}</span> : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
                       <td className="px-3 py-3 text-right tabular-nums text-slate-600">{row.mpfApplicable ? fmt(row.mpfEe) : '—'}</td>
                       <td className="px-3 py-3 text-right tabular-nums text-slate-600">{row.mpfApplicable ? fmt(row.mpfEr) : '—'}</td>
                       <td className="px-3 py-3 text-right tabular-nums font-bold text-slate-900">{fmt(row.net)}</td>
@@ -4484,9 +4505,10 @@ ${tablePreview}`;
               const commissionIncomeRows: Array<[string, number]> = showPackageOnlyCommission
                 ? [['Package Commission  包佣金額', activePayslipPdfEntry.packageCommissionAmount]]
                 : [
-                  ['Shop Commission  店鋪佣金', activePayslipPdfEntry.salesCommission],
+                  ['Sales Commission  銷售佣金', activePayslipPdfEntry.salesCommission],
+                  ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
                   ['MGM Bonus  介紹獎金', activePayslipPdfEntry.sgmCommission],
-                  [`Discretionary Commissionn  酌情佣金${activePayslipPdfEntry.salesAmountTotal > 0 ? ` (Sales Amount 銷售大數 ${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)})` : ''}`, discretionaryCommission],
+                  [`Discretionary Commission  酌情佣金${activePayslipPdfEntry.salesAmountTotal > 0 ? ` (Sales Amount 銷售大數 ${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)})` : ''}`, discretionaryCommission],
                   ['Job Done Commission  手工工錢', activePayslipPdfEntry.jobCommission],
                 ];
               const specialBonusLabel = showPackageOnlyCommission
