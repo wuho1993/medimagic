@@ -2031,7 +2031,7 @@ ${tablePreview}`;
   const displayedMonth = salaryMonth;
 
   const openAverageWagesPage = () => {
-    window.location.assign(`/medimagic/app/payroll/average-wages?month=${encodeURIComponent(selectedMonth)}`);
+    router.push(`/app/payroll/average-wages?month=${encodeURIComponent(selectedMonth)}`);
   };
 
   const rows = employees.map((sourceEmployee) => {

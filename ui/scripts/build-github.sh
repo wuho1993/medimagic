@@ -53,6 +53,12 @@ for dir in dashboard people payroll attendance leaves admin inbox onboarding off
   fi
 done
 
+# Copy nested static-export page overlays.
+if [ -f "$OVERLAY_DIR/app/app/payroll/average-wages/page.tsx" ]; then
+  mkdir -p "$UI_DIR/app/app/payroll/average-wages"
+  cp "$OVERLAY_DIR/app/app/payroll/average-wages/page.tsx" "$UI_DIR/app/app/payroll/average-wages/page.tsx"
+fi
+
 # 3b. Remove dynamic routes (using query params instead for static export)
 rm -rf "$UI_DIR/app/app/people/[employeeCode]"
 rm -rf "$UI_DIR/app/app/people/[id]"
