@@ -3078,23 +3078,6 @@ export default function EmployeeProfile({
                         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                           {t.shopBonusNote}
                         </div>
-                        {savedShopCommissionPresets.length > 0 ? (
-                          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
-                            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">快速套用 Moon and Iris 大圍鋪數方案</div>
-                            <div className="flex flex-wrap gap-2">
-                              {savedShopCommissionPresets.map((preset) => (
-                                <button
-                                  key={preset.id}
-                                  type="button"
-                                  onClick={() => setFormState((prev) => applyShopCommissionPresetToState(prev, preset))}
-                                  className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                                >
-                                  套用 {preset.name}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
                         <FieldShell label={t.fields.shopBonusScheme}>
                           <select name="shopBonusScheme" value={formState.shopBonusScheme} onChange={handleInputChange} className={inputClasses()}>
                             <option value="">{t.emptyValue}</option>
@@ -3104,6 +3087,23 @@ export default function EmployeeProfile({
                         </FieldShell>
                         {isCustomShopBonusSelected ? (
                           <>
+                            {savedShopCommissionPresets.length > 0 ? (
+                              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">{savedPresetsLabel}</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {savedShopCommissionPresets.map((preset) => (
+                                    <button
+                                      key={preset.id}
+                                      type="button"
+                                      onClick={() => setFormState((prev) => applyShopCommissionPresetToState(prev, preset))}
+                                      className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                                    >
+                                      套用 {preset.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
                             {shopCommissionRules.length > 0 ? (
                               <CommissionRulesPreview rules={shopCommissionRules} title="已套用鋪數方案" />
                             ) : (
