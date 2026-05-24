@@ -1284,6 +1284,16 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const fmt = (v: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'HKD', maximumFractionDigits: 0 }).format(v);
   const fmtDec = (v: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'HKD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
   const fmtPayslipAmount = (v: number) => new Intl.NumberFormat('en-HK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  const safePayrollBonusConfig = useMemo(() => {
+    const fallback = createLegacyPayrollBonusConfigCatalog();
+    return {
+      payrollBonusSchemes: {
+        bonus_1: Array.isArray(payrollBonusConfig?.payrollBonusSchemes?.bonus_1) ? payrollBonusConfig.payrollBonusSchemes.bonus_1 : fallback.payrollBonusSchemes.bonus_1,
+        bonus_2: Array.isArray(payrollBonusConfig?.payrollBonusSchemes?.bonus_2) ? payrollBonusConfig.payrollBonusSchemes.bonus_2 : fallback.payrollBonusSchemes.bonus_2,
+      },
+      shopBonusStandardTiers: Array.isArray(payrollBonusConfig?.shopBonusStandardTiers) ? payrollBonusConfig.shopBonusStandardTiers : fallback.shopBonusStandardTiers,
+    } satisfies PayrollBonusConfigCatalog;
+  }, [payrollBonusConfig]);
 
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const salaryMonth = selectedMonth;
@@ -2143,7 +2153,7 @@ ${tablePreview}`;
           emp.shopBonusEnabled,
           emp.shopBonusScheme,
           emp.shopBonusCustomTiers,
-          payrollBonusConfig.shopBonusStandardTiers,
+          safePayrollBonusConfig.shopBonusStandardTiers,
         )
         : Number(savedRecord?.shopBonusAmount ?? 0))
       : 0;
@@ -2164,7 +2174,7 @@ ${tablePreview}`;
         { redeem: Number(vol.redeem) || 0, sales: Number(vol.sales) || 0, salesAmountTotal: Number(vol.salesAmountTotal) || 0, shop: shopActualSalesAmount, job: Number(vol.job) || 0, sgm: Number(vol.sgm) || 0 },
         emp,
         commissionTiers,
-        payrollBonusConfig.payrollBonusSchemes,
+        safePayrollBonusConfig.payrollBonusSchemes,
       )
       : createEmptyCommissionResult();
     const shopCommission = commResult.commissionRuleItems
@@ -3994,7 +4004,7 @@ ${tablePreview}`;
                                       <span className="font-semibold tabular-nums text-purple-800">{fmtDec(row.commResult.job)}</span>
                                     </div>
                                   )}
-                                  {row.commResult.commissionRuleItems.filter((item) => !['redeem', 'sales', 'sgm'].includes(item.metric)).map((item) => (
+                                   {(row.commResult.commissionRuleItems ?? []).filter((item) => !['redeem', 'sales', 'sgm'].includes(item.metric)).map((item) => (
                                     <div key={`${row.employeeCode}-${item.code}`} className="flex items-center justify-between rounded-lg bg-cyan-50 px-2.5 py-1.5">
                                       <span className="text-cyan-700 text-xs">{item.metric === 'shop' ? '鋪數佣金' : item.name} {item.rate > 0 ? `@ ${(item.rate * 100).toFixed(1)}%` : ''}</span>
                                       <span className="font-semibold tabular-nums text-cyan-900">{fmtDec(item.amount)}</span>
