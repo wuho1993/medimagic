@@ -3002,6 +3002,14 @@ export default function EmployeeProfile({
                         </div>
                       </div>
                       {(formState.streetPromoterEnabled === 'true' || formState.telesalesEnabled === 'true') ? specialCommissionRulesCard : null}
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <FieldShell label={t.fields.salesAmountRatePercent}>
+                          <div className="space-y-2">
+                            <input type="number" min="0" step="0.01" name="salesAmountRatePercent" value={formState.salesAmountRatePercent} onChange={handleInputChange} className={inputClasses()} />
+                            <p className="text-xs text-slate-500">按銷售總金額乘返百分比，唔屬於鋪數 target 計法。</p>
+                          </div>
+                        </FieldShell>
+                      </div>
                     </div>
                     {formState.commissionMethod === 'standard' ? (
                       <CommissionRateTableCard
@@ -3070,6 +3078,23 @@ export default function EmployeeProfile({
                         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                           {t.shopBonusNote}
                         </div>
+                        {savedShopCommissionPresets.length > 0 ? (
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">快速套用 Moon and Iris 大圍鋪數方案</div>
+                            <div className="flex flex-wrap gap-2">
+                              {savedShopCommissionPresets.map((preset) => (
+                                <button
+                                  key={preset.id}
+                                  type="button"
+                                  onClick={() => setFormState((prev) => applyShopCommissionPresetToState(prev, preset))}
+                                  className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                                >
+                                  套用 {preset.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                         <FieldShell label={t.fields.shopBonusScheme}>
                           <select name="shopBonusScheme" value={formState.shopBonusScheme} onChange={handleInputChange} className={inputClasses()}>
                             <option value="">{t.emptyValue}</option>
@@ -3079,21 +3104,6 @@ export default function EmployeeProfile({
                         </FieldShell>
                         {isCustomShopBonusSelected ? (
                           <>
-                            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
-                              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">{savedPresetsLabel}</div>
-                              <div className="flex flex-wrap gap-2">
-                                {savedShopCommissionPresets.map((preset) => (
-                                  <button
-                                    key={preset.id}
-                                    type="button"
-                                    onClick={() => setFormState((prev) => applyShopCommissionPresetToState(prev, preset))}
-                                    className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                                  >
-                                    套用 {preset.name}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
                             {shopCommissionRules.length > 0 ? (
                               <CommissionRulesPreview rules={shopCommissionRules} title="已套用鋪數方案" />
                             ) : (

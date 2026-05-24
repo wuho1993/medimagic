@@ -383,6 +383,7 @@ type PayslipPdfEntry = {
   manualDeduction: number;
   shopBonus: number;
   shopCommission: number;
+  shopCommissionLabel: string | null;
   redeemVolume: number;
   salesVolume: number;
   sgmVolume: number;
@@ -2412,6 +2413,7 @@ ${tablePreview}`;
 
   const payslipExportEntries = rows.map((row): PayslipPdfEntry => {
     const vol = getVolumes(row.employeeCode);
+    const shopCommissionLabel = row.commResult.commissionRuleItems.find((item) => item.metric === 'shop')?.name ?? null;
     return {
       employeeCode: row.employeeCode,
       employeeName: row.alias || row.nameZh,
@@ -2438,6 +2440,7 @@ ${tablePreview}`;
       manualDeduction: row.totalDeduction,
       shopBonus: row.shopBonus,
       shopCommission: row.shopCommission,
+      shopCommissionLabel,
       redeemVolume: Number(vol.redeem) || 0,
       salesVolume: Number(vol.sales) || 0,
       sgmVolume: Number(vol.sgm) || 0,
@@ -4006,7 +4009,7 @@ ${tablePreview}`;
                                   )}
                                    {(row.commResult.commissionRuleItems ?? []).filter((item) => !['redeem', 'sales', 'sgm'].includes(item.metric)).map((item) => (
                                     <div key={`${row.employeeCode}-${item.code}`} className="flex items-center justify-between rounded-lg bg-cyan-50 px-2.5 py-1.5">
-                                      <span className="text-cyan-700 text-xs">{item.metric === 'shop' ? '鋪數佣金' : item.name} {item.rate > 0 ? `@ ${(item.rate * 100).toFixed(1)}%` : ''}</span>
+                                      <span className="text-cyan-700 text-xs">{item.name} {item.rate > 0 ? `@ ${(item.rate * 100).toFixed(1)}%` : ''}</span>
                                       <span className="font-semibold tabular-nums text-cyan-900">{fmtDec(item.amount)}</span>
                                     </div>
                                   ))}
@@ -4517,7 +4520,7 @@ ${tablePreview}`;
                 : [
                   [`Redeem Commission  退單佣金 (${fmtPayslipAmount(activePayslipPdfEntry.redeemVolume)} x ${(activePayslipPdfEntry.redeemRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.redeemCommission],
                   [`Sales Commission  銷售佣金 (${fmtPayslipAmount(activePayslipPdfEntry.salesVolume)} x ${(activePayslipPdfEntry.salesRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.salesCommission],
-                  ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
+                  ...(activePayslipPdfEntry.shopCommission > 0 ? [[`Shop Commission  店舖佣金${activePayslipPdfEntry.shopCommissionLabel ? ` - ${activePayslipPdfEntry.shopCommissionLabel}` : ''}`, activePayslipPdfEntry.shopCommission] as [string, number]] : []),
                   [`SGM Commission  介紹獎金 (${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.sgmCommission],
                   [`Sales Amount Commission  銷售大數佣金${activePayslipPdfEntry.salesAmountTotal > 0 ? ` (${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)} x ${activePayslipPdfEntry.salesAmountRatePercent.toFixed(2)}%)` : ''}`, activePayslipPdfEntry.salesAmountCommission],
                   [`Job Done Commission  手工工錢`, activePayslipPdfEntry.jobCommission],

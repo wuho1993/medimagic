@@ -158,7 +158,7 @@ export function createMoonIrisTaiWaiShopCommissionRules(): CommissionRule[] {
   return normalizeCommissionRules([
     {
       code: 'shop_rate_commission',
-      name: '大圍鋪數佣金',
+      name: 'Moon and Iris 大圍鋪數方案',
       type: 'rate',
       metric: 'shop',
       enabled: true,

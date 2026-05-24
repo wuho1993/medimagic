@@ -861,7 +861,7 @@ export async function fetchSavedShopCommissionPresets(): Promise<SavedShopCommis
 
   if (error) {
     console.error('Failed to load saved shop commission presets from Supabase:', error.message);
-    return [{ id: 'tai_wai_shop', name: '大圍鋪數', rules: createMoonIrisTaiWaiShopCommissionRules() }];
+    return [{ id: 'tai_wai_shop', name: 'Moon and Iris 大圍鋪數方案', rules: createMoonIrisTaiWaiShopCommissionRules() }];
   }
 
   const presets = (data ?? [])
@@ -872,7 +872,7 @@ export async function fetchSavedShopCommissionPresets(): Promise<SavedShopCommis
     }))
     .filter((preset) => preset.rules.length > 0);
 
-  return presets.length > 0 ? presets : [{ id: 'tai_wai_shop', name: '大圍鋪數', rules: createMoonIrisTaiWaiShopCommissionRules() }];
+  return presets.length > 0 ? presets : [{ id: 'tai_wai_shop', name: 'Moon and Iris 大圍鋪數方案', rules: createMoonIrisTaiWaiShopCommissionRules() }];
 }
 
 export type DashboardData = {
