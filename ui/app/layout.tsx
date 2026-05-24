@@ -16,15 +16,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   const buildVersion = process.env.NEXT_PUBLIC_BUILD_VERSION ?? 'local';
+  const buildRedirectScript = `(function(){try{var expected=${JSON.stringify(buildVersion)};fetch('/medimagic/build-version.json?ts='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(payload){if(payload&&payload.version&&payload.version!==expected){var url=new URL(window.location.href);url.searchParams.set('__v',payload.version);url.searchParams.set('__reload','1');window.location.replace(url.toString());}}).catch(function(){});}catch(e){}})();`;
 
   return (
     <html lang="zh-HK">
       <body>
-        {buildVersion !== 'local' ? (
-          <Script id="medimagic-build-version-guard" strategy="beforeInteractive">
-            {`(function(){try{var expected=${JSON.stringify(buildVersion)};fetch('/medimagic/build-version.json?ts='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(payload){if(payload&&payload.version&&payload.version!==expected){var url=new URL(window.location.href);url.searchParams.set('__v',payload.version);window.location.replace(url.toString());}}).catch(function(){});}catch(e){}})();`}
-          </Script>
-        ) : null}
+        {buildVersion !== 'local' ? <Script id="medimagic-build-version-guard" strategy="beforeInteractive">{buildRedirectScript}</Script> : null}
+        {buildVersion !== 'local' ? <noscript><meta httpEquiv="refresh" content={`0;url=/medimagic/?__v=${buildVersion}`} /></noscript> : null}
         <Providers>{children}</Providers>
       </body>
     </html>
