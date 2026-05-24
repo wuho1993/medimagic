@@ -4468,7 +4468,6 @@ ${tablePreview}`;
             {(() => {
               const showPackageOnlyCommission = activePayslipPdfEntry.isPackageEmployee && !activePayslipPdfEntry.actualCommissionExceedsPackage;
               const allowanceTotal = roundMoney(activePayslipPdfEntry.rawAllowanceAmount + activePayslipPdfEntry.rawTransportAllowance);
-              const extraBonus = roundMoney(activePayslipPdfEntry.payrollBonus + activePayslipPdfEntry.shopBonus);
               const baseSalaryDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBaseSalary - activePayslipPdfEntry.calculatedBaseSalary, 0));
               const allowanceDeduction = roundMoney(Math.max(allowanceTotal - (activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance), 0));
               const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));
@@ -4483,9 +4482,6 @@ ${tablePreview}`;
                 : activePayslipPdfEntry.lateDays > 0
                   ? `Late  遲到 (${activePayslipPdfEntry.lateDays}分鐘，未超過30分鐘)`
                   : 'Late  遲到';
-              const noPayLabel = activePayslipPdfEntry.noPayDays > 0
-                ? `No Pay Leave  無薪假 (${activePayslipPdfEntry.noPayDays}日)`
-                : 'No Pay Leave  無薪假';
               const noPayDeductionSuffix = activePayslipPdfEntry.noPayDays > 0
                 ? ` (${activePayslipPdfEntry.noPayDays}日)`
                 : '';
@@ -4526,23 +4522,20 @@ ${tablePreview}`;
                   ...(activePayslipPdfEntry.streetPromoterCommission > 0 ? [[`Street Promoter Commission  街霸佣金`, activePayslipPdfEntry.streetPromoterCommission] as [string, number]] : []),
                   ...(activePayslipPdfEntry.telesalesCommission > 0 ? [[`Telesales Commission  電話銷售員佣金`, activePayslipPdfEntry.telesalesCommission] as [string, number]] : []),
                 ];
-              const specialBonusLabel = showPackageOnlyCommission
-                ? 'Discretionary Special Bonus  酌情特佣'
-                : 'Job Done Special Bonus  手工部酌情特佣';
-              const extraBonusLabel = showPackageOnlyCommission
-                ? 'Extra Bonus '
-                : 'Discretionary Special Bonus  酌情特佣';
-              const incomeRows: Array<[string, number]> = [
-                ...baseIncomeRows,
-                ...commissionIncomeRows,
-                [specialBonusLabel, activePayslipPdfEntry.salesBonus],
-                [extraBonusLabel, extraBonus],
-                [activePayslipPdfEntry.alShDays > 0
+              const salesBonusLabel = 'Sales Bonus  銷售獎金';
+              const payrollBonusLabel = 'Payroll Bonus  月度獎金';
+              const incomeRows: Array<[string, number]> = [...baseIncomeRows, ...commissionIncomeRows];
+              incomeRows.push([salesBonusLabel, activePayslipPdfEntry.salesBonus]);
+              incomeRows.push(['Shop Bonus  鋪數獎金', activePayslipPdfEntry.shopBonus]);
+              incomeRows.push([payrollBonusLabel, activePayslipPdfEntry.payrollBonus]);
+              incomeRows.push([
+                activePayslipPdfEntry.alShDays > 0
                   ? `SH/AL Commission  勞工假/大假平均佣金 (${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${activePayslipPdfEntry.alShDays}日; top-up ${fmtPayslipAmount(activePayslipPdfEntry.legalMinimumAlShTopUp)})`
-                  : 'SH/AL Commission  勞工假/大假平均佣金', activePayslipPdfEntry.finalAlShAverageCommissionPay],
-                ['Other 其他', 0],
-              ];
-              const incomeSubtotal = roundMoney(incomeRows.reduce((sum, [, value]) => sum + value, 0));
+                  : 'SH/AL Commission  勞工假/大假平均佣金',
+                activePayslipPdfEntry.finalAlShAverageCommissionPay,
+              ]);
+              const visibleIncomeRows = incomeRows.filter(([, value]) => value > 0);
+              const incomeSubtotal = roundMoney(visibleIncomeRows.reduce((sum, [, value]) => sum + value, 0));
               const deductionRows: Array<[string, number]> = [
                 ...attendanceDeductionRows,
               ];
@@ -4551,9 +4544,6 @@ ${tablePreview}`;
               }
               if (activePayslipPdfEntry.noPayLeaveDeduction > 0) {
                 deductionRows.push([`No Pay Leave - Remaining Deduction  無薪假餘額扣減${noPayDeductionSuffix}`, activePayslipPdfEntry.noPayLeaveDeduction]);
-              }
-              if (attendanceDeductionRows.length === 0 && activePayslipPdfEntry.noPayLeaveDeduction <= 0) {
-                deductionRows.push([noPayLabel, activePayslipPdfEntry.noPayLeaveDeduction]);
               }
               const deductionSubtotal = roundMoney(deductionRows.reduce((sum, [, value]) => sum + value, 0));
               const adjustmentAmount = activePayslipPdfEntry.adjustmentAmount;
@@ -4646,7 +4636,7 @@ ${tablePreview}`;
                         <td colSpan={6} style={sectionCell}>Income  收入</td>
                         <td colSpan={3}></td>
                       </tr>
-                      {incomeRows.map(([label, value]) => (
+                      {visibleIncomeRows.map(([label, value]) => (
                         <tr key={label}>
                           <td colSpan={6} style={labelCell}>{label}</td>
                           <td style={amountCell}></td>
