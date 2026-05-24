@@ -3262,14 +3262,6 @@ ${tablePreview}`;
                       <td className="px-3 py-3 text-right tabular-nums text-[#D4AF37] font-semibold">
                         <div className="flex flex-col items-end gap-1">
                           <span>{row.displayedCommission > 0 ? fmtDec(row.displayedCommission) : '—'}</span>
-                          {(row.commResult.redeem.amount > 0 || row.commResult.sales.amount > 0 || row.commResult.sgm.amount > 0 || row.shopCommission > 0) ? (
-                            <div className="flex flex-wrap justify-end gap-1 text-[10px] font-medium">
-                              {row.commResult.redeem.amount > 0 ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">R {fmtDec(row.commResult.redeem.amount)} ({fmtDec(row.redeemVolume)})</span> : null}
-                              {row.commResult.sales.amount > 0 ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">S {fmtDec(row.commResult.sales.amount)} ({fmtDec(row.salesVolume)})</span> : null}
-                              {row.commResult.sgm.amount > 0 ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">SGM {fmtDec(row.commResult.sgm.amount)} ({fmtDec(row.sgmVolume)})</span> : null}
-                              {row.shopCommission > 0 ? <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-cyan-700">Shop {fmtDec(row.shopCommission)}</span> : null}
-                            </div>
-                          ) : null}
                         </div>
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums text-slate-600">{row.mpfApplicable ? fmt(row.mpfEe) : '—'}</td>
