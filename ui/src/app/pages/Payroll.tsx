@@ -383,6 +383,12 @@ type PayslipPdfEntry = {
   manualDeduction: number;
   shopBonus: number;
   shopCommission: number;
+  redeemVolume: number;
+  salesVolume: number;
+  sgmVolume: number;
+  redeemRate: number;
+  salesRate: number;
+  sgmRate: number;
   redeemCommission: number;
   salesCommission: number;
   sgmCommission: number;
@@ -2264,6 +2270,9 @@ ${tablePreview}`;
       shopTargetPercent,
       shopBonus,
       shopCommission,
+      redeemVolume: Number(vol.redeem) || 0,
+      salesVolume: Number(vol.sales) || 0,
+      sgmVolume: Number(vol.sgm) || 0,
       isStreetPromoter,
       streetPromoterHeadcount,
       streetPromoterCommission,
@@ -2391,71 +2400,80 @@ ${tablePreview}`;
     };
   });
 
-  const payslipExportEntries = rows.map((row): PayslipPdfEntry => ({
-    employeeCode: row.employeeCode,
-    employeeName: row.alias || row.nameZh,
-    employeeTitle: row.positionNameZh ?? null,
-    hkid: row.identityNumber ?? null,
-    lateDays: row.lateDays,
-    noPayDays: row.attendanceNoPayDays,
-    branchName: row.branchName ?? null,
-    selectedMonth: salaryMonth,
-    rawBaseSalary: row.rawCalculatedBaseSalary,
-    rawAllowanceAmount: row.rawAllowanceAmount,
-    rawTransportAllowance: row.rawTransportAllowance,
-    calculatedBaseSalary: row.calculatedBaseSalary,
-    allowanceAmount: row.allowanceAmount,
-    transportAllowance: row.transportAllowance,
-    rawBriefingBonus: row.rawBriefingBonus,
-    briefingBonus: row.briefingBonus,
-    displayAttendanceBonus: row.displayAttendanceBonus,
-    rawAttendanceBonus: row.rawAttendanceBonus,
-    attendanceBonus: row.attendanceBonus,
-    rawBookingBonus: row.rawBookingBonus,
-    bookingBonus: row.bookingBonus,
-    manualBonus: row.manualBonus,
-    manualDeduction: row.totalDeduction,
-    shopBonus: row.shopBonus,
-    shopCommission: row.shopCommission,
-    redeemCommission: row.commResult.redeem.amount,
-    salesCommission: row.commResult.sales.amount,
-    sgmCommission: row.commResult.sgm.amount,
-    salesAmountTotal: row.commResult.salesAmount.total,
-    salesAmountRatePercent: row.commResult.salesAmount.ratePercent,
-    salesAmountCommission: row.commResult.salesAmount.amount,
-    jobCommission: row.commResult.job,
-    streetPromoterCommission: row.streetPromoterCommission,
-    telesalesCommission: row.telesalesCommission,
-    salesBonus: row.commResult.salesBonus,
-    payrollBonus: row.commResult.payrollBonus,
-    packageCommissionAmount: row.packageCommissionAmount,
-    packageCommission: row.packageCommission,
-    isPackageEmployee: row.isPackageEmployee,
-    actualCommissionExceedsPackage: row.actualCommissionExceedsPackage,
-    grossAmount: roundMoney(row.grossBase + row.displayedCommission),
-    mpfEe: row.mpfEe,
-    mpfEr: row.mpfEr,
-    netAmount: row.net,
-    payDayPrimary: row.payDayPrimary,
-    payDaySecondary: row.payDaySecondary,
-    primaryPayoutGross: row.primaryPayoutGross,
-    primaryMpf: row.primaryMpf,
-    primaryPayoutNet: row.primaryPayoutNet,
-    secondaryPayoutGross: row.secondaryPayoutGross,
-    secondaryMpf: row.secondaryMpf,
-    secondaryPayoutNet: row.secondaryPayoutNet,
-    monthEndMpf: row.monthEndMpf,
-    alShDays: row.alShDays,
-    rollingAverageCommission: row.rollingAverageCommission,
-    alShAverageCommissionPay: row.alShAverageCommissionPay,
-    fixedDailyWage: row.fixedDailyWage,
-    legalDailyAverageWage: row.legalDailyAverageWage,
-    legalMinimumAlShTopUp: row.legalMinimumAlShTopUp,
-    finalAlShAverageCommissionPay: row.finalAlShAverageCommissionPay,
-    alShComplianceWarning: row.alShComplianceWarning,
-    noPayLeaveDeduction: row.attendanceDeductionRemainder,
-    adjustmentAmount: roundMoney(row.manualBonus - row.manualDeduction),
-  }));
+  const payslipExportEntries = rows.map((row): PayslipPdfEntry => {
+    const vol = getVolumes(row.employeeCode);
+    return {
+      employeeCode: row.employeeCode,
+      employeeName: row.alias || row.nameZh,
+      employeeTitle: row.positionNameZh ?? null,
+      hkid: row.identityNumber ?? null,
+      lateDays: row.lateDays,
+      noPayDays: row.attendanceNoPayDays,
+      branchName: row.branchName ?? null,
+      selectedMonth: salaryMonth,
+      rawBaseSalary: row.rawCalculatedBaseSalary,
+      rawAllowanceAmount: row.rawAllowanceAmount,
+      rawTransportAllowance: row.rawTransportAllowance,
+      calculatedBaseSalary: row.calculatedBaseSalary,
+      allowanceAmount: row.allowanceAmount,
+      transportAllowance: row.transportAllowance,
+      rawBriefingBonus: row.rawBriefingBonus,
+      briefingBonus: row.briefingBonus,
+      displayAttendanceBonus: row.displayAttendanceBonus,
+      rawAttendanceBonus: row.rawAttendanceBonus,
+      attendanceBonus: row.attendanceBonus,
+      rawBookingBonus: row.rawBookingBonus,
+      bookingBonus: row.bookingBonus,
+      manualBonus: row.manualBonus,
+      manualDeduction: row.totalDeduction,
+      shopBonus: row.shopBonus,
+      shopCommission: row.shopCommission,
+      redeemVolume: Number(vol.redeem) || 0,
+      salesVolume: Number(vol.sales) || 0,
+      sgmVolume: Number(vol.sgm) || 0,
+      redeemRate: row.commResult.redeem.rate,
+      salesRate: row.commResult.sales.rate,
+      sgmRate: row.commResult.sgm.rate,
+      redeemCommission: row.commResult.redeem.amount,
+      salesCommission: row.commResult.sales.amount,
+      sgmCommission: row.commResult.sgm.amount,
+      salesAmountTotal: row.commResult.salesAmount.total,
+      salesAmountRatePercent: row.commResult.salesAmount.ratePercent,
+      salesAmountCommission: row.commResult.salesAmount.amount,
+      jobCommission: row.commResult.job,
+      streetPromoterCommission: row.streetPromoterCommission,
+      telesalesCommission: row.telesalesCommission,
+      salesBonus: row.commResult.salesBonus,
+      payrollBonus: row.commResult.payrollBonus,
+      packageCommissionAmount: row.packageCommissionAmount,
+      packageCommission: row.packageCommission,
+      isPackageEmployee: row.isPackageEmployee,
+      actualCommissionExceedsPackage: row.actualCommissionExceedsPackage,
+      grossAmount: roundMoney(row.grossBase + row.displayedCommission),
+      mpfEe: row.mpfEe,
+      mpfEr: row.mpfEr,
+      netAmount: row.net,
+      payDayPrimary: row.payDayPrimary,
+      payDaySecondary: row.payDaySecondary,
+      primaryPayoutGross: row.primaryPayoutGross,
+      primaryMpf: row.primaryMpf,
+      primaryPayoutNet: row.primaryPayoutNet,
+      secondaryPayoutGross: row.secondaryPayoutGross,
+      secondaryMpf: row.secondaryMpf,
+      secondaryPayoutNet: row.secondaryPayoutNet,
+      monthEndMpf: row.monthEndMpf,
+      alShDays: row.alShDays,
+      rollingAverageCommission: row.rollingAverageCommission,
+      alShAverageCommissionPay: row.alShAverageCommissionPay,
+      fixedDailyWage: row.fixedDailyWage,
+      legalDailyAverageWage: row.legalDailyAverageWage,
+      legalMinimumAlShTopUp: row.legalMinimumAlShTopUp,
+      finalAlShAverageCommissionPay: row.finalAlShAverageCommissionPay,
+      alShComplianceWarning: row.alShComplianceWarning,
+      noPayLeaveDeduction: row.attendanceDeductionRemainder,
+      adjustmentAmount: roundMoney(row.manualBonus - row.manualDeduction),
+    };
+  });
 
   const payrollReviewIssues = useMemo<PayrollReviewIssue[]>(() => {
     const [year, month] = salaryMonth.split('-').map(Number);
@@ -3246,9 +3264,9 @@ ${tablePreview}`;
                           <span>{row.displayedCommission > 0 ? fmtDec(row.displayedCommission) : '—'}</span>
                           {(row.commResult.redeem.amount > 0 || row.commResult.sales.amount > 0 || row.commResult.sgm.amount > 0 || row.shopCommission > 0) ? (
                             <div className="flex flex-wrap justify-end gap-1 text-[10px] font-medium">
-                              {row.commResult.redeem.amount > 0 ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">R {fmtDec(row.commResult.redeem.amount)}</span> : null}
-                              {row.commResult.sales.amount > 0 ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">S {fmtDec(row.commResult.sales.amount)}</span> : null}
-                              {row.commResult.sgm.amount > 0 ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">SGM {fmtDec(row.commResult.sgm.amount)}</span> : null}
+                              {row.commResult.redeem.amount > 0 ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">R {fmtDec(row.commResult.redeem.amount)} ({fmtDec(row.redeemVolume)})</span> : null}
+                              {row.commResult.sales.amount > 0 ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">S {fmtDec(row.commResult.sales.amount)} ({fmtDec(row.salesVolume)})</span> : null}
+                              {row.commResult.sgm.amount > 0 ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">SGM {fmtDec(row.commResult.sgm.amount)} ({fmtDec(row.sgmVolume)})</span> : null}
                               {row.shopCommission > 0 ? <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-cyan-700">Shop {fmtDec(row.shopCommission)}</span> : null}
                             </div>
                           ) : null}
@@ -3962,13 +3980,13 @@ ${tablePreview}`;
                                   )}
                                   {row.commResult.redeem.amount > 0 && (
                                     <div className="flex items-center justify-between rounded-lg bg-blue-50 px-2.5 py-1.5">
-                                      <span className="text-blue-600 text-xs">{t.tierCard.redeem} @ {(row.commResult.redeem.rate * 100).toFixed(1)}%</span>
+                                      <span className="text-blue-600 text-xs">{t.tierCard.redeem} ({fmtDec(row.redeemVolume)} × {(row.commResult.redeem.rate * 100).toFixed(1)}%)</span>
                                       <span className="font-semibold tabular-nums text-blue-800">{fmtDec(row.commResult.redeem.amount)}</span>
                                     </div>
                                   )}
                                   {row.commResult.sales.amount > 0 && (
                                     <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-2.5 py-1.5">
-                                      <span className="text-emerald-600 text-xs">{t.tierCard.sales} @ {(row.commResult.sales.rate * 100).toFixed(1)}%</span>
+                                      <span className="text-emerald-600 text-xs">{t.tierCard.sales} ({fmtDec(row.salesVolume)} × {(row.commResult.sales.rate * 100).toFixed(1)}%)</span>
                                       <span className="font-semibold tabular-nums text-emerald-800">{fmtDec(row.commResult.sales.amount)}</span>
                                     </div>
                                   )}
@@ -4004,7 +4022,7 @@ ${tablePreview}`;
                                   )}
                                   {row.commResult.sgm.amount > 0 && (
                                     <div className="flex items-center justify-between rounded-lg bg-amber-50 px-2.5 py-1.5">
-                                      <span className="text-amber-600 text-xs">{t.tierCard.sgm} @ {(row.commResult.sgm.rate * 100).toFixed(1)}%</span>
+                                      <span className="text-amber-600 text-xs">{t.tierCard.sgm} ({fmtDec(row.sgmVolume)} × {(row.commResult.sgm.rate * 100).toFixed(1)}%)</span>
                                       <span className="font-semibold tabular-nums text-amber-800">{fmtDec(row.commResult.sgm.amount)}</span>
                                     </div>
                                   )}
@@ -4450,12 +4468,6 @@ ${tablePreview}`;
             {(() => {
               const showPackageOnlyCommission = activePayslipPdfEntry.isPackageEmployee && !activePayslipPdfEntry.actualCommissionExceedsPackage;
               const allowanceTotal = roundMoney(activePayslipPdfEntry.rawAllowanceAmount + activePayslipPdfEntry.rawTransportAllowance);
-              const discretionaryCommission = roundMoney(
-                activePayslipPdfEntry.redeemCommission
-                + activePayslipPdfEntry.salesAmountCommission
-                + activePayslipPdfEntry.streetPromoterCommission
-                + activePayslipPdfEntry.telesalesCommission
-              );
               const extraBonus = roundMoney(activePayslipPdfEntry.payrollBonus + activePayslipPdfEntry.shopBonus);
               const baseSalaryDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBaseSalary - activePayslipPdfEntry.calculatedBaseSalary, 0));
               const allowanceDeduction = roundMoney(Math.max(allowanceTotal - (activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance), 0));
@@ -4505,11 +4517,14 @@ ${tablePreview}`;
               const commissionIncomeRows: Array<[string, number]> = showPackageOnlyCommission
                 ? [['Package Commission  包佣金額', activePayslipPdfEntry.packageCommissionAmount]]
                 : [
-                  ['Sales Commission  銷售佣金', activePayslipPdfEntry.salesCommission],
+                  [`Redeem Commission  退單佣金 (${fmtPayslipAmount(activePayslipPdfEntry.redeemVolume)} x ${(activePayslipPdfEntry.redeemRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.redeemCommission],
+                  [`Sales Commission  銷售佣金 (${fmtPayslipAmount(activePayslipPdfEntry.salesVolume)} x ${(activePayslipPdfEntry.salesRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.salesCommission],
                   ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
-                  ['MGM Bonus  介紹獎金', activePayslipPdfEntry.sgmCommission],
-                  [`Discretionary Commission  酌情佣金${activePayslipPdfEntry.salesAmountTotal > 0 ? ` (Sales Amount 銷售大數 ${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)})` : ''}`, discretionaryCommission],
-                  ['Job Done Commission  手工工錢', activePayslipPdfEntry.jobCommission],
+                  [`SGM Commission  介紹獎金 (${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.sgmCommission],
+                  [`Sales Amount Commission  銷售大數佣金${activePayslipPdfEntry.salesAmountTotal > 0 ? ` (${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)} x ${activePayslipPdfEntry.salesAmountRatePercent.toFixed(2)}%)` : ''}`, activePayslipPdfEntry.salesAmountCommission],
+                  [`Job Done Commission  手工工錢`, activePayslipPdfEntry.jobCommission],
+                  ...(activePayslipPdfEntry.streetPromoterCommission > 0 ? [[`Street Promoter Commission  街霸佣金`, activePayslipPdfEntry.streetPromoterCommission] as [string, number]] : []),
+                  ...(activePayslipPdfEntry.telesalesCommission > 0 ? [[`Telesales Commission  電話銷售員佣金`, activePayslipPdfEntry.telesalesCommission] as [string, number]] : []),
                 ];
               const specialBonusLabel = showPackageOnlyCommission
                 ? 'Discretionary Special Bonus  酌情特佣'
