@@ -2609,21 +2609,29 @@ export default function EmployeeProfile({
       return;
     }
 
-    if (formState.commissionRules.trim() && commissionRules.length === 0) {
-      setErrorMessage('Commission Rules JSON 格式不正確，請檢查後再儲存。');
-      return;
-    }
-
     if (formState.shopBonusEnabled === 'true' && isCustomShopBonusSelected && customShopBonusConflicts.length > 0) {
       setErrorMessage(`${t.customShopBonusEditor.conflictTitle} ${customShopBonusConflicts[0]}`);
       return;
     }
+
+    const submissionCommissionRules = serializeCommissionRules(commissionRules.filter((rule) => {
+      if (rule.metric === 'shop') {
+        return formState.shopBonusEnabled === 'true';
+      }
+
+      return isCustomCommissionSelected;
+    }));
 
     const payload = new FormData();
     payload.set('employeeId', employee.id);
     payload.set('originalEmployeeCode', employee.employeeCode);
 
     Object.entries(formState).forEach(([key, value]) => {
+      if (key === 'commissionRules') {
+        payload.set(key, submissionCommissionRules);
+        return;
+      }
+
       payload.set(key, value == null || value === 'null' || value === 'undefined' ? '' : value);
     });
 
