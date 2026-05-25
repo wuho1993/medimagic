@@ -432,7 +432,7 @@ export async function updateEmployee(formData: FormData) {
   const commissionCustomTiers = commissionMethod === 'custom'
     ? parseCommissionCustomTiers(formData, 'commissionCustomTiers')
     : null;
-  const commissionRules = normalizeCommissionRules(getNullableJsonValue(formData, 'commissionRules'));
+  const rawCommissionRules = normalizeCommissionRules(getNullableJsonValue(formData, 'commissionRules'));
   const commissionRedeemRate = null;
   const commissionSalesRate = null;
   const commissionSgmRate = null;
@@ -452,6 +452,13 @@ export async function updateEmployee(formData: FormData) {
   const streetPromoterEnabled = getValue(formData, 'streetPromoterEnabled') === 'true';
   const telesalesEnabled = getValue(formData, 'telesalesEnabled') === 'true';
   const shopBonusEnabled = getValue(formData, 'shopBonusEnabled') === 'true';
+  const commissionRules = rawCommissionRules.filter((rule) => {
+    if (rule.metric === 'shop') {
+      return shopBonusEnabled;
+    }
+
+    return commissionMethod === 'custom';
+  });
   const shopBonusSchemeValue = getNullableValue(formData, 'shopBonusScheme');
   const shopBonusScheme = shopBonusSchemeValue === 'standard' || shopBonusSchemeValue === 'custom'
     ? shopBonusSchemeValue

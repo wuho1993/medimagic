@@ -4520,7 +4520,7 @@ ${tablePreview}`;
                 : [
                   [`Redeem Commission  退單佣金 (${fmtPayslipAmount(activePayslipPdfEntry.redeemVolume)} x ${(activePayslipPdfEntry.redeemRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.redeemCommission],
                   [`Sales Commission  銷售佣金 (${fmtPayslipAmount(activePayslipPdfEntry.salesVolume)} x ${(activePayslipPdfEntry.salesRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.salesCommission],
-                  ...(activePayslipPdfEntry.shopCommission > 0 ? [[`Shop Commission  店舖佣金${activePayslipPdfEntry.shopCommissionLabel ? ` - ${activePayslipPdfEntry.shopCommissionLabel}` : ''}`, activePayslipPdfEntry.shopCommission] as [string, number]] : []),
+                  ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
                   [`SGM Commission  介紹獎金 (${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.sgmCommission],
                   [`Sales Amount Commission  銷售大數佣金${activePayslipPdfEntry.salesAmountTotal > 0 ? ` (${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)} x ${activePayslipPdfEntry.salesAmountRatePercent.toFixed(2)}%)` : ''}`, activePayslipPdfEntry.salesAmountCommission],
                   [`Job Done Commission  手工工錢`, activePayslipPdfEntry.jobCommission],

@@ -1115,6 +1115,33 @@ function applyShopCommissionPresetToState(current: FormState, preset: SavedShopC
   };
 }
 
+function createBlankShopCommissionRule(): CommissionRule {
+  return {
+    code: 'custom_shop_rate_commission',
+    name: '自訂鋪數百分比方案',
+    type: 'rate',
+    metric: 'shop',
+    enabled: true,
+    stackable: false,
+    tiers: [{ minAmount: 0, maxAmount: null, amount: null, rate: 0 }],
+  };
+}
+
+function createBlankShopCommissionPlanState(current: FormState): FormState {
+  return {
+    ...current,
+    shopBonusEnabled: 'true',
+    shopBonusScheme: 'custom',
+    shopBonusCustomName: '自訂鋪數百分比方案',
+    shopBonusCustomTiers: '',
+    commissionMethod: current.commissionMethod || 'custom',
+    commissionRules: serializeCommissionRules([
+      ...normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric !== 'shop'),
+      createBlankShopCommissionRule(),
+    ]),
+  };
+}
+
 function getAppliedCommissionDisplayName(
   employee: EmployeeDetailRecord,
   mainRules: CommissionRule[],
@@ -1425,6 +1452,11 @@ function CommissionRulesPreview({ rules, title = '自訂佣金規則' }: { rules
   );
 }
 
+function formatEditableNumber(value: number | null): number | null {
+  if (value === null || !Number.isFinite(value)) return value;
+  return Number(value.toFixed(6));
+}
+
 function ShopCommissionRulesEditor({
   rules,
   onChange,
@@ -1461,9 +1493,9 @@ function ShopCommissionRulesEditor({
               <tbody className="divide-y divide-slate-100">
                 {rule.tiers.map((tier, tierIndex) => (
                   <tr key={`${rule.code}-shop-tier-${tierIndex}`}>
-                    <td className="px-3 py-2"><InlineNumberInput value={tier.minAmount} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { minAmount: value ?? 0 })} /></td>
-                    <td className="px-3 py-2"><InlineNumberInput value={tier.maxAmount} allowDecimal allowEmpty placeholder="無上限" onCommit={(value) => updateTier(ruleIndex, tierIndex, { maxAmount: value })} /></td>
-                    <td className="px-3 py-2"><InlineNumberInput value={(tier.rate ?? 0) * 100} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { rate: (value ?? 0) / 100, amount: null })} /></td>
+                    <td className="px-3 py-2"><InlineNumberInput value={formatEditableNumber(tier.minAmount)} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { minAmount: value ?? 0 })} /></td>
+                    <td className="px-3 py-2"><InlineNumberInput value={formatEditableNumber(tier.maxAmount)} allowDecimal allowEmpty placeholder="無上限" onCommit={(value) => updateTier(ruleIndex, tierIndex, { maxAmount: value })} /></td>
+                    <td className="px-3 py-2"><InlineNumberInput value={formatEditableNumber((tier.rate ?? 0) * 100)} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { rate: (value ?? 0) / 100, amount: null })} /></td>
                     <td className="px-3 py-2 text-right"><button type="button" onClick={() => updateRule(ruleIndex, { tiers: rule.tiers.filter((_, index) => index !== tierIndex) })} className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50">刪除</button></td>
                   </tr>
                 ))}
@@ -2515,7 +2547,7 @@ export default function EmployeeProfile({
           commissionCustomTiers: value === 'custom' ? current.commissionCustomTiers : current.commissionCustomTiers,
           commissionRules: value === 'custom'
             ? (normalizeCommissionRules(parseJsonSafely(current.commissionRules)).length > 0 ? current.commissionRules : serializeCommissionRules(createStandardCommissionRulesFromRateTable(commissionTiers)))
-            : '',
+            : serializeCommissionRules(normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric === 'shop')),
         };
       }
 
@@ -3124,7 +3156,19 @@ export default function EmployeeProfile({
                     )}
                     <div className="mt-2 border-t border-slate-100 pt-4">
                       <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" name="shopBonusEnabled" checked={formState.shopBonusEnabled === 'true'} onChange={(e) => setFormState((prev) => ({ ...prev, shopBonusEnabled: e.target.checked ? 'true' : 'false', shopBonusScheme: e.target.checked ? prev.shopBonusScheme : '', shopBonusCustomName: e.target.checked ? prev.shopBonusCustomName : '', shopBonusCustomTiers: e.target.checked ? prev.shopBonusCustomTiers : '' }))} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
+                        <input type="checkbox" name="shopBonusEnabled" checked={formState.shopBonusEnabled === 'true'} onChange={(e) => setFormState((prev) => {
+                          const nextEnabled = e.target.checked;
+                          return {
+                            ...prev,
+                            shopBonusEnabled: nextEnabled ? 'true' : 'false',
+                            shopBonusScheme: nextEnabled ? prev.shopBonusScheme : '',
+                            shopBonusCustomName: nextEnabled ? prev.shopBonusCustomName : '',
+                            shopBonusCustomTiers: nextEnabled ? prev.shopBonusCustomTiers : '',
+                            commissionRules: nextEnabled
+                              ? prev.commissionRules
+                              : serializeCommissionRules(normalizeCommissionRules(parseJsonSafely(prev.commissionRules)).filter((rule) => rule.metric !== 'shop')),
+                          };
+                        })} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
                         <span className="text-sm font-medium text-slate-700">{t.fields.shopBonusEnabled}</span>
                       </label>
                     </div>
@@ -3156,6 +3200,13 @@ export default function EmployeeProfile({
                                       套用 {preset.name}
                                     </button>
                                   ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => setFormState((prev) => createBlankShopCommissionPlanState(prev))}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  >
+                                    新增鋪數百分比方案
+                                  </button>
                                 </div>
                               </div>
                             ) : null}
