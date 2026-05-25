@@ -16,7 +16,7 @@ import { CUSTOM_COMMISSION_TYPES, type CustomCommissionTier } from '@/src/lib/em
 import type { EmployeeDocumentType } from '@/src/lib/employees/document-storage';
 import { calculateAge, calculateProbationEndDate, EMPLOYEE_EMPLOYMENT_TYPES } from '@/src/lib/employees/employment';
 import { createLegacyPayrollBonusConfigCatalog, normalizePayrollBonusCustomName, normalizePayrollBonusTiers, normalizeShopBonusTiers, type PayrollBonusConfigCatalog, type PayrollBonusTier, type ShopBonusTier } from '@/src/lib/employees/payroll-bonus';
-import { createCommissionRulesFromLegacyCustomTiers, getCommissionRuleConflictMessages, normalizeCommissionRules, serializeCommissionRules, type CommissionRule, type CommissionRuleMetric, type CommissionRuleType } from '@/src/lib/employees/commission-rules';
+import { createCommissionRulesFromLegacyCustomTiers, createMoonIrisTaiWaiShopCommissionRules, getCommissionRuleConflictMessages, normalizeCommissionRules, serializeCommissionRules, type CommissionRule, type CommissionRuleMetric, type CommissionRuleType } from '@/src/lib/employees/commission-rules';
 import { updateEmployee } from '@/app/app/people/actions';
 import { deleteEmployeeDocument, uploadEmployeeDocument } from '@/app/app/people/document-actions';
 
@@ -2283,6 +2283,9 @@ export default function EmployeeProfile({
   const savedPresetsLabel = lang === 'en' ? 'Saved Presets' : lang === 'zh-CN' ? '已保存方案' : '已儲存方案';
   const standardPayrollBonusSchemes = payrollBonusConfig?.payrollBonusSchemes ?? createLegacyPayrollBonusConfigCatalog().payrollBonusSchemes;
   const standardShopBonusTiers = payrollBonusConfig?.shopBonusStandardTiers ?? createLegacyPayrollBonusConfigCatalog().shopBonusStandardTiers;
+  const shopCommissionPresetOptions = Array.isArray(savedShopCommissionPresets) && savedShopCommissionPresets.length > 0
+    ? savedShopCommissionPresets
+    : [{ id: 'tai_wai_shop', name: 'Moon and Iris 大圍鋪數方案', rules: createMoonIrisTaiWaiShopCommissionRules() }];
   const isCustomCommissionSelected = isCustomSchemeSelection(formState.commissionMethod);
   const isCustomBonusSelected = isCustomSchemeSelection(formState.payrollBonusScheme);
   const isCustomShopBonusSelected = formState.shopBonusScheme === 'custom';
@@ -3087,11 +3090,11 @@ export default function EmployeeProfile({
                         </FieldShell>
                         {isCustomShopBonusSelected ? (
                           <>
-                            {savedShopCommissionPresets.length > 0 ? (
+                            {shopCommissionPresetOptions.length > 0 ? (
                               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">{savedPresetsLabel}</div>
                                 <div className="flex flex-wrap gap-2">
-                                  {savedShopCommissionPresets.map((preset) => (
+                                  {shopCommissionPresetOptions.map((preset) => (
                                     <button
                                       key={preset.id}
                                       type="button"
