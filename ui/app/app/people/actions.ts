@@ -459,6 +459,10 @@ export async function updateEmployee(formData: FormData) {
 
     return commissionMethod === 'custom';
   });
+  const hasMainCommissionRules = commissionRules.some((rule) => rule.metric !== 'shop');
+  const effectiveCommissionMethod = commissionMethod === 'custom' && !hasMainCommissionRules
+    ? null
+    : commissionMethod;
   const shopBonusSchemeValue = getNullableValue(formData, 'shopBonusScheme');
   const shopBonusScheme = shopBonusSchemeValue === 'standard' || shopBonusSchemeValue === 'custom'
     ? shopBonusSchemeValue
@@ -489,7 +493,7 @@ export async function updateEmployee(formData: FormData) {
     transportAllowance,
     briefingBonus,
     bookingBonus,
-    commissionMethod,
+    effectiveCommissionMethod,
     commissionPresetId,
     commissionCustomName,
     commissionCustomTiers,
@@ -523,10 +527,10 @@ export async function updateEmployee(formData: FormData) {
       briefing_bonus: briefingBonus,
       booking_bonus: bookingBonus,
       mpf_enabled: mpfEnabled,
-      commission_method: commissionMethod,
-      commission_preset_id: commissionPresetId,
-      commission_custom_name: commissionCustomName,
-      commission_custom_tiers: commissionCustomTiers,
+      commission_method: effectiveCommissionMethod,
+      commission_preset_id: effectiveCommissionMethod === 'custom' ? commissionPresetId : null,
+      commission_custom_name: effectiveCommissionMethod === 'custom' ? commissionCustomName : null,
+      commission_custom_tiers: effectiveCommissionMethod === 'custom' ? commissionCustomTiers : null,
       commission_rules: commissionRules.length > 0 ? commissionRules : null,
       commission_redeem_rate: commissionRedeemRate,
       commission_sales_rate: commissionSalesRate,

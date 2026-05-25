@@ -1107,7 +1107,6 @@ function applyShopCommissionPresetToState(current: FormState, preset: SavedShopC
     shopBonusScheme: 'custom',
     shopBonusCustomName: preset.name,
     shopBonusCustomTiers: '',
-    commissionMethod: current.commissionMethod || 'custom',
     commissionRules: serializeCommissionRules([
       ...normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric !== 'shop'),
       ...preset.rules,
@@ -1134,7 +1133,6 @@ function createBlankShopCommissionPlanState(current: FormState): FormState {
     shopBonusScheme: 'custom',
     shopBonusCustomName: '自訂鋪數百分比方案',
     shopBonusCustomTiers: '',
-    commissionMethod: current.commissionMethod || 'custom',
     commissionRules: serializeCommissionRules([
       ...normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric !== 'shop'),
       createBlankShopCommissionRule(),
@@ -1309,6 +1307,7 @@ function getBirthdayReminder(dateOfBirth: string | null | undefined, referenceDa
 
 function createInitialState(employee: EmployeeDetailRecord): FormState {
   const probationEndDate = calculateProbationEndDate(employee.hireDate, employee.probationMonths) ?? employee.probationEndDate ?? '';
+  const employeeMainCommissionRules = (employee.commissionRules ?? []).filter((rule) => rule.metric !== 'shop');
 
   return {
     employeeCode: employee.employeeCode,
@@ -1350,7 +1349,9 @@ function createInitialState(employee: EmployeeDetailRecord): FormState {
     briefingBonus: employee.briefingBonus === null ? '' : String(employee.briefingBonus),
     bookingBonus: employee.bookingBonus === null ? '' : String(employee.bookingBonus),
     mpfEnabled: employee.mpfEnabled ? 'true' : 'false',
-    commissionMethod: employee.commissionRules?.length || employee.commissionPresetId ? 'custom' : (employee.commissionMethod ?? ''),
+    commissionMethod: employeeMainCommissionRules.length > 0 || employee.commissionPresetId
+      ? 'custom'
+      : (employee.commissionMethod === 'custom' ? '' : (employee.commissionMethod ?? '')),
     commissionCustomName: employee.commissionCustomName ?? '',
     commissionCustomTiers: serializeCustomCommissionTiers(employee.commissionCustomTiers ?? []),
     commissionRules: serializeCommissionRules(employee.commissionRules?.length ? employee.commissionRules : createCommissionRulesFromLegacyCustomTiers(employee.commissionCustomName, employee.commissionCustomTiers ?? [])),

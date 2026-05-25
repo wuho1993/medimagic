@@ -544,6 +544,8 @@ const translations = {
       shopBonus: '鋪數',
       shopTargetAmount: '本月 Target',
       shopActualSalesAmount: '實際銷售數',
+      shopCommissionSalesAmount: '鋪數銷售額',
+      shopCommissionCalculated: '鋪數百分比佣金',
       shopTargetPercent: '達標 %',
       salesBonus: 'Sales Bonus',
       payrollBonus: 'Bonus',
@@ -688,6 +690,8 @@ const translations = {
       shopBonus: '铺数',
       shopTargetAmount: '本月 Target',
       shopActualSalesAmount: '实际销售数',
+      shopCommissionSalesAmount: '铺数销售额',
+      shopCommissionCalculated: '铺数百分比佣金',
       shopTargetPercent: '达标 %',
       salesBonus: 'Sales Bonus',
       payrollBonus: 'Bonus',
@@ -832,6 +836,8 @@ const translations = {
       shopBonus: 'Shop Bonus',
       shopTargetAmount: 'Monthly Target',
       shopActualSalesAmount: 'Actual Sales',
+      shopCommissionSalesAmount: 'Shop Sales Amount',
+      shopCommissionCalculated: 'Shop Rate Commission',
       shopTargetPercent: 'Achievement %',
       salesBonus: 'Sales Bonus',
       payrollBonus: 'Bonus',
@@ -3662,25 +3668,15 @@ ${tablePreview}`;
                                 <div className="border-t border-slate-100 py-3">
                                   <div className="mb-2 flex items-center justify-between gap-3">
                                     <span className="text-sm font-medium text-slate-700">{t.commInput.shopBonus}</span>
-                                    <span className="text-xs text-slate-500">{t.commInput.defaultAmount}: {row.shopBonus > 0 ? fmtDec(row.shopBonus) : '—'}</span>
+                                    <span className="text-xs text-slate-500">
+                                      {row.hasShopCommissionRule
+                                        ? `${t.commInput.shopCommissionCalculated}: ${row.shopCommission > 0 ? fmtDec(row.shopCommission) : '—'}`
+                                        : `${t.commInput.defaultAmount}: ${row.shopBonus > 0 ? fmtDec(row.shopBonus) : '—'}`}
+                                    </span>
                                   </div>
-                                  <div className="grid gap-3 md:grid-cols-2">
+                                  {row.hasShopCommissionRule ? (
                                     <div>
-                                      <label className="mb-1 block text-xs font-medium text-slate-500">{t.commInput.shopTargetAmount}</label>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        className={inputClasses}
-                                        value={monthlyBonus.shopTargetAmount}
-                                        onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'shopTargetAmount', e.target.value)}
-                                        onKeyDown={preventAccidentalNumberStep}
-                                        onWheel={preventAccidentalNumberScroll}
-                                        placeholder="0"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="mb-1 block text-xs font-medium text-slate-500">{t.commInput.shopActualSalesAmount}</label>
+                                      <label className="mb-1 block text-xs font-medium text-slate-500">{t.commInput.shopCommissionSalesAmount}</label>
                                       <input
                                         type="number"
                                         min="0"
@@ -3692,11 +3688,47 @@ ${tablePreview}`;
                                         onWheel={preventAccidentalNumberScroll}
                                         placeholder="0"
                                       />
+                                      <div className="mt-2 text-xs font-medium text-slate-600">
+                                        {t.commInput.shopCommissionCalculated}: {row.shopCommission > 0 ? fmtDec(row.shopCommission) : '—'}
+                                      </div>
                                     </div>
-                                  </div>
-                                  <div className="mt-2 text-xs font-medium text-slate-600">
-                                    {t.commInput.shopTargetPercent}: {row.shopTargetPercent > 0 ? `${row.shopTargetPercent.toFixed(2)}%` : '—'}
-                                  </div>
+                                  ) : (
+                                    <>
+                                      <div className="grid gap-3 md:grid-cols-2">
+                                        <div>
+                                          <label className="mb-1 block text-xs font-medium text-slate-500">{t.commInput.shopTargetAmount}</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            className={inputClasses}
+                                            value={monthlyBonus.shopTargetAmount}
+                                            onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'shopTargetAmount', e.target.value)}
+                                            onKeyDown={preventAccidentalNumberStep}
+                                            onWheel={preventAccidentalNumberScroll}
+                                            placeholder="0"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="mb-1 block text-xs font-medium text-slate-500">{t.commInput.shopActualSalesAmount}</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            className={inputClasses}
+                                            value={monthlyBonus.shopActualSalesAmount}
+                                            onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'shopActualSalesAmount', e.target.value)}
+                                            onKeyDown={preventAccidentalNumberStep}
+                                            onWheel={preventAccidentalNumberScroll}
+                                            placeholder="0"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="mt-2 text-xs font-medium text-slate-600">
+                                        {t.commInput.shopTargetPercent}: {row.shopTargetPercent > 0 ? `${row.shopTargetPercent.toFixed(2)}%` : '—'}
+                                      </div>
+                                    </>
+                                  )}
                                 </div>
                               ) : null}
                             </div>
