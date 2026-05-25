@@ -2216,19 +2216,23 @@ ${tablePreview}`;
     const hasSecondaryPayout = Boolean(emp.payDaySecondary);
     const monthEndAlShAverageCommissionPay = hasSecondaryPayout ? finalAlShAverageCommissionPay : 0;
     const primaryAlShAverageCommissionPay = hasSecondaryPayout ? 0 : finalAlShAverageCommissionPay;
-    const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonus + shopBonus + primaryAlShAverageCommissionPay - totalDeduction;
-    const displayedBonus = fixedBonus + (commissionCalculationEnabled ? commResult.totalBonus : 0);
+    const monthEndShopBonus = hasSecondaryPayout ? shopBonus : 0;
+    const primaryShopBonus = hasSecondaryPayout ? 0 : shopBonus;
+    const monthEndSalesBonus = hasSecondaryPayout && commissionCalculationEnabled ? commResult.totalBonus : 0;
+    const primarySalesBonus = hasSecondaryPayout ? 0 : (commissionCalculationEnabled ? commResult.totalBonus : 0);
+    const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonus + primaryShopBonus + primaryAlShAverageCommissionPay - totalDeduction;
+    const displayedBonus = fixedBonus + primarySalesBonus;
     const bonus = Math.round(displayedBonus * 100) / 100;
     const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus;
     const mpfApplicable = isMpfStatutorilyEligible(emp.dateOfBirth, emp.hireDate, payrollReferenceDate);
     const primaryPayoutGross = hasSecondaryPayout ? grossBase : grossBase + displayedCommission;
-    const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay : 0;
-    const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonusMpfRelevant + shopBonus + primaryAlShAverageCommissionPay - manualDeductionMpfRelevant;
-    const mpfRelevantDisplayedBonus = mpfRelevantFixedBonus + (commissionCalculationEnabled ? commResult.totalBonus : 0);
+    const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus : 0;
+    const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonusMpfRelevant + primaryShopBonus + primaryAlShAverageCommissionPay - manualDeductionMpfRelevant;
+    const mpfRelevantDisplayedBonus = mpfRelevantFixedBonus + primarySalesBonus;
     const mpfRelevantBonus = Math.round(mpfRelevantDisplayedBonus * 100) / 100;
     const mpfRelevantGrossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + mpfRelevantBonus;
     const mpfRelevantPrimaryGross = hasSecondaryPayout ? mpfRelevantGrossBase : mpfRelevantGrossBase + displayedCommission;
-    const mpfRelevantSecondaryGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay : 0;
+    const mpfRelevantSecondaryGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus : 0;
     const autoPrimaryMpfBasis = mpfApplicable ? roundMoney(mpfRelevantPrimaryGross * MPF_RATE) : 0;
     const autoSecondaryMpfBasis = mpfApplicable && hasSecondaryPayout ? roundMoney(mpfRelevantSecondaryGross * MPF_RATE) : 0;
     const calculatedMpf = mpfApplicable ? calcMpf(mpfRelevantPrimaryGross + mpfRelevantSecondaryGross) : 0;
@@ -2248,7 +2252,7 @@ ${tablePreview}`;
     const monthEndMpf = monthlyMpf.mpfEeApplied && monthlyMpf.mpfEeDeductionMode === 'month_end' ? mpfEe : 0;
     const primaryPayoutNet = roundMoney(primaryPayoutGross - primaryMpf);
     const secondaryPayoutNet = roundMoney(secondaryPayoutGross - secondaryMpf);
-    const net = grossBase + displayedCommission + monthEndAlShAverageCommissionPay - mpfEe;
+    const net = grossBase + displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus - mpfEe;
     return {
       ...emp,
       rawCalculatedBaseSalary,
@@ -2484,7 +2488,7 @@ ${tablePreview}`;
       packageCommission: row.packageCommission,
       isPackageEmployee: row.isPackageEmployee,
       actualCommissionExceedsPackage: row.actualCommissionExceedsPackage,
-      grossAmount: roundMoney(row.grossBase + row.displayedCommission + row.monthEndAlShAverageCommissionPay),
+      grossAmount: roundMoney(row.grossBase + row.displayedCommission + row.monthEndAlShAverageCommissionPay + (row.hasSecondaryPayout ? row.shopBonus + row.commResult.totalBonus : 0)),
       mpfEe: row.mpfEe,
       mpfEr: row.mpfEr,
       netAmount: row.net,
@@ -3506,7 +3510,7 @@ ${tablePreview}`;
                                     ) : null}
                                   </div>
                                 ) : null}
-                                {(row.commResult.redeem.amount > 0 || row.commResult.sales.amount > 0 || row.commResult.sgm.amount > 0 || row.commResult.job > 0 || row.commResult.salesAmount.amount > 0 || row.commResult.salesBonus > 0 || row.commResult.payrollBonus > 0 || row.shopCommission > 0) ? (
+                                {(row.commResult.redeem.amount > 0 || row.commResult.sales.amount > 0 || row.commResult.sgm.amount > 0 || row.commResult.job > 0 || row.commResult.salesAmount.amount > 0 || row.commResult.salesBonus > 0 || row.commResult.payrollBonus > 0 || row.shopCommission > 0 || row.shopBonus > 0) ? (
                                   <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-4">
                                     {row.commResult.redeem.amount > 0 ? (
                                       <div className="rounded-lg bg-white px-3 py-2">
@@ -3542,6 +3546,12 @@ ${tablePreview}`;
                                       <div className="rounded-lg bg-white px-3 py-2">
                                         <div className="text-xs text-slate-500">{t.commInput.shopCommissionCalculated}</div>
                                         <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.shopCommission)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.shopBonus > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">{t.commInput.shopBonus} ({row.shopTargetPercent > 0 ? `${row.shopTargetPercent.toFixed(2)}%` : '—'})</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.shopBonus)}</div>
                                       </div>
                                     ) : null}
                                     {row.commResult.salesBonus > 0 ? (
