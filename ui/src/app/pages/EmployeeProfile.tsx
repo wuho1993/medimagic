@@ -1425,6 +1425,58 @@ function CommissionRulesPreview({ rules, title = '自訂佣金規則' }: { rules
   );
 }
 
+function ShopCommissionRulesEditor({
+  rules,
+  onChange,
+  onClear,
+}: {
+  rules: CommissionRule[];
+  onChange: (rules: CommissionRule[]) => void;
+  onClear: () => void;
+}) {
+  const updateRule = (ruleIndex: number, patch: Partial<CommissionRule>) => onChange(rules.map((rule, index) => index === ruleIndex ? { ...rule, ...patch } : rule));
+  const updateTier = (ruleIndex: number, tierIndex: number, patch: Partial<CommissionRule['tiers'][number]>) => {
+    const rule = rules[ruleIndex];
+    if (!rule) return;
+    updateRule(ruleIndex, { tiers: rule.tiers.map((tier, index) => index === tierIndex ? { ...tier, ...patch } : tier) });
+  };
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-bold text-slate-900">已套用鋪數方案</div>
+          <div className="mt-1 text-xs text-slate-600">可直接修改門檻及百分比；或取消套用後改回一般自訂鋪數級距。</div>
+        </div>
+        <button type="button" onClick={onClear} className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">取消套用方案</button>
+      </div>
+      {rules.map((rule, ruleIndex) => (
+        <div key={`${rule.code}-${ruleIndex}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">方案名稱<input value={rule.name} onChange={(event) => updateRule(ruleIndex, { name: event.target.value, code: event.target.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || rule.code })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800" /></label>
+          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <tr><th className="px-3 py-2 text-left">最低鋪數金額</th><th className="px-3 py-2 text-left">最高鋪數金額</th><th className="px-3 py-2 text-left">百分比 (%)</th><th className="px-3 py-2 text-right">操作</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rule.tiers.map((tier, tierIndex) => (
+                  <tr key={`${rule.code}-shop-tier-${tierIndex}`}>
+                    <td className="px-3 py-2"><InlineNumberInput value={tier.minAmount} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { minAmount: value ?? 0 })} /></td>
+                    <td className="px-3 py-2"><InlineNumberInput value={tier.maxAmount} allowDecimal allowEmpty placeholder="無上限" onCommit={(value) => updateTier(ruleIndex, tierIndex, { maxAmount: value })} /></td>
+                    <td className="px-3 py-2"><InlineNumberInput value={(tier.rate ?? 0) * 100} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { rate: (value ?? 0) / 100, amount: null })} /></td>
+                    <td className="px-3 py-2 text-right"><button type="button" onClick={() => updateRule(ruleIndex, { tiers: rule.tiers.filter((_, index) => index !== tierIndex) })} className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50">刪除</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" onClick={() => updateRule(ruleIndex, { tiers: [...rule.tiers, { minAmount: rule.tiers.at(-1)?.minAmount ?? 0, maxAmount: null, amount: null, rate: rule.tiers.at(-1)?.rate ?? 0 }] })} className="mt-3 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">新增級距</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const COMMISSION_RULE_METRIC_LABELS: Record<CommissionRuleMetric, string> = {
   sales: 'Sales',
   redeem: 'Redeem',
@@ -3108,7 +3160,17 @@ export default function EmployeeProfile({
                               </div>
                             ) : null}
                             {shopCommissionRules.length > 0 ? (
-                              <CommissionRulesPreview rules={shopCommissionRules} title="已套用鋪數方案" />
+                              <ShopCommissionRulesEditor
+                                rules={shopCommissionRules}
+                                onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: serializeCommissionRules([...commissionRulesForEditor, ...rules]), commissionCustomTiers: '' }))}
+                                onClear={() => setFormState((prev) => ({
+                                  ...prev,
+                                  shopBonusCustomName: '',
+                                  shopBonusCustomTiers: serializeShopBonusTiers(createDefaultShopBonusTiers(standardShopBonusTiers)),
+                                  commissionRules: serializeCommissionRules(commissionRulesForEditor),
+                                  commissionCustomTiers: '',
+                                }))}
+                              />
                             ) : (
                               <CustomShopBonusTierEditor
                                 tiers={customShopBonusTiers}
