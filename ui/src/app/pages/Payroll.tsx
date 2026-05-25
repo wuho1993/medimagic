@@ -418,9 +418,13 @@ type PayslipPdfEntry = {
   secondaryMpf: number;
   secondaryPayoutNet: number;
   monthEndMpf: number;
+  annualLeaveDays: number;
+  statutoryHolidayDays: number;
   alShDays: number;
   rollingAverageCommission: number;
   alShAverageCommissionPay: number;
+  annualLeaveAverageCommissionPay: number;
+  statutoryHolidayAverageCommissionPay: number;
   fixedDailyWage: number;
   legalDailyAverageWage: number;
   legalMinimumAlShTopUp: number;
@@ -2099,6 +2103,7 @@ ${tablePreview}`;
     const hasCommission = Boolean(emp.commissionMethod && emp.commissionMethod !== 'none');
     const hasSalesAmountCommission = (emp.salesAmountRatePercent ?? 0) > 0;
     const hasShopCommissionRule = emp.commissionRules.some((rule) => rule.enabled && rule.metric === 'shop');
+    const hasPayrollBonus = emp.salesBonusEnabled && Boolean(emp.payrollBonusScheme);
     const packageCommissionAmount = isPackageEmployee ? emp.packageCommissionAmount : 0;
     const rawBriefingBonus = monthlyBonus.briefingApplied ? Number(monthlyBonus.briefingAmount) || 0 : 0;
     const displayAttendanceBonus = Number(monthlyBonus.attendanceAmount) || 0;
@@ -2131,6 +2136,9 @@ ${tablePreview}`;
     const legalDailyAverageWage = roundMoney(fixedDailyWage + rollingAverageCommission);
     const legalMinimumAlShTopUp = roundMoney(Math.max(0, (legalDailyAverageWage - fixedDailyWage) * alShDays));
     const finalAlShAverageCommissionPay = roundMoney(Math.max(alShAverageCommissionPay, legalMinimumAlShTopUp));
+    const finalAlShDailyAverageCommissionPay = alShDays > 0 ? roundMoney(finalAlShAverageCommissionPay / alShDays) : 0;
+    const statutoryHolidayAverageCommissionPay = roundMoney(finalAlShDailyAverageCommissionPay * (attendanceRecord?.statutoryHolidayDays ?? 0));
+    const annualLeaveAverageCommissionPay = roundMoney(finalAlShAverageCommissionPay - statutoryHolidayAverageCommissionPay);
     const alShComplianceWarning = alShDays > 0 && !rollingAverage
       ? 'AL/SH 有日數但沒有 rolling 365 平均佣金 source，需人工確認。'
       : alShDays > 0 && rollingAverage.source === 'none'
@@ -2173,8 +2181,7 @@ ${tablePreview}`;
       ? calculateTelesalesCommission(telesalesHeadcount)
       : { amount: 0, ratePerHead: 0 };
     const telesalesCommission = telesalesCommissionResult.amount;
-    const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonus + shopBonus + finalAlShAverageCommissionPay - totalDeduction;
-    const commissionCalculationEnabled = hasCommission || hasSalesAmountCommission || (hasShopCommissionRule && shopActualSalesAmount > 0);
+    const commissionCalculationEnabled = hasCommission || hasSalesAmountCommission || hasPayrollBonus || (hasShopCommissionRule && shopActualSalesAmount > 0);
     const monthlyMpf = getMonthlyMpfState(emp.employeeCode, emp);
     const commResult = commissionCalculationEnabled
       ? calcEmployeeCommission(
@@ -2206,19 +2213,22 @@ ${tablePreview}`;
               : Math.max(calculatedCommission, packageCommissionAmount))
       : calculatedCommission;
     const displayedCommission = packageCommission + specialCommission;
+    const hasSecondaryPayout = Boolean(emp.payDaySecondary);
+    const monthEndAlShAverageCommissionPay = hasSecondaryPayout ? finalAlShAverageCommissionPay : 0;
+    const primaryAlShAverageCommissionPay = hasSecondaryPayout ? 0 : finalAlShAverageCommissionPay;
+    const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonus + shopBonus + primaryAlShAverageCommissionPay - totalDeduction;
     const displayedBonus = fixedBonus + (commissionCalculationEnabled ? commResult.totalBonus : 0);
     const bonus = Math.round(displayedBonus * 100) / 100;
     const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus;
     const mpfApplicable = isMpfStatutorilyEligible(emp.dateOfBirth, emp.hireDate, payrollReferenceDate);
-    const hasSecondaryPayout = Boolean(emp.payDaySecondary);
     const primaryPayoutGross = hasSecondaryPayout ? grossBase : grossBase + displayedCommission;
-    const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission : 0;
-    const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonusMpfRelevant + shopBonus + finalAlShAverageCommissionPay - manualDeductionMpfRelevant;
+    const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay : 0;
+    const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonusMpfRelevant + shopBonus + primaryAlShAverageCommissionPay - manualDeductionMpfRelevant;
     const mpfRelevantDisplayedBonus = mpfRelevantFixedBonus + (commissionCalculationEnabled ? commResult.totalBonus : 0);
     const mpfRelevantBonus = Math.round(mpfRelevantDisplayedBonus * 100) / 100;
     const mpfRelevantGrossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + mpfRelevantBonus;
     const mpfRelevantPrimaryGross = hasSecondaryPayout ? mpfRelevantGrossBase : mpfRelevantGrossBase + displayedCommission;
-    const mpfRelevantSecondaryGross = hasSecondaryPayout ? displayedCommission : 0;
+    const mpfRelevantSecondaryGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay : 0;
     const autoPrimaryMpfBasis = mpfApplicable ? roundMoney(mpfRelevantPrimaryGross * MPF_RATE) : 0;
     const autoSecondaryMpfBasis = mpfApplicable && hasSecondaryPayout ? roundMoney(mpfRelevantSecondaryGross * MPF_RATE) : 0;
     const calculatedMpf = mpfApplicable ? calcMpf(mpfRelevantPrimaryGross + mpfRelevantSecondaryGross) : 0;
@@ -2238,7 +2248,7 @@ ${tablePreview}`;
     const monthEndMpf = monthlyMpf.mpfEeApplied && monthlyMpf.mpfEeDeductionMode === 'month_end' ? mpfEe : 0;
     const primaryPayoutNet = roundMoney(primaryPayoutGross - primaryMpf);
     const secondaryPayoutNet = roundMoney(secondaryPayoutGross - secondaryMpf);
-    const net = grossBase + displayedCommission - mpfEe;
+    const net = grossBase + displayedCommission + monthEndAlShAverageCommissionPay - mpfEe;
     return {
       ...emp,
       rawCalculatedBaseSalary,
@@ -2253,13 +2263,18 @@ ${tablePreview}`;
       hasLateDays,
       lateDays: attendanceRecord?.lateDays ?? 0,
       attendanceNoPayDays,
+      annualLeaveDays: attendanceRecord?.annualLeaveDays ?? 0,
+      statutoryHolidayDays: attendanceRecord?.statutoryHolidayDays ?? 0,
       alShDays,
       rollingAverageCommission,
       alShAverageCommissionPay,
+      annualLeaveAverageCommissionPay,
+      statutoryHolidayAverageCommissionPay,
       fixedDailyWage,
       legalDailyAverageWage,
       legalMinimumAlShTopUp,
       finalAlShAverageCommissionPay,
+      monthEndAlShAverageCommissionPay,
       alShComplianceWarning,
       attendanceNoPayDeduction,
       attendanceDeductionRemainder,
@@ -2309,6 +2324,7 @@ ${tablePreview}`;
       hasCommission,
       hasSalesAmountCommission,
       hasShopCommissionRule,
+      hasPayrollBonus,
       isPackageEmployee,
       commissionCalculationEnabled,
       packageCommissionAmount,
@@ -2468,7 +2484,7 @@ ${tablePreview}`;
       packageCommission: row.packageCommission,
       isPackageEmployee: row.isPackageEmployee,
       actualCommissionExceedsPackage: row.actualCommissionExceedsPackage,
-      grossAmount: roundMoney(row.grossBase + row.displayedCommission),
+      grossAmount: roundMoney(row.grossBase + row.displayedCommission + row.monthEndAlShAverageCommissionPay),
       mpfEe: row.mpfEe,
       mpfEr: row.mpfEr,
       netAmount: row.net,
@@ -2481,9 +2497,13 @@ ${tablePreview}`;
       secondaryMpf: row.secondaryMpf,
       secondaryPayoutNet: row.secondaryPayoutNet,
       monthEndMpf: row.monthEndMpf,
+      annualLeaveDays: row.annualLeaveDays,
+      statutoryHolidayDays: row.statutoryHolidayDays,
       alShDays: row.alShDays,
       rollingAverageCommission: row.rollingAverageCommission,
       alShAverageCommissionPay: row.alShAverageCommissionPay,
+      annualLeaveAverageCommissionPay: row.annualLeaveAverageCommissionPay,
+      statutoryHolidayAverageCommissionPay: row.statutoryHolidayAverageCommissionPay,
       fixedDailyWage: row.fixedDailyWage,
       legalDailyAverageWage: row.legalDailyAverageWage,
       legalMinimumAlShTopUp: row.legalMinimumAlShTopUp,
@@ -2515,7 +2535,7 @@ ${tablePreview}`;
           blocking,
         });
       };
-      const hasPerformanceCommissionProfile = row.hasCommission || row.hasSalesAmountCommission || row.hasShopCommissionRule || row.isStreetPromoter || row.isTelesales || row.isPackageEmployee;
+      const hasPerformanceCommissionProfile = row.hasCommission || row.hasSalesAmountCommission || row.hasShopCommissionRule || row.hasPayrollBonus || row.isStreetPromoter || row.isTelesales || row.isPackageEmployee;
       const hasPerformanceData = [
         vol.redeem,
         vol.sales,
@@ -3431,7 +3451,7 @@ ${tablePreview}`;
                               ) : null}
                             </div>
                           ) : null}
-                          {(row.hasCommission && row.commissionCalculationEnabled) || row.hasSalesAmountCommission || row.hasShopCommissionRule || row.isStreetPromoter || row.isTelesales ? (
+                          {(row.hasCommission && row.commissionCalculationEnabled) || row.hasSalesAmountCommission || row.hasShopCommissionRule || row.hasPayrollBonus || row.isStreetPromoter || row.isTelesales ? (
                             <>
                               <div className="mb-3 flex items-center gap-2">
                                 <Calculator className="h-4 w-4 text-[#D4AF37]" />
@@ -3486,11 +3506,63 @@ ${tablePreview}`;
                                     ) : null}
                                   </div>
                                 ) : null}
+                                {(row.commResult.redeem.amount > 0 || row.commResult.sales.amount > 0 || row.commResult.sgm.amount > 0 || row.commResult.job > 0 || row.commResult.salesAmount.amount > 0 || row.commResult.salesBonus > 0 || row.commResult.payrollBonus > 0 || row.shopCommission > 0) ? (
+                                  <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-4">
+                                    {row.commResult.redeem.amount > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">{t.tierCard.redeem} ({fmtDec(row.redeemVolume)} × {(row.commResult.redeem.rate * 100).toFixed(1)}%)</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.commResult.redeem.amount)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.commResult.sales.amount > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">{t.tierCard.sales} ({fmtDec(row.salesVolume)} × {(row.commResult.sales.rate * 100).toFixed(1)}%)</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.commResult.sales.amount)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.commResult.sgm.amount > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">{t.tierCard.sgm} ({fmtDec(row.sgmVolume)} × {(row.commResult.sgm.rate * 100).toFixed(1)}%)</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.commResult.sgm.amount)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.commResult.job > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">Job</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.commResult.job)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.commResult.salesAmount.amount > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">{t.commInput.salesAmountCommission} ({fmtDec(row.commResult.salesAmount.total)} × {row.commResult.salesAmount.ratePercent.toFixed(2)}%)</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.commResult.salesAmount.amount)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.shopCommission > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">{t.commInput.shopCommissionCalculated}</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.shopCommission)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.commResult.salesBonus > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">{t.commInput.salesBonus}</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.commResult.salesBonus)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.commResult.payrollBonus > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">{getPayrollBonusDisplayName(row, t.commInput)}</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.commResult.payrollBonus)}</div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </div>
                             </>
                           ) : null}
 
-                          <div className={`${sectionCardClasses} ${((row.hasCommission && row.commissionCalculationEnabled) || row.hasSalesAmountCommission || row.hasShopCommissionRule || row.isStreetPromoter || row.isTelesales) ? 'mt-3' : ''}`}>
+                          <div className={`${sectionCardClasses} ${((row.hasCommission && row.commissionCalculationEnabled) || row.hasSalesAmountCommission || row.hasShopCommissionRule || row.hasPayrollBonus || row.isStreetPromoter || row.isTelesales) ? 'mt-3' : ''}`}>
                             <div className="mb-3 flex items-center gap-2">
                               <TrendingUp className="h-4 w-4 text-[#D4AF37]" />
                               <span className="text-sm font-semibold text-slate-700">{t.commInput.monthlyBonusTitle}</span>
@@ -3988,10 +4060,16 @@ ${tablePreview}`;
                                       <span className="font-semibold tabular-nums text-cyan-800">{fmtDec(row.bookingBonus)}</span>
                                     </div>
                                   )}
-                                  {(row.finalAlShAverageCommissionPay > 0 || row.alShComplianceWarning) && (
+                                  {(row.annualLeaveAverageCommissionPay > 0 || row.alShComplianceWarning) && (
                                     <div className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 ${row.alShComplianceWarning ? 'bg-amber-50' : 'bg-emerald-50'}`}>
-                                      <span className={`text-xs ${row.alShComplianceWarning ? 'text-amber-700' : 'text-emerald-600'}`}>AL/SH 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.alShDays}日；法例top-up {fmtDec(row.legalMinimumAlShTopUp)})</span>
-                                      <span className={`font-semibold tabular-nums ${row.alShComplianceWarning ? 'text-amber-800' : 'text-emerald-800'}`}>{fmtDec(row.finalAlShAverageCommissionPay)}</span>
+                                      <span className={`text-xs ${row.alShComplianceWarning ? 'text-amber-700' : 'text-emerald-600'}`}>AL 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.annualLeaveDays}日；月尾發放)</span>
+                                      <span className={`font-semibold tabular-nums ${row.alShComplianceWarning ? 'text-amber-800' : 'text-emerald-800'}`}>{fmtDec(row.annualLeaveAverageCommissionPay)}</span>
+                                    </div>
+                                  )}
+                                  {row.statutoryHolidayAverageCommissionPay > 0 && (
+                                    <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-2.5 py-1.5">
+                                      <span className="text-xs text-emerald-600">SH 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.statutoryHolidayDays}日；月尾發放)</span>
+                                      <span className="font-semibold tabular-nums text-emerald-800">{fmtDec(row.statutoryHolidayAverageCommissionPay)}</span>
                                     </div>
                                   )}
                                   {row.alShComplianceWarning && (
@@ -4566,10 +4644,16 @@ ${tablePreview}`;
               incomeRows.push(['Shop Bonus  鋪數獎金', activePayslipPdfEntry.shopBonus]);
               incomeRows.push([payrollBonusLabel, activePayslipPdfEntry.payrollBonus]);
               incomeRows.push([
-                activePayslipPdfEntry.alShDays > 0
-                  ? `SH/AL Commission  勞工假/大假平均佣金 (${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${activePayslipPdfEntry.alShDays}日; top-up ${fmtPayslipAmount(activePayslipPdfEntry.legalMinimumAlShTopUp)})`
-                  : 'SH/AL Commission  勞工假/大假平均佣金',
-                activePayslipPdfEntry.finalAlShAverageCommissionPay,
+                activePayslipPdfEntry.annualLeaveDays > 0
+                  ? `AL Commission  大假平均佣金 (${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${activePayslipPdfEntry.annualLeaveDays}日; month-end 月尾發放)`
+                  : 'AL Commission  大假平均佣金',
+                activePayslipPdfEntry.annualLeaveAverageCommissionPay,
+              ]);
+              incomeRows.push([
+                activePayslipPdfEntry.statutoryHolidayDays > 0
+                  ? `SH Commission  勞工假平均佣金 (${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${activePayslipPdfEntry.statutoryHolidayDays}日; month-end 月尾發放)`
+                  : 'SH Commission  勞工假平均佣金',
+                activePayslipPdfEntry.statutoryHolidayAverageCommissionPay,
               ]);
               const visibleIncomeRows = incomeRows.filter(([, value]) => value > 0);
               const incomeSubtotal = roundMoney(visibleIncomeRows.reduce((sum, [, value]) => sum + value, 0));
