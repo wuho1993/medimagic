@@ -360,10 +360,12 @@ type EmployeeMonthlyBonusState = {
   manualBonusAmount: string;
   manualBonusMpfIncluded: boolean;
   manualBonusPayout: ManualAdjustmentPayout;
+  manualBonusRemarks: string;
   manualDeductionApplied: boolean;
   manualDeductionAmount: string;
   manualDeductionMpfIncluded: boolean;
   manualDeductionPayout: ManualAdjustmentPayout;
+  manualDeductionRemarks: string;
   shopTargetAmount: string;
   shopActualSalesAmount: string;
 };
@@ -392,7 +394,9 @@ type PayslipPdfEntry = {
   rawBookingBonus: number;
   bookingBonus: number;
   manualBonus: number;
+  manualBonusRemarks: string | null;
   manualDeduction: number;
+  manualDeductionRemarks: string | null;
   shopBonus: number;
   shopCommission: number;
   shopCommissionLabel: string | null;
@@ -556,6 +560,8 @@ const translations = {
       bookingBonus: 'Booking 獎金',
       manualBonus: '手動增加金額',
       manualDeduction: '手動扣減金額',
+      manualRemarks: '備注',
+      manualRemarksPlaceholder: '會顯示在糧單上',
       payoutTiming: '出糧期數',
       payoutTimingPrimary: '第一期/月頭',
       payoutTimingMonthEnd: '第二期/月尾',
@@ -708,6 +714,8 @@ const translations = {
       bookingBonus: 'Booking 奖金',
       manualBonus: '手动增加金额',
       manualDeduction: '手动扣减金额',
+      manualRemarks: '备注',
+      manualRemarksPlaceholder: '会显示在薪金单上',
       payoutTiming: '发薪期数',
       payoutTimingPrimary: '第一期/月头',
       payoutTimingMonthEnd: '第二期/月尾',
@@ -860,6 +868,8 @@ const translations = {
       bookingBonus: 'Booking Bonus',
       manualBonus: 'Manual Addition',
       manualDeduction: 'Manual Deduction',
+      manualRemarks: 'Remarks',
+      manualRemarksPlaceholder: 'Shown on payslip',
       payoutTiming: 'Payout timing',
       payoutTimingPrimary: 'Primary / month start',
       payoutTimingMonthEnd: 'Secondary / month end',
@@ -975,12 +985,14 @@ function buildInitialMonthlyBonuses(
           : '',
       manualBonusApplied: saved?.manualBonusApplied ?? false,
       manualBonusAmount: saved?.manualBonusApplied ? String(saved.manualBonusAmount) : '',
-      manualBonusMpfIncluded: saved?.manualBonusMpfIncluded ?? false,
+      manualBonusMpfIncluded: saved?.manualBonusMpfIncluded ?? true,
       manualBonusPayout: saved?.manualBonusPayout ?? 'month_end',
+      manualBonusRemarks: saved?.manualBonusRemarks ?? '',
       manualDeductionApplied: legacyAutoAttendanceRemainder ? false : (saved?.manualDeductionApplied ?? false),
       manualDeductionAmount: legacyAutoAttendanceRemainder ? '' : (saved?.manualDeductionApplied ? String(saved.manualDeductionAmount) : ''),
-      manualDeductionMpfIncluded: legacyAutoAttendanceRemainder ? false : (saved?.manualDeductionMpfIncluded ?? false),
+      manualDeductionMpfIncluded: legacyAutoAttendanceRemainder ? false : (saved?.manualDeductionMpfIncluded ?? true),
       manualDeductionPayout: saved?.manualDeductionPayout ?? 'month_end',
+      manualDeductionRemarks: legacyAutoAttendanceRemainder ? '' : (saved?.manualDeductionRemarks ?? ''),
       shopTargetAmount: saved?.shopTargetAmount ? String(saved.shopTargetAmount) : '',
       shopActualSalesAmount: saved?.shopActualSalesAmount ? String(saved.shopActualSalesAmount) : '',
     }];
@@ -1108,12 +1120,14 @@ function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, lateDa
     bookingAmount: employee.bookingBonus > 0 ? String(employee.bookingBonus) : '',
     manualBonusApplied: false,
     manualBonusAmount: '',
-    manualBonusMpfIncluded: false,
+    manualBonusMpfIncluded: true,
     manualBonusPayout: 'month_end',
+    manualBonusRemarks: '',
     manualDeductionApplied: false,
     manualDeductionAmount: '',
-    manualDeductionMpfIncluded: false,
+    manualDeductionMpfIncluded: true,
     manualDeductionPayout: 'month_end',
+    manualDeductionRemarks: '',
     shopTargetAmount: '',
     shopActualSalesAmount: '',
   };
@@ -2382,7 +2396,9 @@ ${tablePreview}`;
       rawBookingBonus: rawBookingBonus,
       bookingBonus,
       manualBonus,
+      manualBonusRemarks: monthlyBonus.manualBonusRemarks.trim() || null,
       manualDeduction,
+      manualDeductionRemarks: monthlyBonus.manualDeductionRemarks.trim() || null,
       totalDeduction,
       shopTargetAmount,
       shopActualSalesAmount,
@@ -2523,10 +2539,12 @@ ${tablePreview}`;
       manualBonusAmount: monthlyBonus.manualBonusApplied ? Number(monthlyBonus.manualBonusAmount) || 0 : 0,
       manualBonusMpfIncluded: monthlyBonus.manualBonusMpfIncluded,
       manualBonusPayout: monthlyBonus.manualBonusPayout,
+      manualBonusRemarks: monthlyBonus.manualBonusRemarks.trim(),
       manualDeductionApplied,
       manualDeductionAmount,
       manualDeductionMpfIncluded: monthlyBonus.manualDeductionMpfIncluded,
       manualDeductionPayout: monthlyBonus.manualDeductionPayout,
+      manualDeductionRemarks: monthlyBonus.manualDeductionRemarks.trim(),
       shopTargetAmount: Number(monthlyBonus.shopTargetAmount) || 0,
       shopActualSalesAmount: Number(monthlyBonus.shopActualSalesAmount) || 0,
       shopTargetPercent: r.shopTargetPercent,
@@ -2568,7 +2586,9 @@ ${tablePreview}`;
       rawBookingBonus: row.rawBookingBonus,
       bookingBonus: row.bookingBonus,
       manualBonus: row.manualBonus,
+      manualBonusRemarks: row.manualBonusRemarks,
       manualDeduction: row.totalDeduction,
+      manualDeductionRemarks: row.manualDeductionRemarks,
       shopBonus: row.shopBonus,
       shopCommission: row.shopCommission,
       shopCommissionLabel,
@@ -2757,9 +2777,11 @@ ${tablePreview}`;
     entry.manualBonusApplied ||
     entry.manualBonusAmount > 0 ||
     entry.manualBonusMpfIncluded ||
+    entry.manualBonusRemarks !== '' ||
     entry.manualDeductionApplied ||
     entry.manualDeductionAmount > 0 ||
     entry.manualDeductionMpfIncluded ||
+    entry.manualDeductionRemarks !== '' ||
     entry.shopTargetAmount > 0 ||
     entry.shopActualSalesAmount > 0 ||
     entry.shopTargetPercent > 0 ||
@@ -3797,6 +3819,13 @@ ${tablePreview}`;
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.manualBonus}</div>
                                   <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(Number(monthlyBonus.manualBonusAmount) || 0)}</div>
+                                  <input
+                                    type="text"
+                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                                    value={monthlyBonus.manualBonusRemarks}
+                                    onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualBonusRemarks', e.target.value)}
+                                    placeholder={`${t.commInput.manualRemarks}: ${t.commInput.manualRemarksPlaceholder}`}
+                                  />
                                 </div>
                                 <input
                                   type="number"
@@ -3804,7 +3833,16 @@ ${tablePreview}`;
                                   step="0.01"
                                   className={inputClasses}
                                   value={monthlyBonus.manualBonusAmount}
-                                  onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualBonusAmount', e.target.value)}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setMonthlyBonus(row.employeeCode, row, 'manualBonusAmount', value);
+                                    if ((Number(value) || 0) > 0 && !monthlyBonus.manualBonusApplied) {
+                                      setMonthlyBonus(row.employeeCode, row, 'manualBonusApplied', true);
+                                    }
+                                    if ((Number(value) || 0) > 0 && !monthlyBonus.manualBonusMpfIncluded) {
+                                      setMonthlyBonus(row.employeeCode, row, 'manualBonusMpfIncluded', true);
+                                    }
+                                  }}
                                   onKeyDown={preventAccidentalNumberStep}
                                   onWheel={preventAccidentalNumberScroll}
                                   placeholder="0"
@@ -3874,6 +3912,13 @@ ${tablePreview}`;
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.manualDeduction}</div>
                                   <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(Number(monthlyBonus.manualDeductionAmount) || 0)}</div>
+                                  <input
+                                    type="text"
+                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                                    value={monthlyBonus.manualDeductionRemarks}
+                                    onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualDeductionRemarks', e.target.value)}
+                                    placeholder={`${t.commInput.manualRemarks}: ${t.commInput.manualRemarksPlaceholder}`}
+                                  />
                                 </div>
                                 <input
                                   type="number"
@@ -3881,7 +3926,16 @@ ${tablePreview}`;
                                   step="0.01"
                                   className={inputClasses}
                                   value={monthlyBonus.manualDeductionAmount}
-                                  onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualDeductionAmount', e.target.value)}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setMonthlyBonus(row.employeeCode, row, 'manualDeductionAmount', value);
+                                    if ((Number(value) || 0) > 0 && !monthlyBonus.manualDeductionApplied) {
+                                      setMonthlyBonus(row.employeeCode, row, 'manualDeductionApplied', true);
+                                    }
+                                    if ((Number(value) || 0) > 0 && !monthlyBonus.manualDeductionMpfIncluded) {
+                                      setMonthlyBonus(row.employeeCode, row, 'manualDeductionMpfIncluded', true);
+                                    }
+                                  }}
                                   onKeyDown={preventAccidentalNumberStep}
                                   onWheel={preventAccidentalNumberScroll}
                                   placeholder="0"
@@ -4879,6 +4933,10 @@ ${tablePreview}`;
               }
               const deductionSubtotal = roundMoney(deductionRows.reduce((sum, [, value]) => sum + value, 0));
               const adjustmentAmount = activePayslipPdfEntry.adjustmentAmount;
+              const adjustmentNotes = [
+                activePayslipPdfEntry.manualBonusRemarks ? `Addition: ${activePayslipPdfEntry.manualBonusRemarks}` : null,
+                activePayslipPdfEntry.manualDeductionRemarks ? `Deduction: ${activePayslipPdfEntry.manualDeductionRemarks}` : null,
+              ].filter(Boolean).join(' / ');
               const grandTotal = roundMoney(incomeSubtotal - deductionSubtotal + adjustmentAmount);
               const staffSalaryAfterMpf = roundMoney(grandTotal - activePayslipPdfEntry.mpfEe);
               const primaryAmount = activePayslipPdfEntry.primaryPayoutNet;
@@ -5003,7 +5061,7 @@ ${tablePreview}`;
                         <td style={amountCell}>{fmtPayslipAmount(roundMoney(incomeSubtotal - deductionSubtotal))}</td>
                       </tr>
                       <tr>
-                        <td colSpan={6} style={labelCell}>Adjustment</td>
+                        <td colSpan={6} style={labelCell}>Adjustment{adjustmentNotes ? ` (${adjustmentNotes})` : ''}</td>
                         <td colSpan={2}></td>
                         <td style={amountCell}>{fmtPayslipAmount(adjustmentAmount)}</td>
                       </tr>

@@ -285,6 +285,7 @@ const PAYROLL_SUMMARY_PROFILE_SELECT_CURRENT = `${PAYROLL_SUMMARY_PROFILE_SELECT
 const MONTHLY_COMMISSION_RECORD_SELECT_LEGACY = 'employee_id, year_month, redeem_volume, sales_volume, job_amount, sgm_volume, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, total_commission, employees!inner(employee_code)';
 const MONTHLY_COMMISSION_RECORD_SELECT_CURRENT = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
 const MONTHLY_COMMISSION_RECORD_SELECT_WITH_PAYOUT = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_bonus_payout, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, manual_deduction_payout, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
+const MONTHLY_COMMISSION_RECORD_SELECT_WITH_MANUAL_REMARKS = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_bonus_payout, manual_bonus_remarks, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, manual_deduction_payout, manual_deduction_remarks, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
 
 function isMissingColumnError(message: string | null | undefined) {
   return typeof message === 'string' && (
@@ -1277,10 +1278,12 @@ export type MonthlyCommissionRecord = {
   manualBonusAmount: number;
   manualBonusMpfIncluded: boolean;
   manualBonusPayout: 'primary' | 'month_end';
+  manualBonusRemarks: string;
   manualDeductionApplied: boolean;
   manualDeductionAmount: number;
   manualDeductionMpfIncluded: boolean;
   manualDeductionPayout: 'primary' | 'month_end';
+  manualDeductionRemarks: string;
   shopTargetAmount: number;
   shopActualSalesAmount: number;
   shopTargetPercent: number;
@@ -1720,10 +1723,17 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
 /** Fetch saved commission records for a given year-month */
 export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<MonthlyCommissionRecord[]> {
   const supabase = await createServerSupabaseClient();
-  const payoutResult = await supabase
+  const manualRemarksResult = await supabase
     .from('monthly_commission_records')
-    .select(MONTHLY_COMMISSION_RECORD_SELECT_WITH_PAYOUT)
+    .select(MONTHLY_COMMISSION_RECORD_SELECT_WITH_MANUAL_REMARKS)
     .eq('year_month', yearMonth);
+
+  const payoutResult = manualRemarksResult.error && isMissingColumnError(manualRemarksResult.error.message)
+    ? await supabase
+      .from('monthly_commission_records')
+      .select(MONTHLY_COMMISSION_RECORD_SELECT_WITH_PAYOUT)
+      .eq('year_month', yearMonth)
+    : manualRemarksResult;
 
   const currentResult = payoutResult.error && isMissingColumnError(payoutResult.error.message)
     ? await supabase
@@ -1778,10 +1788,12 @@ export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<
     manual_bonus_amount: number | string | null;
     manual_bonus_mpf_included: boolean | null;
     manual_bonus_payout?: 'primary' | 'month_end' | null;
+    manual_bonus_remarks?: string | null;
     manual_deduction_applied: boolean | null;
     manual_deduction_amount: number | string | null;
     manual_deduction_mpf_included: boolean | null;
     manual_deduction_payout?: 'primary' | 'month_end' | null;
+    manual_deduction_remarks?: string | null;
     shop_target_amount: number | string | null;
     shop_actual_sales_amount: number | string | null;
     shop_target_percent: number | string | null;
@@ -1827,10 +1839,12 @@ export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<
     manualBonusAmount: Number(r.manual_bonus_amount ?? 0),
     manualBonusMpfIncluded: r.manual_bonus_mpf_included ?? false,
     manualBonusPayout: r.manual_bonus_payout === 'primary' ? 'primary' : 'month_end',
+    manualBonusRemarks: r.manual_bonus_remarks ?? '',
     manualDeductionApplied: r.manual_deduction_applied ?? false,
     manualDeductionAmount: Number(r.manual_deduction_amount ?? 0),
     manualDeductionMpfIncluded: r.manual_deduction_mpf_included ?? false,
     manualDeductionPayout: r.manual_deduction_payout === 'primary' ? 'primary' : 'month_end',
+    manualDeductionRemarks: r.manual_deduction_remarks ?? '',
     shopTargetAmount: Number(r.shop_target_amount ?? 0),
     shopActualSalesAmount: Number(r.shop_actual_sales_amount ?? 0),
     shopTargetPercent: Number(r.shop_target_percent ?? 0),
