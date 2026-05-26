@@ -1,5 +1,7 @@
 name: Deploy to GitHub Pages
 
+# Static HRMS deployment workflow.
+
 on:
   push:
     branches: [main]
