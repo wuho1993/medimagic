@@ -493,6 +493,8 @@ const translations = {
     exportPayslipSelectAll: '全選',
     exportPayslipClearAll: '清除',
     exportPayslipEmpty: '請先選擇至少一位員工。',
+    exportPayslipSearchPlaceholder: '搜尋員工編號、姓名、英文名或別名...',
+    exportPayslipNoSearchResult: '沒有符合搜尋的員工。',
     resyncMonthlySettings: '從員工預設重新同步本月設定',
     aiImportTitle: 'AI 匯入',
     aiImportTypeLabel: '匯入類別',
@@ -647,6 +649,8 @@ const translations = {
     exportPayslipSelectAll: '全选',
     exportPayslipClearAll: '清除',
     exportPayslipEmpty: '请先选择至少一位员工。',
+    exportPayslipSearchPlaceholder: '搜索员工编号、姓名、英文名或别名...',
+    exportPayslipNoSearchResult: '没有符合搜索的员工。',
     resyncMonthlySettings: '从员工预设重新同步本月设定',
     aiImportTitle: 'AI 导入',
     aiImportTypeLabel: '导入类型',
@@ -801,6 +805,8 @@ const translations = {
     exportPayslipSelectAll: 'Select All',
     exportPayslipClearAll: 'Clear',
     exportPayslipEmpty: 'Select at least one employee first.',
+    exportPayslipSearchPlaceholder: 'Search staff code, name, English name, or alias...',
+    exportPayslipNoSearchResult: 'No employees match your search.',
     resyncMonthlySettings: 'Resync This Month From Employee Defaults',
     month: 'Month',
     aiImportTitle: 'AI Payroll Import',
@@ -1424,6 +1430,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   }, [salaryMonth]);
   const [isPayslipModalOpen, setIsPayslipModalOpen] = useState(false);
   const [selectedPayslipCodes, setSelectedPayslipCodes] = useState<string[]>([]);
+  const [payslipEmployeeSearch, setPayslipEmployeeSearch] = useState('');
   const [activePayslipPdfEntry, setActivePayslipPdfEntry] = useState<PayslipPdfEntry | null>(null);
   const [isPayrollReviewOpen, setIsPayrollReviewOpen] = useState(false);
   const [payrollReviewAction, setPayrollReviewAction] = useState<PayrollReviewAction | null>(null);
@@ -2663,6 +2670,17 @@ ${tablePreview}`;
     };
   });
 
+  const filteredPayslipExportEntries = useMemo(() => {
+    const normalizedSearch = payslipEmployeeSearch.trim().toLowerCase();
+    if (!normalizedSearch) return payslipExportEntries;
+
+    return payslipExportEntries.filter((entry) => [
+      entry.employeeCode,
+      entry.employeeName,
+      entry.branchName ?? '',
+    ].some((value) => value.toLowerCase().includes(normalizedSearch)));
+  }, [payslipExportEntries, payslipEmployeeSearch]);
+
   const payrollReviewIssues = useMemo<PayrollReviewIssue[]>(() => {
     const [year, month] = salaryMonth.split('-').map(Number);
     const monthStart = year && month ? new Date(year, month - 1, 1) : null;
@@ -2856,6 +2874,7 @@ ${tablePreview}`;
 
   const openPayslipModalAfterReview = () => {
     setSelectedPayslipCodes(payslipExportEntries.filter((entry) => !isExcludedByPayrollReview(entry.employeeCode)).map((entry) => entry.employeeCode));
+    setPayslipEmployeeSearch('');
     setIsPayslipModalOpen(true);
   };
 
@@ -2928,6 +2947,7 @@ ${tablePreview}`;
       return;
     }
     setIsPayslipModalOpen(false);
+    setPayslipEmployeeSearch('');
     setActivePayslipPdfEntry(null);
   };
 
@@ -4556,12 +4576,23 @@ ${tablePreview}`;
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="flex items-center justify-between gap-3 px-6 py-4">
+            <div className="flex flex-col gap-3 px-6 py-4">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="search"
+                  value={payslipEmployeeSearch}
+                  onChange={(event) => setPayslipEmployeeSearch(event.target.value)}
+                  placeholder={t.exportPayslipSearchPlaceholder}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none transition focus:border-[#D4AF37] focus:bg-white focus:ring-2 focus:ring-[#D4AF37]/15"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-medium text-slate-600">{selectedPayslipCodes.length} / {payslipExportEntries.length}</div>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setSelectedPayslipCodes(payslipExportEntries.filter((entry) => !isExcludedByPayrollReview(entry.employeeCode)).map((entry) => entry.employeeCode))}
+                  onClick={() => setSelectedPayslipCodes(filteredPayslipExportEntries.filter((entry) => !isExcludedByPayrollReview(entry.employeeCode)).map((entry) => entry.employeeCode))}
                   className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-[#D4AF37] hover:text-[#B38E18]"
                 >
                   {t.exportPayslipSelectAll}
@@ -4574,9 +4605,13 @@ ${tablePreview}`;
                   {t.exportPayslipClearAll}
                 </button>
               </div>
+              </div>
             </div>
             <div className="max-h-[55vh] space-y-2 overflow-y-auto px-6 pb-4">
-              {payslipExportEntries.map((entry) => {
+              {filteredPayslipExportEntries.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">{t.exportPayslipNoSearchResult}</div>
+              ) : null}
+              {filteredPayslipExportEntries.map((entry) => {
                 const checked = selectedPayslipCodes.includes(entry.employeeCode);
                 return (
                   <label
