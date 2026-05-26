@@ -17,7 +17,7 @@ import type { EmployeeDocumentType } from '@/src/lib/employees/document-storage'
 import { calculateAge, calculateProbationEndDate, EMPLOYEE_EMPLOYMENT_TYPES } from '@/src/lib/employees/employment';
 import { createLegacyPayrollBonusConfigCatalog, normalizePayrollBonusCustomName, normalizePayrollBonusTiers, normalizeShopBonusTiers, type PayrollBonusConfigCatalog, type PayrollBonusTier, type ShopBonusTier } from '@/src/lib/employees/payroll-bonus';
 import { createCommissionRulesFromLegacyCustomTiers, createMoonIrisTaiWaiShopCommissionRules, getCommissionRuleConflictMessages, normalizeCommissionRules, serializeCommissionRules, type CommissionRule, type CommissionRuleMetric, type CommissionRuleType } from '@/src/lib/employees/commission-rules';
-import { saveCommissionRulePreset, saveShopCommissionPreset, updateEmployee } from '@/app/app/people/actions';
+import { updateEmployee } from '@/app/app/people/actions';
 import { deleteEmployeeDocument, uploadEmployeeDocument } from '@/app/app/people/document-actions';
 
 type EmployeeProfileProps = {
@@ -1129,6 +1129,31 @@ function createBlankShopCommissionRule(): CommissionRule {
   };
 }
 
+function createBlankMainCommissionRule(): CommissionRule {
+  return {
+    code: `custom_commission_rule_${Date.now()}`,
+    name: '新增佣金方案',
+    type: 'rate',
+    metric: 'sales',
+    enabled: true,
+    stackable: false,
+    tiers: [{ minAmount: 0, maxAmount: null, amount: null, rate: 0 }],
+  };
+}
+
+function createBlankCommissionPlanState(current: FormState): FormState {
+  return {
+    ...current,
+    commissionMethod: 'custom',
+    commissionCustomName: '新增佣金方案',
+    commissionCustomTiers: '',
+    commissionRules: serializeCommissionRules([
+      createBlankMainCommissionRule(),
+      ...normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric === 'shop'),
+    ]),
+  };
+}
+
 function createBlankShopCommissionPlanState(current: FormState): FormState {
   return {
     ...current,
@@ -1511,7 +1536,7 @@ function ShopCommissionRulesEditor({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-sm font-bold text-slate-900">已套用鋪數方案</div>
-          <div className="mt-1 text-xs text-slate-600">可直接修改門檻及百分比；或取消套用後改回一般自訂鋪數級距。</div>
+          <div className="mt-1 text-xs text-slate-600">可直接修改門檻及百分比；儲存鋪數方案只會加入方案庫，Payroll 要生效請再按右上角「儲存」。</div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onSavePreset} disabled={isSavingPreset || rules.length === 0} className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">{isSavingPreset ? '儲存中...' : '儲存鋪數方案'}</button>
@@ -1584,7 +1609,7 @@ function CommissionRulesEditor({ rules, onChange, onSavePreset, isSavingPreset }
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-sm font-bold text-slate-900">自訂佣金規則</div>
-          <div className="mt-1 text-xs text-slate-600">佣金還佣金：BAR / rate 在這裡設定；Bonus 分開設定。</div>
+          <div className="mt-1 text-xs text-slate-600">佣金還佣金：BAR / rate 在這裡設定；儲存佣金方案只會加入方案庫，Payroll 要生效請再按右上角「儲存」。</div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onSavePreset} disabled={isSavingPreset || rules.length === 0} className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">{isSavingPreset ? '儲存中...' : '儲存佣金方案'}</button>
@@ -2649,6 +2674,19 @@ export default function EmployeeProfile({
     setSuccessMessage(null);
   }
 
+  async function savePresetToServer(type: 'commission' | 'shop', name: string, rules: CommissionRule[]) {
+    const response = await fetch('/medimagic/api/people/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, name, commissionRules: rules }),
+    });
+    const payload = await response.json().catch(() => null) as { id?: string; name?: string; rules?: CommissionRule[]; error?: string } | null;
+    if (!response.ok || !payload?.id || !payload.name || !Array.isArray(payload.rules)) {
+      throw new Error(payload?.error ?? '儲存方案失敗。');
+    }
+    return { id: payload.id, name: payload.name, rules: normalizeCommissionRules(payload.rules) };
+  }
+
   async function handleSaveCommissionPreset() {
     const mainRules = normalizeCommissionRules(parseJsonSafely(formState.commissionRules)).filter((rule) => rule.metric !== 'shop');
     const presetName = normalizePayrollBonusCustomName(formState.commissionCustomName) ?? (mainRules.length === 1 ? mainRules[0]?.name : null) ?? '自訂佣金方案';
@@ -2663,19 +2701,18 @@ export default function EmployeeProfile({
     setSuccessMessage(null);
 
     try {
-      const payload = new FormData();
-      payload.set('name', presetName);
-      payload.set('commissionRules', serializeCommissionRules(mainRules));
-      const result = await saveCommissionRulePreset(payload);
+      const result = await savePresetToServer('commission', presetName, mainRules);
       setCommissionPresetOptions((current) => {
         const nextPreset: SavedCommissionPresetRecord = { id: result.id, name: result.name, tiers: [], rules: result.rules };
         const rest = current.filter((preset) => preset.id !== result.id && preset.name !== result.name);
         return [...rest, nextPreset].sort((left, right) => left.name.localeCompare(right.name));
       });
       setFormState((current) => ({ ...current, commissionCustomName: result.name }));
-      setSuccessMessage(`已儲存佣金方案：${result.name}`);
+      setSuccessMessage(`已儲存佣金方案：${result.name}。如要 Payroll 使用此設定，請再按右上角「儲存」保存員工資料。`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSavingPreset(null);
     }
@@ -2695,19 +2732,18 @@ export default function EmployeeProfile({
     setSuccessMessage(null);
 
     try {
-      const payload = new FormData();
-      payload.set('name', presetName);
-      payload.set('commissionRules', serializeCommissionRules(shopRules));
-      const result = await saveShopCommissionPreset(payload);
+      const result = await savePresetToServer('shop', presetName, shopRules);
       setShopCommissionPresetOptionsState((current) => {
         const nextPreset: SavedShopCommissionPresetRecord = { id: result.id, name: result.name, rules: result.rules };
         const rest = current.filter((preset) => preset.id !== result.id && preset.name !== result.name);
         return [...rest, nextPreset].sort((left, right) => left.name.localeCompare(right.name));
       });
       setFormState((current) => ({ ...current, shopBonusCustomName: result.name }));
-      setSuccessMessage(`已儲存鋪數方案：${result.name}`);
+      setSuccessMessage(`已儲存鋪數方案：${result.name}。如要 Payroll 使用此設定，請再按右上角「儲存」保存員工資料。`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSavingPreset(null);
     }
@@ -3264,6 +3300,13 @@ export default function EmployeeProfile({
                       <div className="rounded-xl border border-[#D4AF37]/20 bg-white px-4 py-3">
                         <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{savedPresetsLabel}</div>
                         <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setFormState((prev) => createBlankCommissionPlanState(prev))}
+                            className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                          >
+                            新增佣金方案
+                          </button>
                           {commissionPresetOptions.map((preset) => (
                             <button
                               key={preset.id}
@@ -3371,22 +3414,31 @@ export default function EmployeeProfile({
                       </>
                     )}
                     <div className="mt-2 border-t border-slate-100 pt-4">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" name="shopBonusEnabled" checked={formState.shopBonusEnabled === 'true'} onChange={(e) => setFormState((prev) => {
-                          const nextEnabled = e.target.checked;
-                          return {
-                            ...prev,
-                            shopBonusEnabled: nextEnabled ? 'true' : 'false',
-                            shopBonusScheme: nextEnabled ? prev.shopBonusScheme : '',
-                            shopBonusCustomName: nextEnabled ? prev.shopBonusCustomName : '',
-                            shopBonusCustomTiers: nextEnabled ? prev.shopBonusCustomTiers : '',
-                            commissionRules: nextEnabled
-                              ? prev.commissionRules
-                              : serializeCommissionRules(normalizeCommissionRules(parseJsonSafely(prev.commissionRules)).filter((rule) => rule.metric !== 'shop')),
-                          };
-                        })} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
-                        <span className="text-sm font-medium text-slate-700">{t.fields.shopBonusEnabled}</span>
-                      </label>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input type="checkbox" name="shopBonusEnabled" checked={formState.shopBonusEnabled === 'true'} onChange={(e) => setFormState((prev) => {
+                            const nextEnabled = e.target.checked;
+                            return {
+                              ...prev,
+                              shopBonusEnabled: nextEnabled ? 'true' : 'false',
+                              shopBonusScheme: nextEnabled ? prev.shopBonusScheme : '',
+                              shopBonusCustomName: nextEnabled ? prev.shopBonusCustomName : '',
+                              shopBonusCustomTiers: nextEnabled ? prev.shopBonusCustomTiers : '',
+                              commissionRules: nextEnabled
+                                ? prev.commissionRules
+                                : serializeCommissionRules(normalizeCommissionRules(parseJsonSafely(prev.commissionRules)).filter((rule) => rule.metric !== 'shop')),
+                            };
+                          })} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
+                          <span className="text-sm font-medium text-slate-700">{t.fields.shopBonusEnabled}</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setFormState((prev) => createBlankShopCommissionPlanState(prev))}
+                          className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                        >
+                          新增鋪數方案
+                        </button>
+                      </div>
                     </div>
                     {formState.shopBonusEnabled === 'true' && (
                       <>
