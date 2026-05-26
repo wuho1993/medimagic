@@ -133,6 +133,7 @@ export type SavedCommissionPresetRecord = {
   id: string;
   name: string;
   tiers: CustomCommissionTier[];
+  rules: CommissionRule[];
 };
 
 export type SavedPayrollBonusPresetRecord = {
@@ -826,11 +827,15 @@ export async function fetchSavedCommissionPresets(): Promise<SavedCommissionPres
     return [];
   }
 
-  return (data ?? []).map((row) => ({
-    id: row.id as string,
-    name: normalizeCustomCommissionName(row.name) ?? 'Custom Commission',
-    tiers: normalizeCustomCommissionTiers(row.tiers),
-  }));
+  return (data ?? []).map((row) => {
+    const rules = normalizeCommissionRules(row.tiers).filter((rule) => rule.metric !== 'shop');
+    return {
+      id: row.id as string,
+      name: normalizeCustomCommissionName(row.name) ?? 'Custom Commission',
+      tiers: rules.length > 0 ? [] : normalizeCustomCommissionTiers(row.tiers),
+      rules,
+    };
+  });
 }
 
 export async function fetchSavedPayrollBonusPresets(): Promise<SavedPayrollBonusPresetRecord[]> {

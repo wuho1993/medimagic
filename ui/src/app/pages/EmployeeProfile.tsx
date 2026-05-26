@@ -17,7 +17,7 @@ import type { EmployeeDocumentType } from '@/src/lib/employees/document-storage'
 import { calculateAge, calculateProbationEndDate, EMPLOYEE_EMPLOYMENT_TYPES } from '@/src/lib/employees/employment';
 import { createLegacyPayrollBonusConfigCatalog, normalizePayrollBonusCustomName, normalizePayrollBonusTiers, normalizeShopBonusTiers, type PayrollBonusConfigCatalog, type PayrollBonusTier, type ShopBonusTier } from '@/src/lib/employees/payroll-bonus';
 import { createCommissionRulesFromLegacyCustomTiers, createMoonIrisTaiWaiShopCommissionRules, getCommissionRuleConflictMessages, normalizeCommissionRules, serializeCommissionRules, type CommissionRule, type CommissionRuleMetric, type CommissionRuleType } from '@/src/lib/employees/commission-rules';
-import { updateEmployee } from '@/app/app/people/actions';
+import { saveCommissionRulePreset, saveShopCommissionPreset, updateEmployee } from '@/app/app/people/actions';
 import { deleteEmployeeDocument, uploadEmployeeDocument } from '@/app/app/people/document-actions';
 
 type EmployeeProfileProps = {
@@ -1088,13 +1088,16 @@ function createStandardCommissionRulesFromRateTable(tiers: CommissionRateTier[])
 }
 
 function applyCommissionPresetToState(current: FormState, preset: SavedCommissionPresetRecord): FormState {
+  const presetRules = preset.rules.length > 0
+    ? preset.rules
+    : createCommissionRulesFromLegacyCustomTiers(preset.name, preset.tiers);
   return {
     ...current,
     commissionMethod: 'custom',
     commissionCustomName: preset.name,
-    commissionCustomTiers: serializeCustomCommissionTiers(preset.tiers),
+    commissionCustomTiers: preset.rules.length > 0 ? '' : serializeCustomCommissionTiers(preset.tiers),
     commissionRules: serializeCommissionRules([
-      ...createCommissionRulesFromLegacyCustomTiers(preset.name, preset.tiers),
+      ...presetRules,
       ...normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric === 'shop'),
     ]),
   };
@@ -1487,10 +1490,14 @@ function ShopCommissionRulesEditor({
   rules,
   onChange,
   onClear,
+  onSavePreset,
+  isSavingPreset,
 }: {
   rules: CommissionRule[];
   onChange: (rules: CommissionRule[]) => void;
   onClear: () => void;
+  onSavePreset: () => void;
+  isSavingPreset: boolean;
 }) {
   const updateRule = (ruleIndex: number, patch: Partial<CommissionRule>) => onChange(rules.map((rule, index) => index === ruleIndex ? { ...rule, ...patch } : rule));
   const updateTier = (ruleIndex: number, tierIndex: number, patch: Partial<CommissionRule['tiers'][number]>) => {
@@ -1506,7 +1513,10 @@ function ShopCommissionRulesEditor({
           <div className="text-sm font-bold text-slate-900">已套用鋪數方案</div>
           <div className="mt-1 text-xs text-slate-600">可直接修改門檻及百分比；或取消套用後改回一般自訂鋪數級距。</div>
         </div>
-        <button type="button" onClick={onClear} className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">取消套用方案</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={onSavePreset} disabled={isSavingPreset || rules.length === 0} className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">{isSavingPreset ? '儲存中...' : '儲存鋪數方案'}</button>
+          <button type="button" onClick={onClear} className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">取消套用方案</button>
+        </div>
       </div>
       {rules.map((rule, ruleIndex) => (
         <div key={`${rule.code}-${ruleIndex}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1556,7 +1566,7 @@ function createYanLyBarCommissionRulesForEditor(): CommissionRule[] {
   ]);
 }
 
-function CommissionRulesEditor({ rules, onChange }: { rules: CommissionRule[]; onChange: (rules: CommissionRule[]) => void }) {
+function CommissionRulesEditor({ rules, onChange, onSavePreset, isSavingPreset }: { rules: CommissionRule[]; onChange: (rules: CommissionRule[]) => void; onSavePreset: () => void; isSavingPreset: boolean }) {
   const conflicts = getCommissionRuleConflictMessages(rules);
   const updateRule = (ruleIndex: number, patch: Partial<CommissionRule>) => onChange(rules.map((rule, index) => index === ruleIndex ? { ...rule, ...patch } : rule));
   const updateTier = (ruleIndex: number, tierIndex: number, patch: Partial<CommissionRule['tiers'][number]>) => {
@@ -1576,7 +1586,10 @@ function CommissionRulesEditor({ rules, onChange }: { rules: CommissionRule[]; o
           <div className="text-sm font-bold text-slate-900">自訂佣金規則</div>
           <div className="mt-1 text-xs text-slate-600">佣金還佣金：BAR / rate 在這裡設定；Bonus 分開設定。</div>
         </div>
-        <button type="button" onClick={addRule} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">新增佣金規則</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={onSavePreset} disabled={isSavingPreset || rules.length === 0} className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">{isSavingPreset ? '儲存中...' : '儲存佣金方案'}</button>
+          <button type="button" onClick={addRule} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">新增佣金規則</button>
+        </div>
       </div>
       {conflicts.length > 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><div className="font-semibold">佣金規則可能有衝突</div>{conflicts.map((conflict) => <div key={conflict} className="mt-1">• {conflict}</div>)}</div> : rules.length > 0 ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">✅ 佣金規則暫時未見衝突</div> : null}
       {rules.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">未設定自訂佣金規則。可繼續使用標準佣金 / 舊自訂佣金，或新增 BAR / rate 規則。</div> : null}
@@ -2388,17 +2401,20 @@ export default function EmployeeProfile({
   const [isEditing, setIsEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [formState, setFormState] = useState<FormState>(() => createInitialState(employee));
+  const [commissionPresetOptions, setCommissionPresetOptions] = useState<SavedCommissionPresetRecord[]>(savedCommissionPresets);
+  const [shopCommissionPresetOptionsState, setShopCommissionPresetOptionsState] = useState<SavedShopCommissionPresetRecord[]>(savedShopCommissionPresets);
   const [bankSearchQuery, setBankSearchQuery] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [savingPreset, setSavingPreset] = useState<'commission' | 'shop' | null>(null);
 
   const t = translations[lang] ?? translations.en;
   const locale = lang === 'en' ? 'en-HK' : lang === 'zh-CN' ? 'zh-CN' : 'zh-HK';
   const savedPresetsLabel = lang === 'en' ? 'Saved Presets' : lang === 'zh-CN' ? '已保存方案' : '已儲存方案';
   const standardPayrollBonusSchemes = payrollBonusConfig?.payrollBonusSchemes ?? createLegacyPayrollBonusConfigCatalog().payrollBonusSchemes;
   const standardShopBonusTiers = payrollBonusConfig?.shopBonusStandardTiers ?? createLegacyPayrollBonusConfigCatalog().shopBonusStandardTiers;
-  const shopCommissionPresetOptions = Array.isArray(savedShopCommissionPresets) && savedShopCommissionPresets.length > 0
-    ? savedShopCommissionPresets
+  const shopCommissionPresetOptions = Array.isArray(shopCommissionPresetOptionsState) && shopCommissionPresetOptionsState.length > 0
+    ? shopCommissionPresetOptionsState
     : [{ id: 'tai_wai_shop', name: 'Moon and Iris 大圍鋪數方案', rules: createMoonIrisTaiWaiShopCommissionRules() }];
   const isCustomCommissionSelected = isCustomSchemeSelection(formState.commissionMethod);
   const isCustomBonusSelected = isCustomSchemeSelection(formState.payrollBonusScheme);
@@ -2406,11 +2422,13 @@ export default function EmployeeProfile({
 
   useEffect(() => {
     setFormState(createInitialState(employee));
+    setCommissionPresetOptions(savedCommissionPresets);
+    setShopCommissionPresetOptionsState(savedShopCommissionPresets);
     setBankSearchQuery(employee.bankNameZh || employee.bankNameEn || '');
     setIsEditing(false);
     setErrorMessage(null);
     setSuccessMessage(null);
-  }, [employee]);
+  }, [employee, savedCommissionPresets, savedShopCommissionPresets]);
 
   const displayName = employee.alias || employee.nameZh || employee.nameEn;
   const formattedHireDate = formatDate(employee.hireDate, locale, t.emptyValue);
@@ -2559,17 +2577,11 @@ export default function EmployeeProfile({
       }
 
       if (name === 'commissionMethod') {
-                const selectedPresetId = extractPresetIdFromSelectValue(value);
-                if (selectedPresetId) {
-                  const selectedPreset = savedCommissionPresets.find((preset) => preset.id === selectedPresetId);
-                  return {
-                    ...current,
-                    commissionMethod: value,
-                    commissionCustomName: selectedPreset?.name ?? current.commissionCustomName,
-                    commissionCustomTiers: selectedPreset ? serializeCustomCommissionTiers(selectedPreset.tiers) : current.commissionCustomTiers,
-                    commissionRules: selectedPreset ? serializeCommissionRules(createCommissionRulesFromLegacyCustomTiers(selectedPreset.name, selectedPreset.tiers)) : current.commissionRules,
-                  };
-                }
+        const selectedPresetId = extractPresetIdFromSelectValue(value);
+        if (selectedPresetId) {
+          const selectedPreset = commissionPresetOptions.find((preset) => preset.id === selectedPresetId);
+          return selectedPreset ? applyCommissionPresetToState({ ...current, commissionMethod: value }, selectedPreset) : current;
+        }
         return {
           ...current,
           commissionMethod: value,
@@ -2622,6 +2634,70 @@ export default function EmployeeProfile({
     setIsEditing(false);
     setErrorMessage(null);
     setSuccessMessage(null);
+  }
+
+  async function handleSaveCommissionPreset() {
+    const mainRules = normalizeCommissionRules(parseJsonSafely(formState.commissionRules)).filter((rule) => rule.metric !== 'shop');
+    const presetName = normalizePayrollBonusCustomName(formState.commissionCustomName) ?? (mainRules.length === 1 ? mainRules[0]?.name : null) ?? '自訂佣金方案';
+
+    if (mainRules.length === 0) {
+      setErrorMessage('請先新增佣金規則。');
+      return;
+    }
+
+    setSavingPreset('commission');
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const payload = new FormData();
+      payload.set('name', presetName);
+      payload.set('commissionRules', serializeCommissionRules(mainRules));
+      const result = await saveCommissionRulePreset(payload);
+      setCommissionPresetOptions((current) => {
+        const nextPreset: SavedCommissionPresetRecord = { id: result.id, name: result.name, tiers: [], rules: result.rules };
+        const rest = current.filter((preset) => preset.id !== result.id && preset.name !== result.name);
+        return [...rest, nextPreset].sort((left, right) => left.name.localeCompare(right.name));
+      });
+      setFormState((current) => ({ ...current, commissionCustomName: result.name }));
+      setSuccessMessage(`已儲存佣金方案：${result.name}`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
+    } finally {
+      setSavingPreset(null);
+    }
+  }
+
+  async function handleSaveShopCommissionPreset() {
+    const shopRules = normalizeCommissionRules(parseJsonSafely(formState.commissionRules)).filter((rule) => rule.metric === 'shop');
+    const presetName = normalizePayrollBonusCustomName(formState.shopBonusCustomName) ?? (shopRules.length === 1 ? shopRules[0]?.name : null) ?? '自訂鋪數方案';
+
+    if (shopRules.length === 0) {
+      setErrorMessage('請先新增或套用鋪數百分比方案。');
+      return;
+    }
+
+    setSavingPreset('shop');
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const payload = new FormData();
+      payload.set('name', presetName);
+      payload.set('commissionRules', serializeCommissionRules(shopRules));
+      const result = await saveShopCommissionPreset(payload);
+      setShopCommissionPresetOptionsState((current) => {
+        const nextPreset: SavedShopCommissionPresetRecord = { id: result.id, name: result.name, rules: result.rules };
+        const rest = current.filter((preset) => preset.id !== result.id && preset.name !== result.name);
+        return [...rest, nextPreset].sort((left, right) => left.name.localeCompare(right.name));
+      });
+      setFormState((current) => ({ ...current, shopBonusCustomName: result.name }));
+      setSuccessMessage(`已儲存鋪數方案：${result.name}`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
+    } finally {
+      setSavingPreset(null);
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -3088,7 +3164,7 @@ export default function EmployeeProfile({
                       <div className="rounded-xl border border-[#D4AF37]/20 bg-white px-4 py-3">
                         <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{savedPresetsLabel}</div>
                         <div className="flex flex-wrap gap-2">
-                          {savedCommissionPresets.map((preset) => (
+                          {commissionPresetOptions.map((preset) => (
                             <button
                               key={preset.id}
                               type="button"
@@ -3148,6 +3224,8 @@ export default function EmployeeProfile({
                         <CommissionRulesEditor
                           rules={commissionRulesForEditor}
                           onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: mergeCommissionRulesWithCurrentShop(prev.commissionRules, rules), commissionCustomTiers: '' }))}
+                          onSavePreset={handleSaveCommissionPreset}
+                          isSavingPreset={savingPreset === 'commission'}
                         />
                     )}
                     <div className="mt-2 border-t border-slate-100 pt-4">
@@ -3252,6 +3330,8 @@ export default function EmployeeProfile({
                               <ShopCommissionRulesEditor
                                 rules={shopCommissionRules}
                                 onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: mergeCommissionRulesWithCurrentMain(prev.commissionRules, rules), commissionCustomTiers: '' }))}
+                                onSavePreset={handleSaveShopCommissionPreset}
+                                isSavingPreset={savingPreset === 'shop'}
                                 onClear={() => setFormState((prev) => ({
                                   ...prev,
                                   shopBonusCustomName: '',

@@ -249,6 +249,77 @@ async function upsertSavedPayrollBonusPreset(
   return data.id as string;
 }
 
+export async function saveCommissionRulePreset(formData: FormData) {
+  const name = normalizeCustomCommissionName(getNullableValue(formData, 'name'));
+  const rules = normalizeCommissionRules(getNullableJsonValue(formData, 'commissionRules'))
+    .filter((rule) => rule.metric !== 'shop');
+
+  if (!name) {
+    throw new Error('Missing commission preset name.');
+  }
+
+  if (rules.length === 0) {
+    throw new Error('No commission rules to save.');
+  }
+
+  const supabase = createBrowserSupabaseClient();
+  const id = await upsertSavedCommissionPreset(supabase, name, rules as unknown as ReturnType<typeof normalizeCustomCommissionTiers>, null);
+  return { id, name, rules };
+}
+
+export async function saveShopCommissionPreset(formData: FormData) {
+  const name = normalizePayrollBonusCustomName(getNullableValue(formData, 'name'));
+  const rules = normalizeCommissionRules(getNullableJsonValue(formData, 'commissionRules'))
+    .filter((rule) => rule.metric === 'shop');
+
+  if (!name) {
+    throw new Error('Missing shop commission preset name.');
+  }
+
+  if (rules.length === 0) {
+    throw new Error('No shop commission rules to save.');
+  }
+
+  const supabase = createBrowserSupabaseClient();
+  const payload = { name, rules };
+  const { data: existing, error: lookupError } = await supabase
+    .from('saved_shop_commission_presets')
+    .select('id')
+    .eq('name', name)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(lookupError.message);
+  }
+
+  if (existing?.id) {
+    const { data, error } = await supabase
+      .from('saved_shop_commission_presets')
+      .update(payload)
+      .eq('id', existing.id)
+      .select('id')
+      .maybeSingle();
+
+    if (error || !data?.id) {
+      throw new Error(error?.message ?? 'Failed to update saved shop commission preset.');
+    }
+
+    return { id: data.id as string, name, rules };
+  }
+
+  const { data, error } = await supabase
+    .from('saved_shop_commission_presets')
+    .insert(payload)
+    .select('id')
+    .maybeSingle();
+
+  if (error || !data?.id) {
+    throw new Error(error?.message ?? 'Failed to create saved shop commission preset.');
+  }
+
+  return { id: data.id as string, name, rules };
+}
+
 async function resolveCompanyType(companyId: string | null) {
   if (!companyId) {
     throw new Error('Company is required.');
