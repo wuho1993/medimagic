@@ -2577,9 +2577,12 @@ ${tablePreview}`;
   const payslipExportEntries = rows.map((row): PayslipPdfEntry => {
     const vol = getVolumes(row.employeeCode);
     const shopCommissionLabel = row.commResult.commissionRuleItems.find((item) => item.metric === 'shop')?.name ?? null;
+    const payslipEmployeeName = row.nameEn
+      ? (row.alias ? `${row.nameEn} (${row.alias})` : row.nameEn)
+      : row.alias || row.nameZh;
     return {
       employeeCode: row.employeeCode,
-      employeeName: row.alias || row.nameZh,
+      employeeName: payslipEmployeeName,
       employeeTitle: row.positionNameZh ?? null,
       hkid: row.identityNumber ?? null,
       lateDays: row.lateDays,
