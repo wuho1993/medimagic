@@ -829,13 +829,14 @@ export async function fetchSavedCommissionPresets(): Promise<SavedCommissionPres
 
   return (data ?? []).map((row) => {
     const rules = normalizeCommissionRules(row.tiers).filter((rule) => rule.metric !== 'shop');
+    const tiers = rules.length > 0 ? [] : normalizeCustomCommissionTiers(row.tiers);
     return {
       id: row.id as string,
       name: normalizeCustomCommissionName(row.name) ?? 'Custom Commission',
-      tiers: rules.length > 0 ? [] : normalizeCustomCommissionTiers(row.tiers),
+      tiers,
       rules,
     };
-  });
+  }).filter((preset) => preset.rules.length > 0 || preset.tiers.length > 0);
 }
 
 export async function fetchSavedPayrollBonusPresets(): Promise<SavedPayrollBonusPresetRecord[]> {
@@ -864,18 +865,41 @@ export async function fetchSavedShopCommissionPresets(): Promise<SavedShopCommis
     .select('id, name, rules')
     .order('name');
 
-  if (error) {
+  const { data: commissionPresetData, error: commissionPresetError } = await supabase
+    .from('saved_commission_presets')
+    .select('id, name, tiers')
+    .order('name');
+
+  if (error && commissionPresetError) {
     console.error('Failed to load saved shop commission presets from Supabase:', error.message);
     return [{ id: 'tai_wai_shop', name: 'Moon and Iris 大圍鋪數方案', rules: createMoonIrisTaiWaiShopCommissionRules() }];
   }
 
-  const presets = (data ?? [])
+  if (commissionPresetError) {
+    console.error('Failed to load shop commission presets from saved commission presets:', commissionPresetError.message);
+  }
+
+  const dedicatedPresets = (data ?? [])
     .map((row) => ({
       id: row.id as string,
       name: (row.name as string | null)?.trim() || '鋪數方案',
       rules: normalizeCommissionRules(row.rules).filter((rule) => rule.metric === 'shop'),
     }))
     .filter((preset) => preset.rules.length > 0);
+
+  const sharedPresets = (commissionPresetData ?? [])
+    .map((row) => ({
+      id: `shared:${row.id as string}`,
+      name: (row.name as string | null)?.trim() || '鋪數方案',
+      rules: normalizeCommissionRules(row.tiers).filter((rule) => rule.metric === 'shop'),
+    }))
+    .filter((preset) => preset.rules.length > 0);
+
+  const presetsByName = new Map<string, SavedShopCommissionPresetRecord>();
+  for (const preset of [...dedicatedPresets, ...sharedPresets]) {
+    presetsByName.set(preset.name, preset);
+  }
+  const presets = Array.from(presetsByName.values()).sort((left, right) => left.name.localeCompare(right.name));
 
   return presets.length > 0 ? presets : [{ id: 'tai_wai_shop', name: 'Moon and Iris 大圍鋪數方案', rules: createMoonIrisTaiWaiShopCommissionRules() }];
 }

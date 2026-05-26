@@ -19,6 +19,7 @@ import { createLegacyPayrollBonusConfigCatalog, normalizePayrollBonusCustomName,
 import { createCommissionRulesFromLegacyCustomTiers, createMoonIrisTaiWaiShopCommissionRules, getCommissionRuleConflictMessages, normalizeCommissionRules, serializeCommissionRules, type CommissionRule, type CommissionRuleMetric, type CommissionRuleType } from '@/src/lib/employees/commission-rules';
 import { updateEmployee } from '@/app/app/people/actions';
 import { deleteEmployeeDocument, uploadEmployeeDocument } from '@/app/app/people/document-actions';
+import { createBrowserSupabaseClient } from '@/src/lib/supabase/client';
 
 type EmployeeProfileProps = {
   employee: EmployeeDetailRecord;
@@ -1545,7 +1546,7 @@ function ShopCommissionRulesEditor({
       </div>
       {rules.map((rule, ruleIndex) => (
         <div key={`${rule.code}-${ruleIndex}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">方案名稱<input value={rule.name} onChange={(event) => updateRule(ruleIndex, { name: event.target.value, code: event.target.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || rule.code })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800" /></label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">方案名稱<input value={rule.name} onChange={(event) => updateRule(ruleIndex, { name: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800" /></label>
           <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -1621,7 +1622,7 @@ function CommissionRulesEditor({ rules, onChange, onSavePreset, isSavingPreset }
       {rules.map((rule, ruleIndex) => (
         <div key={`${rule.code}-${ruleIndex}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="grid gap-3 md:grid-cols-[1fr_150px_170px_100px_auto]">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">名稱<input value={rule.name} onChange={(event) => updateRule(ruleIndex, { name: event.target.value, code: event.target.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || rule.code })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800" /></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">名稱<input value={rule.name} onChange={(event) => updateRule(ruleIndex, { name: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800" /></label>
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">類型<select value={rule.type} onChange={(event) => updateRule(ruleIndex, { type: event.target.value as CommissionRuleType, tiers: rule.tiers.map((tier) => event.target.value === 'bar' ? { ...tier, amount: tier.amount ?? 0, rate: null } : { ...tier, amount: null, rate: tier.rate ?? 0 }) })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800"><option value="bar">{COMMISSION_RULE_TYPE_LABELS.bar}</option><option value="rate">{COMMISSION_RULE_TYPE_LABELS.rate}</option></select></label>
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">計算基準<select value={rule.metric} onChange={(event) => updateRule(ruleIndex, { metric: event.target.value as CommissionRuleMetric })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{(Object.keys(COMMISSION_RULE_METRIC_LABELS) as CommissionRuleMetric[]).filter((metric) => metric !== 'shop').map((metric) => <option key={metric} value={metric}>{COMMISSION_RULE_METRIC_LABELS[metric]}</option>)}</select></label>
             <label className="flex items-end gap-2 pb-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={rule.enabled} onChange={(event) => updateRule(ruleIndex, { enabled: event.target.checked })} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />啟用</label>
@@ -2674,17 +2675,42 @@ export default function EmployeeProfile({
     setSuccessMessage(null);
   }
 
-  async function savePresetToServer(type: 'commission' | 'shop', name: string, rules: CommissionRule[]) {
-    const response = await fetch('/medimagic/api/people/presets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, name, commissionRules: rules }),
-    });
-    const payload = await response.json().catch(() => null) as { id?: string; name?: string; rules?: CommissionRule[]; error?: string } | null;
-    if (!response.ok || !payload?.id || !payload.name || !Array.isArray(payload.rules)) {
-      throw new Error(payload?.error ?? '儲存方案失敗。');
+  async function savePresetToSupabase(type: 'commission' | 'shop', name: string, rules: CommissionRule[]) {
+    const supabase = createBrowserSupabaseClient();
+    const table = 'saved_commission_presets';
+    const payload = { name, tiers: rules };
+    const { data: existing, error: lookupError } = await supabase
+      .from(table)
+      .select('id')
+      .eq('name', name)
+      .maybeSingle();
+
+    if (lookupError) {
+      throw new Error(lookupError.message);
     }
-    return { id: payload.id, name: payload.name, rules: normalizeCommissionRules(payload.rules) };
+
+    if (existing?.id) {
+      const { data, error } = await supabase
+        .from(table)
+        .update(payload)
+        .eq('id', existing.id)
+        .select('id')
+        .maybeSingle();
+      if (error || !data?.id) {
+        throw new Error(error?.message ?? '儲存方案失敗。');
+      }
+      return { id: data.id as string, name, rules: normalizeCommissionRules(rules) };
+    }
+
+    const { data, error } = await supabase
+      .from(table)
+      .insert(payload)
+      .select('id')
+      .maybeSingle();
+    if (error || !data?.id) {
+      throw new Error(error?.message ?? '儲存方案失敗。');
+    }
+    return { id: data.id as string, name, rules: normalizeCommissionRules(rules) };
   }
 
   async function handleSaveCommissionPreset() {
@@ -2701,7 +2727,7 @@ export default function EmployeeProfile({
     setSuccessMessage(null);
 
     try {
-      const result = await savePresetToServer('commission', presetName, mainRules);
+      const result = await savePresetToSupabase('commission', presetName, mainRules);
       setCommissionPresetOptions((current) => {
         const nextPreset: SavedCommissionPresetRecord = { id: result.id, name: result.name, tiers: [], rules: result.rules };
         const rest = current.filter((preset) => preset.id !== result.id && preset.name !== result.name);
@@ -2732,7 +2758,7 @@ export default function EmployeeProfile({
     setSuccessMessage(null);
 
     try {
-      const result = await savePresetToServer('shop', presetName, shopRules);
+      const result = await savePresetToSupabase('shop', presetName, shopRules);
       setShopCommissionPresetOptionsState((current) => {
         const nextPreset: SavedShopCommissionPresetRecord = { id: result.id, name: result.name, rules: result.rules };
         const rest = current.filter((preset) => preset.id !== result.id && preset.name !== result.name);
