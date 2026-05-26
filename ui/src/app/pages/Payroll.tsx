@@ -418,6 +418,7 @@ type PayslipPdfEntry = {
   salesBonus: number;
   payrollBonus: number;
   packageCommissionAmount: number;
+  packageCoveredCommission: number;
   packageCommission: number;
   isPackageEmployee: boolean;
   actualCommissionExceedsPackage: boolean;
@@ -2621,6 +2622,7 @@ ${tablePreview}`;
       salesBonus: row.commResult.salesBonus,
       payrollBonus: row.commResult.payrollBonus,
       packageCommissionAmount: row.packageCommissionAmount,
+      packageCoveredCommission: row.packageCoveredCommission,
       packageCommission: row.packageCommission,
       isPackageEmployee: row.isPackageEmployee,
       actualCommissionExceedsPackage: row.actualCommissionExceedsPackage,
@@ -4856,16 +4858,23 @@ ${tablePreview}`;
         {activePayslipPdfEntry ? (
           <div ref={payslipPdfCardRef} style={{ width: '794px', backgroundColor: '#ffffff', color: '#000000', padding: '8px 30px 14px', fontFamily: 'Arial Unicode MS, Microsoft JhengHei, PingFang TC, sans-serif', fontSize: '10.5pt' }}>
             {(() => {
-              const showPackageOnlyCommission = activePayslipPdfEntry.isPackageEmployee && !activePayslipPdfEntry.actualCommissionExceedsPackage;
+              const showPackageCommission = activePayslipPdfEntry.isPackageEmployee;
               const allowanceTotal = roundMoney(activePayslipPdfEntry.rawAllowanceAmount + activePayslipPdfEntry.rawTransportAllowance);
               const baseSalaryDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBaseSalary - activePayslipPdfEntry.calculatedBaseSalary, 0));
               const allowanceDeduction = roundMoney(Math.max(allowanceTotal - (activePayslipPdfEntry.allowanceAmount + activePayslipPdfEntry.transportAllowance), 0));
               const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));
               const attendanceDeduction = roundMoney(Math.max(activePayslipPdfEntry.displayAttendanceBonus - activePayslipPdfEntry.attendanceBonus, 0));
               const bookingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBookingBonus - activePayslipPdfEntry.bookingBonus, 0));
-              const packageCommissionDeduction = showPackageOnlyCommission
+              const packageCommissionDeduction = showPackageCommission
                 ? roundMoney(Math.max(activePayslipPdfEntry.packageCommissionAmount - activePayslipPdfEntry.packageCommission, 0))
                 : 0;
+              const packageCoveredCommission = activePayslipPdfEntry.packageCoveredCommission;
+              const packageVariance = roundMoney(Math.abs(packageCoveredCommission - activePayslipPdfEntry.packageCommissionAmount));
+              const packageCommissionLabel = showPackageCommission
+                ? (activePayslipPdfEntry.actualCommissionExceedsPackage
+                  ? `Package Commission  包佣金額 (包佣內佣金 ${fmtPayslipAmount(packageCoveredCommission)}；已超過包佣 ${fmtPayslipAmount(packageVariance)})`
+                  : `Package Commission  包佣金額 (包佣內佣金 ${fmtPayslipAmount(packageCoveredCommission)}；尚欠 ${fmtPayslipAmount(packageVariance)} 才超過包佣)`)
+                : 'Package Commission  包佣金額';
               const hasLateAttendanceDeduction = shouldDeductAttendanceBonusForLate(activePayslipPdfEntry.lateDays) && attendanceDeduction > 0;
               const lateLabel = hasLateAttendanceDeduction
                 ? `Late - Diligent  遲到扣勤工獎 (${activePayslipPdfEntry.lateDays}分鐘)`
@@ -4900,9 +4909,9 @@ ${tablePreview}`;
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.rawBriefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
               ];
-              const commissionIncomeRows: Array<[string, number]> = showPackageOnlyCommission
+              const commissionIncomeRows: Array<[string, number]> = showPackageCommission
                 ? [
-                  ['Package Commission  包佣金額', activePayslipPdfEntry.packageCommissionAmount],
+                  [packageCommissionLabel, activePayslipPdfEntry.actualCommissionExceedsPackage ? activePayslipPdfEntry.packageCommission : activePayslipPdfEntry.packageCommissionAmount],
                   [`SGM Commission  介紹獎金 (${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}%; outside package 包佣外)`, activePayslipPdfEntry.sgmCommission],
                   ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金 (outside package 包佣外)', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
                   ...(activePayslipPdfEntry.streetPromoterCommission > 0 ? [[`Street Promoter Commission  街霸佣金`, activePayslipPdfEntry.streetPromoterCommission] as [string, number]] : []),
