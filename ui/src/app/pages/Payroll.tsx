@@ -1967,6 +1967,16 @@ ${tablePreview}`;
     }));
     markDirty();
   };
+  const setMonthlyBonusPatch = (code: string, employee: PayrollEmployeeSummary, patch: Partial<EmployeeMonthlyBonusState>) => {
+    setMonthlyBonuses((prev) => ({
+      ...prev,
+      [code]: {
+        ...(prev[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code]?.lateDays ?? 0)),
+        ...patch,
+      },
+    }));
+    markDirty();
+  };
   const getMonthlyMpfState = (code: string, employee: PayrollEmployeeSummary): EmployeeMonthlyMpfState => {
     return monthlyMpfStates[code] ?? createDefaultMonthlyMpfState(employee, payrollReferenceDate);
   };
@@ -2293,8 +2303,9 @@ ${tablePreview}`;
     const monthEndManualBonus = manualBonusGoesMonthEnd ? manualBonus : 0;
     const primaryManualDeduction = manualDeductionGoesMonthEnd ? 0 : manualDeduction;
     const monthEndManualDeduction = manualDeductionGoesMonthEnd ? manualDeduction : 0;
-    const primaryManualBonusMpfRelevant = monthlyBonus.manualBonusMpfIncluded ? primaryManualBonus : 0;
-    const monthEndManualBonusMpfRelevant = monthlyBonus.manualBonusMpfIncluded ? monthEndManualBonus : 0;
+    const manualBonusCountsForMpf = manualBonus > 0 || monthlyBonus.manualBonusMpfIncluded;
+    const primaryManualBonusMpfRelevant = manualBonusCountsForMpf ? primaryManualBonus : 0;
+    const monthEndManualBonusMpfRelevant = manualBonusCountsForMpf ? monthEndManualBonus : 0;
     const primaryManualDeductionMpfRelevant = monthlyBonus.manualDeductionMpfIncluded ? primaryManualDeduction : 0;
     const monthEndManualDeductionMpfRelevant = monthlyBonus.manualDeductionMpfIncluded ? monthEndManualDeduction : 0;
     const alShAverageCommissionPayAfterPackage = isPackageEmployee
@@ -3836,13 +3847,11 @@ ${tablePreview}`;
                                   value={monthlyBonus.manualBonusAmount}
                                   onChange={(e) => {
                                     const value = e.target.value;
-                                    setMonthlyBonus(row.employeeCode, row, 'manualBonusAmount', value);
-                                    if ((Number(value) || 0) > 0 && !monthlyBonus.manualBonusApplied) {
-                                      setMonthlyBonus(row.employeeCode, row, 'manualBonusApplied', true);
-                                    }
-                                    if ((Number(value) || 0) > 0 && !monthlyBonus.manualBonusMpfIncluded) {
-                                      setMonthlyBonus(row.employeeCode, row, 'manualBonusMpfIncluded', true);
-                                    }
+                                    const amount = Number(value) || 0;
+                                    setMonthlyBonusPatch(row.employeeCode, row, {
+                                      manualBonusAmount: value,
+                                      ...(amount > 0 ? { manualBonusApplied: true, manualBonusMpfIncluded: true } : {}),
+                                    });
                                   }}
                                   onKeyDown={preventAccidentalNumberStep}
                                   onWheel={preventAccidentalNumberScroll}
@@ -3865,10 +3874,11 @@ ${tablePreview}`;
                                     <span>{t.commInput.applyThisMonth}</span>
                                   </label>
                                   <label className={toggleRowClasses}>
-                                    <input
-                                      type="checkbox"
-                                      checked={monthlyBonus.manualBonusMpfIncluded}
+                                      <input
+                                        type="checkbox"
+                                      checked={(Number(monthlyBonus.manualBonusAmount) || 0) > 0 || monthlyBonus.manualBonusMpfIncluded}
                                       onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualBonusMpfIncluded', e.target.checked)}
+                                      disabled={(Number(monthlyBonus.manualBonusAmount) || 0) > 0}
                                       className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                     />
                                     <span>{t.commInput.countForMpf}</span>
@@ -3930,13 +3940,11 @@ ${tablePreview}`;
                                   value={monthlyBonus.manualDeductionAmount}
                                   onChange={(e) => {
                                     const value = e.target.value;
-                                    setMonthlyBonus(row.employeeCode, row, 'manualDeductionAmount', value);
-                                    if ((Number(value) || 0) > 0 && !monthlyBonus.manualDeductionApplied) {
-                                      setMonthlyBonus(row.employeeCode, row, 'manualDeductionApplied', true);
-                                    }
-                                    if ((Number(value) || 0) > 0 && !monthlyBonus.manualDeductionMpfIncluded) {
-                                      setMonthlyBonus(row.employeeCode, row, 'manualDeductionMpfIncluded', true);
-                                    }
+                                    const amount = Number(value) || 0;
+                                    setMonthlyBonusPatch(row.employeeCode, row, {
+                                      manualDeductionAmount: value,
+                                      ...(amount > 0 ? { manualDeductionApplied: true, manualDeductionMpfIncluded: true } : {}),
+                                    });
                                   }}
                                   onKeyDown={preventAccidentalNumberStep}
                                   onWheel={preventAccidentalNumberScroll}
@@ -4893,7 +4901,13 @@ ${tablePreview}`;
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
               ];
               const commissionIncomeRows: Array<[string, number]> = showPackageOnlyCommission
-                ? [['Package Commission  包佣金額', activePayslipPdfEntry.packageCommissionAmount]]
+                ? [
+                  ['Package Commission  包佣金額', activePayslipPdfEntry.packageCommissionAmount],
+                  [`SGM Commission  介紹獎金 (${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}%; outside package 包佣外)`, activePayslipPdfEntry.sgmCommission],
+                  ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金 (outside package 包佣外)', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
+                  ...(activePayslipPdfEntry.streetPromoterCommission > 0 ? [[`Street Promoter Commission  街霸佣金`, activePayslipPdfEntry.streetPromoterCommission] as [string, number]] : []),
+                  ...(activePayslipPdfEntry.telesalesCommission > 0 ? [[`Telesales Commission  電話銷售員佣金`, activePayslipPdfEntry.telesalesCommission] as [string, number]] : []),
+                ]
                 : [
                   [`Redeem Commission  退單佣金 (${fmtPayslipAmount(activePayslipPdfEntry.redeemVolume)} x ${(activePayslipPdfEntry.redeemRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.redeemCommission],
                   [`Sales Commission  銷售佣金 (${fmtPayslipAmount(activePayslipPdfEntry.salesVolume)} x ${(activePayslipPdfEntry.salesRate * 100).toFixed(1)}%)`, activePayslipPdfEntry.salesCommission],
