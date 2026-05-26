@@ -2356,8 +2356,8 @@ ${tablePreview}`;
           ? splitManualAmount(autoPrimaryMpfBasis, autoSecondaryMpfBasis, mpfEe, primaryPayoutGross, secondaryPayoutGross)
           : splitAutoCappedAmount(autoPrimaryMpfBasis, autoSecondaryMpfBasis, calculatedMpf);
     const monthEndMpf = effectiveMpfEeApplied && monthlyMpf.mpfEeDeductionMode === 'month_end' ? mpfEe : 0;
-    const primaryPayoutNet = roundMoney(primaryPayoutGross - primaryMpf);
-    const secondaryPayoutNet = roundMoney(secondaryPayoutGross - secondaryMpf);
+    const primaryPayoutNet = roundMoney(primaryPayoutGross - primaryMpf - (hasSecondaryPayout ? 0 : monthEndMpf));
+    const secondaryPayoutNet = roundMoney(secondaryPayoutGross - secondaryMpf - (hasSecondaryPayout ? monthEndMpf : 0));
     const net = grossBase + displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonus - monthEndManualDeduction - mpfEe;
     return {
       ...emp,
@@ -4215,7 +4215,7 @@ ${tablePreview}`;
                                   </div>
                                   <div className={subtleStatClasses}>
                                     <div className="text-xs text-slate-500">{t.commInput.payoutMpfDeduction}</div>
-                                    <div className="mt-1 font-semibold text-slate-900">-{fmtDec(row.primaryMpf)}</div>
+                                    <div className="mt-1 font-semibold text-slate-900">-{fmtDec(row.primaryMpf + (row.hasSecondaryPayout ? 0 : row.monthEndMpf))}</div>
                                   </div>
                                   <div className={subtleStatClasses}>
                                     <div className="text-xs text-slate-500">{t.commInput.payoutNet}</div>
@@ -4237,34 +4237,11 @@ ${tablePreview}`;
                                     </div>
                                     <div className={subtleStatClasses}>
                                       <div className="text-xs text-slate-500">{t.commInput.payoutMpfDeduction}</div>
-                                      <div className="mt-1 font-semibold text-slate-900">-{fmtDec(row.secondaryMpf)}</div>
+                                      <div className="mt-1 font-semibold text-slate-900">-{fmtDec(row.secondaryMpf + row.monthEndMpf)}</div>
                                     </div>
                                     <div className={subtleStatClasses}>
                                       <div className="text-xs text-slate-500">{t.commInput.payoutNet}</div>
                                       <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.secondaryPayoutNet)}</div>
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : null}
-
-                              {row.monthEndMpf > 0 ? (
-                                <div className="flex items-start justify-between gap-3 border-t border-dashed border-slate-200 pt-3">
-                                  <div>
-                                    <div className="text-sm font-semibold text-slate-900">{t.commInput.monthEndMpfDeduction}</div>
-                                    <div className="mt-1 text-xs text-slate-500">{t.commInput.mpfDeductionMonthEnd}</div>
-                                  </div>
-                                  <div className="grid min-w-55 grid-cols-3 gap-2 text-sm">
-                                    <div className={subtleStatClasses}>
-                                      <div className="text-xs text-slate-500">{t.commInput.payoutGross}</div>
-                                      <div className="mt-1 font-semibold text-slate-400">—</div>
-                                    </div>
-                                    <div className={subtleStatClasses}>
-                                      <div className="text-xs text-slate-500">{t.commInput.payoutMpfDeduction}</div>
-                                      <div className="mt-1 font-semibold text-slate-900">-{fmtDec(row.monthEndMpf)}</div>
-                                    </div>
-                                    <div className={subtleStatClasses}>
-                                      <div className="text-xs text-slate-500">{t.commInput.payoutNet}</div>
-                                      <div className="mt-1 font-semibold text-slate-900">-{fmtDec(row.monthEndMpf)}</div>
                                     </div>
                                   </div>
                                 </div>
@@ -4870,11 +4847,18 @@ ${tablePreview}`;
                 : 0;
               const packageCoveredCommission = activePayslipPdfEntry.packageCoveredCommission;
               const packageVariance = roundMoney(Math.abs(packageCoveredCommission - activePayslipPdfEntry.packageCommissionAmount));
-              const packageCommissionLabel = showPackageCommission
-                ? (activePayslipPdfEntry.actualCommissionExceedsPackage
-                  ? `Package Commission  包佣金額 (包佣內佣金 ${fmtPayslipAmount(packageCoveredCommission)}；已超過包佣 ${fmtPayslipAmount(packageVariance)})`
-                  : `Package Commission  包佣金額 (包佣內佣金 ${fmtPayslipAmount(packageCoveredCommission)}；尚欠 ${fmtPayslipAmount(packageVariance)} 才超過包佣)`)
-                : 'Package Commission  包佣金額';
+              const packageFormulaParts = [
+                ['Redeem', activePayslipPdfEntry.redeemCommission],
+                ['Sales', activePayslipPdfEntry.salesCommission],
+                ['Sales Amount', activePayslipPdfEntry.salesAmountCommission],
+                ['Job', activePayslipPdfEntry.jobCommission],
+                ['AL', activePayslipPdfEntry.annualLeaveAverageCommissionPay],
+                ['SH', activePayslipPdfEntry.statutoryHolidayAverageCommissionPay],
+              ] as const;
+              const packageFormulaLabel = `Package comparison 包佣比較：${packageFormulaParts.map(([label, value]) => `${label} ${fmtPayslipAmount(value)}`).join(' + ')} = ${fmtPayslipAmount(packageCoveredCommission)}`;
+              const packageResultLabel = activePayslipPdfEntry.actualCommissionExceedsPackage
+                ? `Package result 包佣結果：已超過包佣 ${fmtPayslipAmount(packageVariance)}，所以出包佣內佣金 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommission)}`
+                : `Package result 包佣結果：尚欠 ${fmtPayslipAmount(packageVariance)} 才超過包佣，所以出包佣 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommissionAmount)}`;
               const hasLateAttendanceDeduction = shouldDeductAttendanceBonusForLate(activePayslipPdfEntry.lateDays) && attendanceDeduction > 0;
               const lateLabel = hasLateAttendanceDeduction
                 ? `Late - Diligent  遲到扣勤工獎 (${activePayslipPdfEntry.lateDays}分鐘)`
@@ -4909,9 +4893,11 @@ ${tablePreview}`;
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.rawBriefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
               ];
-              const commissionIncomeRows: Array<[string, number]> = showPackageCommission
+              const commissionIncomeRows: Array<[string, number | null]> = showPackageCommission
                 ? [
-                  [packageCommissionLabel, activePayslipPdfEntry.actualCommissionExceedsPackage ? activePayslipPdfEntry.packageCommission : activePayslipPdfEntry.packageCommissionAmount],
+                  ['Package Commission  包佣金額', activePayslipPdfEntry.actualCommissionExceedsPackage ? activePayslipPdfEntry.packageCommission : activePayslipPdfEntry.packageCommissionAmount],
+                  [packageFormulaLabel, null],
+                  [packageResultLabel, null],
                   [`SGM Commission  介紹獎金 (${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}%; outside package 包佣外)`, activePayslipPdfEntry.sgmCommission],
                   ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金 (outside package 包佣外)', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
                   ...(activePayslipPdfEntry.streetPromoterCommission > 0 ? [[`Street Promoter Commission  街霸佣金`, activePayslipPdfEntry.streetPromoterCommission] as [string, number]] : []),
@@ -4929,7 +4915,7 @@ ${tablePreview}`;
                 ];
               const salesBonusLabel = 'Sales Bonus  銷售獎金';
               const payrollBonusLabel = 'Payroll Bonus  月度獎金';
-              const incomeRows: Array<[string, number]> = [...baseIncomeRows, ...commissionIncomeRows];
+              const incomeRows: Array<[string, number | null]> = [...baseIncomeRows, ...commissionIncomeRows];
               incomeRows.push([salesBonusLabel, activePayslipPdfEntry.salesBonus]);
               incomeRows.push(['Shop Bonus  鋪數獎金', activePayslipPdfEntry.shopBonus]);
               incomeRows.push([payrollBonusLabel, activePayslipPdfEntry.payrollBonus]);
@@ -4945,8 +4931,8 @@ ${tablePreview}`;
                   : 'SH Commission  勞工假平均佣金',
                 activePayslipPdfEntry.statutoryHolidayAverageCommissionPay,
               ]);
-              const visibleIncomeRows = incomeRows.filter(([, value]) => value > 0);
-              const incomeSubtotal = roundMoney(visibleIncomeRows.reduce((sum, [, value]) => sum + value, 0));
+              const visibleIncomeRows = incomeRows.filter(([, value]) => value === null || value > 0);
+              const incomeSubtotal = roundMoney(visibleIncomeRows.reduce((sum, [, value]) => sum + (value ?? 0), 0));
               const deductionRows: Array<[string, number]> = [
                 ...attendanceDeductionRows,
               ];
@@ -5053,9 +5039,9 @@ ${tablePreview}`;
                       </tr>
                       {visibleIncomeRows.map(([label, value]) => (
                         <tr key={label}>
-                          <td colSpan={6} style={labelCell}>{label}</td>
+                          <td colSpan={6} style={value === null ? { ...labelCell, fontSize: '9pt', color: '#333333' } : labelCell}>{label}</td>
                           <td style={amountCell}></td>
-                          <td style={amountCell}>{fmtPayslipAmount(value)}</td>
+                          <td style={amountCell}>{value === null ? '' : fmtPayslipAmount(value)}</td>
                           <td></td>
                         </tr>
                       ))}
