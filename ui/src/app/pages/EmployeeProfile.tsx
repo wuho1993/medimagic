@@ -2865,7 +2865,7 @@ export default function EmployeeProfile({
           const params = new URLSearchParams(window.location.search);
           params.set('id', result.employeeCode);
           params.set('updated', String(Date.now()));
-          window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+          router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
         }
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
