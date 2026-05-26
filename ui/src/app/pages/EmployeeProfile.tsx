@@ -1089,14 +1089,17 @@ function createStandardCommissionRulesFromRateTable(tiers: CommissionRateTier[])
 }
 
 function applyCommissionPresetToState(current: FormState, preset: SavedCommissionPresetRecord): FormState {
+  const legacyRules = createCommissionRulesFromLegacyCustomTiers(preset.name, preset.tiers);
   const presetRules = preset.rules.length > 0
     ? preset.rules
-    : createCommissionRulesFromLegacyCustomTiers(preset.name, preset.tiers);
+    : legacyRules.length > 0
+      ? legacyRules
+      : createYanLyBarCommissionRulesForEditor();
   return {
     ...current,
     commissionMethod: 'custom',
     commissionCustomName: preset.name,
-    commissionCustomTiers: preset.rules.length > 0 ? '' : serializeCustomCommissionTiers(preset.tiers),
+    commissionCustomTiers: preset.rules.length > 0 || legacyRules.length === 0 ? '' : serializeCustomCommissionTiers(preset.tiers),
     commissionRules: serializeCommissionRules([
       ...presetRules,
       ...normalizeCommissionRules(parseJsonSafely(current.commissionRules)).filter((rule) => rule.metric === 'shop'),
@@ -2443,6 +2446,7 @@ export default function EmployeeProfile({
   const shopCommissionPresetOptions = Array.isArray(shopCommissionPresetOptionsState) && shopCommissionPresetOptionsState.length > 0
     ? shopCommissionPresetOptionsState
     : [{ id: 'tai_wai_shop', name: 'Moon and Iris 大圍鋪數方案', rules: createMoonIrisTaiWaiShopCommissionRules() }];
+  const hasYanLySavedPreset = commissionPresetOptions.some((preset) => /yan\s*\/\s*ly/i.test(preset.name));
   const isCustomCommissionSelected = isCustomSchemeSelection(formState.commissionMethod);
   const isCustomBonusSelected = isCustomSchemeSelection(formState.payrollBonusScheme);
   const isCustomShopBonusSelected = formState.shopBonusScheme === 'custom';
@@ -2725,8 +2729,14 @@ export default function EmployeeProfile({
       const isSharedShopPreset = type === 'shop' && presetId.startsWith('shared:');
       const table = isSharedShopPreset || type === 'commission' ? 'saved_commission_presets' : 'saved_shop_commission_presets';
       const id = presetId.replace(/^shared:/, '');
-      const { error } = await supabase.from(table).update({ name: nextName }).eq('id', id);
+      const { data, error } = await supabase
+        .from(table)
+        .update({ name: nextName })
+        .eq('id', id)
+        .select('id, name')
+        .maybeSingle();
       if (error) throw new Error(error.message);
+      if (!data?.id) throw new Error('Supabase 無更新到方案，請檢查權限或重新登入。');
 
       if (type === 'commission') {
         setCommissionPresetOptions((current) => current.map((preset) => preset.id === presetId ? { ...preset, name: nextName } : preset).sort((left, right) => left.name.localeCompare(right.name)));
@@ -3380,19 +3390,21 @@ export default function EmployeeProfile({
                               </button>
                             </div>
                           ))}
-                          <button
-                            type="button"
-                            onClick={() => setFormState((prev) => ({
-                              ...prev,
-                              commissionMethod: 'custom',
-                              commissionCustomName: 'Yan/LY BAR',
-                              commissionCustomTiers: '',
-                              commissionRules: serializeCommissionRules([...createYanLyBarCommissionRulesForEditor(), ...normalizeCommissionRules(parseJsonSafely(prev.commissionRules)).filter((rule) => rule.metric === 'shop')]),
-                            }))}
-                            className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs font-semibold text-[#8E6F12] hover:bg-[#D4AF37]/15"
-                          >
-                            套用 Yan/LY BAR
-                          </button>
+                          {!hasYanLySavedPreset ? (
+                            <button
+                              type="button"
+                              onClick={() => setFormState((prev) => ({
+                                ...prev,
+                                commissionMethod: 'custom',
+                                commissionCustomName: 'Yan/LY BAR',
+                                commissionCustomTiers: '',
+                                commissionRules: serializeCommissionRules([...createYanLyBarCommissionRulesForEditor(), ...normalizeCommissionRules(parseJsonSafely(prev.commissionRules)).filter((rule) => rule.metric === 'shop')]),
+                              }))}
+                              className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs font-semibold text-[#8E6F12] hover:bg-[#D4AF37]/15"
+                            >
+                              套用 Yan/LY BAR
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                       <div>
