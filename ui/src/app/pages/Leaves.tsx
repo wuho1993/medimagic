@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, ChevronDown, ChevronRight, ExternalLink, ZoomIn, ZoomOut, SaveAll, X } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, Search, ZoomIn, ZoomOut, SaveAll, X } from 'lucide-react';
 import Link from 'next/link';
 import { saveAttendanceManagementRecord } from '@/app/app/leaves/actions';
 import YearMonthPicker from '../components/YearMonthPicker';
@@ -110,6 +110,14 @@ const translations = {
     total: '員工數',
     groups: '分店數',
     totalWorkedDays: '合計出勤日數',
+    search: '搜尋員工 / 編號 / 分店',
+    searchPlaceholder: '輸入 Staff Code、姓名、Alias 或分店...',
+    branchFilter: '分店',
+    salaryFilter: '計薪方式',
+    allBranches: '全部分店',
+    allSalaryTypes: '全部計薪方式',
+    clearSearch: '清除搜尋',
+    showing: '顯示',
     closeTab: '關閉分頁',
     openFocusView: '開新分頁',
     prev: '上一月',
@@ -182,6 +190,14 @@ const translations = {
     total: '员工数',
     groups: '分店数',
     totalWorkedDays: '合计出勤日数',
+    search: '搜索员工 / 编号 / 分店',
+    searchPlaceholder: '输入 Staff Code、姓名、Alias 或分店...',
+    branchFilter: '分店',
+    salaryFilter: '计薪方式',
+    allBranches: '全部分店',
+    allSalaryTypes: '全部计薪方式',
+    clearSearch: '清除搜索',
+    showing: '显示',
     closeTab: '关闭分页',
     openFocusView: '开新分页',
     prev: '上一月',
@@ -254,6 +270,14 @@ const translations = {
     total: 'Employees',
     groups: 'Branches',
     totalWorkedDays: 'Total Worked Days',
+    search: 'Search Staff / Code / Branch',
+    searchPlaceholder: 'Search staff code, name, alias, or branch...',
+    branchFilter: 'Branch',
+    salaryFilter: 'Salary Type',
+    allBranches: 'All Branches',
+    allSalaryTypes: 'All Salary Types',
+    clearSearch: 'Clear Search',
+    showing: 'Showing',
     closeTab: 'Close Tab',
     openFocusView: 'Open New Tab',
     prev: 'Previous Month',
@@ -584,13 +608,37 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   const [selectedMonth, setSelectedMonth] = useState(monthFromUrl);
   const [tableScale, setTableScale] = useState(() => clampScale(initialScale ?? 0.65));
   const [records, setRecords] = useState(overview.records);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [branchFilter, setBranchFilter] = useState('all');
+  const [salaryFilter, setSalaryFilter] = useState('all');
   const selectedMonthDays = getDaysInMonth(selectedMonth);
   const recordMap = useMemo(() => buildMonthlyRecordMap(records), [records]);
   const historyMap = useMemo(() => buildEmployeeHistoryMap(records), [records]);
-  const rows = useMemo(
+  const allRows = useMemo(
     () => buildCombinedRows(overview.employees, records, selectedMonth, overview.deductionBasisByEmployeeCode),
     [overview.employees, overview.deductionBasisByEmployeeCode, records, selectedMonth],
   );
+  const branchOptions = useMemo(() => Array.from(new Set(allRows.map((row) => row.groupLabel))).sort((left, right) => left.localeCompare(right)), [allRows]);
+  const salaryOptions = useMemo(() => Array.from(new Set(allRows.map((row) => getSalaryTypeKey(row.salaryType)))).sort((left, right) => t.salaryTypeNames[left].localeCompare(t.salaryTypeNames[right])), [allRows, t]);
+  const rows = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    return allRows.filter((row) => {
+      const salaryKey = getSalaryTypeKey(row.salaryType);
+      if (branchFilter !== 'all' && row.groupLabel !== branchFilter) return false;
+      if (salaryFilter !== 'all' && salaryKey !== salaryFilter) return false;
+      if (!normalizedSearch) return true;
+      return [
+        row.employee.employeeCode,
+        row.displayName,
+        row.employee.nameZh,
+        row.employee.nameEn,
+        row.employee.alias,
+        row.employee.branchNameZh,
+        row.employee.branchCode,
+        row.groupLabel,
+      ].some((value) => String(value ?? '').toLowerCase().includes(normalizedSearch));
+    });
+  }, [allRows, branchFilter, salaryFilter, searchQuery]);
   const groupedRows = useMemo(() => groupRows(rows), [rows]);
   const [drafts, setDrafts] = useState<Record<string, AttendanceDraftRow>>({});
   const [savingRows, setSavingRows] = useState<Record<string, boolean>>({});
@@ -614,11 +662,11 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   }, []);
 
   useEffect(() => {
-    setDrafts(Object.fromEntries(rows.map((row) => [row.employee.id, createDraftRow(row, selectedMonthDays, selectedMonth, historyMap)])));
+    setDrafts(Object.fromEntries(allRows.map((row) => [row.employee.id, createDraftRow(row, selectedMonthDays, selectedMonth, historyMap)])));
     setSavingRows({});
     setRowFeedback({});
     setDirtyRows(new Set());
-  }, [historyMap, overview.employees, recordMap, rows, selectedMonth, selectedMonthDays]);
+  }, [allRows, historyMap, overview.employees, recordMap, selectedMonth, selectedMonthDays]);
 
   useEffect(() => {
     setCollapsedGroups((current) => {
@@ -721,7 +769,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
 
   const updateDraft = (employeeId: string, field: EditableAttendanceField | 'remarks', value: string) => {
     setDrafts((current) => {
-      const sourceRow = rows.find((row) => row.employee.id === employeeId)!;
+      const sourceRow = allRows.find((row) => row.employee.id === employeeId)!;
       const base = current[employeeId] ?? createDraftRow(sourceRow, selectedMonthDays, selectedMonth, historyMap);
       const nextDraft = {
         ...base,
@@ -754,7 +802,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
 
   const updateCalendarDays = (employeeId: string, value: string) => {
     setDrafts((current) => {
-      const sourceRow = rows.find((row) => row.employee.id === employeeId)!;
+      const sourceRow = allRows.find((row) => row.employee.id === employeeId)!;
       const base = current[employeeId] ?? createDraftRow(sourceRow, selectedMonthDays, selectedMonth, historyMap);
       const parsed = parseDraftNumber(value);
 
@@ -796,8 +844,8 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   };
 
   const totalWorkedDays = useMemo(
-    () => records.reduce((sum, record) => sum + Number(record.workedDays ?? 0), 0),
-    [records],
+    () => rows.reduce((sum, row) => sum + Number(row.record?.workedDays ?? 0), 0),
+    [rows],
   );
 
   const openFocusView = () => {
@@ -992,7 +1040,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   };
 
   const handleSaveAll = async () => {
-    const rowsToSave = rows.filter(row => dirtyRows.has(row.employee.id));
+    const rowsToSave = allRows.filter(row => dirtyRows.has(row.employee.id));
     if (rowsToSave.length === 0) return;
 
     await Promise.all(rowsToSave.map(row => handleSaveRow(row)));
@@ -1013,17 +1061,12 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                 {t.save} {dirtyRows.size > 0 ? `(${dirtyRows.size})` : ''}
               </button>
 
-              {!focusMode ? (
-                <button type="button" onClick={openFocusView} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#bf9a24] whitespace-nowrap">
-                  <ExternalLink className="h-4 w-4" />
-                  {t.openFocusView}
-                </button>
-              ) : (
+              {focusMode ? (
                 <button type="button" onClick={() => window.close()} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 whitespace-nowrap">
                   <X className="h-4 w-4" />
                   {t.closeTab}
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -1042,6 +1085,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
               <div className="flex h-full flex-col justify-center gap-1">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.total}</div>
                 <div className="text-3xl font-bold tracking-tight text-slate-900">{rows.length}</div>
+                <div className="text-xs text-slate-500">/ {allRows.length}</div>
               </div>
             </div>
 
@@ -1058,6 +1102,47 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                 <div className="text-3xl font-bold tracking-tight text-slate-900">{totalWorkedDays}</div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_220px_220px_auto] lg:items-end">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t.search}</span>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder={t.searchPlaceholder}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-[#B8871A] focus:ring-2 focus:ring-[#B8871A]/15"
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t.branchFilter}</span>
+                <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#B8871A] focus:ring-2 focus:ring-[#B8871A]/15">
+                  <option value="all">{t.allBranches}</option>
+                  {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t.salaryFilter}</span>
+                <select value={salaryFilter} onChange={(event) => setSalaryFilter(event.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#B8871A] focus:ring-2 focus:ring-[#B8871A]/15">
+                  <option value="all">{t.allSalaryTypes}</option>
+                  {salaryOptions.map((salaryType) => <option key={salaryType} value={salaryType}>{t.salaryTypeNames[salaryType]}</option>)}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => { setSearchQuery(''); setBranchFilter('all'); setSalaryFilter('all'); }}
+                disabled={!searchQuery && branchFilter === 'all' && salaryFilter === 'all'}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+                {t.clearSearch}
+              </button>
+            </div>
+            <div className="mt-3 text-xs font-medium text-slate-500">{t.showing} {rows.length} / {allRows.length}</div>
           </div>
         </section>
 
