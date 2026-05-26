@@ -442,6 +442,8 @@ type PayslipPdfEntry = {
   alShAverageCommissionPay: number;
   annualLeaveAverageCommissionPay: number;
   statutoryHolidayAverageCommissionPay: number;
+  rawAnnualLeaveAverageCommissionPay: number;
+  rawStatutoryHolidayAverageCommissionPay: number;
   fixedDailyWage: number;
   legalDailyAverageWage: number;
   legalMinimumAlShTopUp: number;
@@ -2646,6 +2648,8 @@ ${tablePreview}`;
       alShAverageCommissionPay: row.alShAverageCommissionPay,
       annualLeaveAverageCommissionPay: row.annualLeaveAverageCommissionPay,
       statutoryHolidayAverageCommissionPay: row.statutoryHolidayAverageCommissionPay,
+      rawAnnualLeaveAverageCommissionPay: row.rawAnnualLeaveAverageCommissionPay,
+      rawStatutoryHolidayAverageCommissionPay: row.rawStatutoryHolidayAverageCommissionPay,
       fixedDailyWage: row.fixedDailyWage,
       legalDailyAverageWage: row.legalDailyAverageWage,
       legalMinimumAlShTopUp: row.legalMinimumAlShTopUp,
@@ -4846,19 +4850,30 @@ ${tablePreview}`;
                 ? roundMoney(Math.max(activePayslipPdfEntry.packageCommissionAmount - activePayslipPdfEntry.packageCommission, 0))
                 : 0;
               const packageCoveredCommission = activePayslipPdfEntry.packageCoveredCommission;
-              const packageVariance = roundMoney(Math.abs(packageCoveredCommission - activePayslipPdfEntry.packageCommissionAmount));
-              const packageFormulaParts = [
-                ['Redeem', activePayslipPdfEntry.redeemCommission],
-                ['Sales', activePayslipPdfEntry.salesCommission],
-                ['Sales Amount', activePayslipPdfEntry.salesAmountCommission],
-                ['Job', activePayslipPdfEntry.jobCommission],
-                ['AL', activePayslipPdfEntry.annualLeaveAverageCommissionPay],
-                ['SH', activePayslipPdfEntry.statutoryHolidayAverageCommissionPay],
-              ] as const;
-              const packageFormulaLabel = `Package comparison 包佣比較：${packageFormulaParts.map(([label, value]) => `${label} ${fmtPayslipAmount(value)}`).join(' + ')} = ${fmtPayslipAmount(packageCoveredCommission)}`;
-              const packageResultLabel = activePayslipPdfEntry.actualCommissionExceedsPackage
-                ? `Package result 包佣結果：已超過包佣 ${fmtPayslipAmount(packageVariance)}，所以出包佣內佣金 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommission)}`
-                : `Package result 包佣結果：尚欠 ${fmtPayslipAmount(packageVariance)} 才超過包佣，所以出包佣 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommissionAmount)}`;
+              const packageComparisonTotal = roundMoney(
+                packageCoveredCommission +
+                activePayslipPdfEntry.rawAnnualLeaveAverageCommissionPay +
+                activePayslipPdfEntry.rawStatutoryHolidayAverageCommissionPay,
+              );
+              const packageExceeded = packageComparisonTotal > activePayslipPdfEntry.packageCommissionAmount;
+              const packageVariance = roundMoney(Math.abs(packageComparisonTotal - activePayslipPdfEntry.packageCommissionAmount));
+              const packageCoveredPayableTotal = roundMoney(
+                activePayslipPdfEntry.packageCommission +
+                activePayslipPdfEntry.annualLeaveAverageCommissionPay +
+                activePayslipPdfEntry.statutoryHolidayAverageCommissionPay,
+              );
+              const packageComparisonRows: Array<[string, number | null]> = [
+                [`Redeem Commission  Redeem 佣金：${fmtPayslipAmount(activePayslipPdfEntry.redeemVolume)} x ${(activePayslipPdfEntry.redeemRate * 100).toFixed(1)}% = ${fmtPayslipAmount(activePayslipPdfEntry.redeemCommission)}`, null],
+                [`Sales Commission  Sales 佣金：${fmtPayslipAmount(activePayslipPdfEntry.salesVolume)} x ${(activePayslipPdfEntry.salesRate * 100).toFixed(1)}% = ${fmtPayslipAmount(activePayslipPdfEntry.salesCommission)}`, null],
+                [`Sales Amount Commission  銷售大數佣金：${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)} x ${activePayslipPdfEntry.salesAmountRatePercent.toFixed(2)}% = ${fmtPayslipAmount(activePayslipPdfEntry.salesAmountCommission)}`, null],
+                [`Job Done Commission  手工工錢：fixed amount 固定金額 = ${fmtPayslipAmount(activePayslipPdfEntry.jobCommission)}`, null],
+                [`AL Average Commission  年假平均佣金：${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${fmtPayslipAmount(activePayslipPdfEntry.annualLeaveDays)} day(s) = ${fmtPayslipAmount(activePayslipPdfEntry.rawAnnualLeaveAverageCommissionPay)}`, null],
+                [`SH Average Commission  勞工假平均佣金：${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${fmtPayslipAmount(activePayslipPdfEntry.statutoryHolidayDays)} day(s) = ${fmtPayslipAmount(activePayslipPdfEntry.rawStatutoryHolidayAverageCommissionPay)}`, null],
+                [`Package-covered total  包佣內項目合計：${fmtPayslipAmount(packageComparisonTotal)}`, null],
+              ];
+              const packageResultLabel = packageExceeded
+                ? `Package result  包佣結果：包佣內項目合計為 ${fmtPayslipAmount(packageComparisonTotal)}，已超過包佣門檻 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommissionAmount)}，超出 ${fmtPayslipAmount(packageVariance)}；因此本月按包佣內應付總額 ${fmtPayslipAmount(packageCoveredPayableTotal)} 發放。`
+                : `Package result  包佣結果：包佣內項目合計為 ${fmtPayslipAmount(packageComparisonTotal)}，未達包佣門檻 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommissionAmount)}，差額 ${fmtPayslipAmount(packageVariance)}；因此本月按包佣金額 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommissionAmount)} 發放。`;
               const hasLateAttendanceDeduction = shouldDeductAttendanceBonusForLate(activePayslipPdfEntry.lateDays) && attendanceDeduction > 0;
               const lateLabel = hasLateAttendanceDeduction
                 ? `Late - Diligent  遲到扣勤工獎 (${activePayslipPdfEntry.lateDays}分鐘)`
@@ -4896,10 +4911,10 @@ ${tablePreview}`;
               const commissionIncomeRows: Array<[string, number | null]> = showPackageCommission
                 ? [
                   ['Package Commission  包佣金額', activePayslipPdfEntry.actualCommissionExceedsPackage ? activePayslipPdfEntry.packageCommission : activePayslipPdfEntry.packageCommissionAmount],
-                  [packageFormulaLabel, null],
+                  ...packageComparisonRows,
                   [packageResultLabel, null],
-                  [`SGM Commission  介紹獎金 (${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}%; outside package 包佣外)`, activePayslipPdfEntry.sgmCommission],
-                  ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金 (outside package 包佣外)', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
+                  [`SGM Commission  介紹獎金：${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}% = ${fmtPayslipAmount(activePayslipPdfEntry.sgmCommission)}（不屬包佣範圍，另行發放）`, activePayslipPdfEntry.sgmCommission],
+                  ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金（不屬包佣範圍，另行發放）', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
                   ...(activePayslipPdfEntry.streetPromoterCommission > 0 ? [[`Street Promoter Commission  街霸佣金`, activePayslipPdfEntry.streetPromoterCommission] as [string, number]] : []),
                   ...(activePayslipPdfEntry.telesalesCommission > 0 ? [[`Telesales Commission  電話銷售員佣金`, activePayslipPdfEntry.telesalesCommission] as [string, number]] : []),
                 ]
