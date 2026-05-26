@@ -54,9 +54,11 @@ type CommissionEntry = {
   manualBonusApplied: boolean;
   manualBonusAmount: number;
   manualBonusMpfIncluded: boolean;
+  manualBonusPayout: 'primary' | 'month_end';
   manualDeductionApplied: boolean;
   manualDeductionAmount: number;
   manualDeductionMpfIncluded: boolean;
+  manualDeductionPayout: 'primary' | 'month_end';
   shopTargetAmount: number;
   shopActualSalesAmount: number;
   shopTargetPercent: number;
@@ -389,9 +391,11 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
         manual_bonus_applied: e.manualBonusApplied,
         manual_bonus_amount: e.manualBonusApplied ? e.manualBonusAmount : 0,
         manual_bonus_mpf_included: e.manualBonusApplied ? e.manualBonusMpfIncluded : false,
+        manual_bonus_payout: e.manualBonusApplied ? e.manualBonusPayout : 'month_end',
         manual_deduction_applied: e.manualDeductionApplied,
         manual_deduction_amount: e.manualDeductionApplied ? e.manualDeductionAmount : 0,
         manual_deduction_mpf_included: e.manualDeductionApplied ? e.manualDeductionMpfIncluded : false,
+        manual_deduction_payout: e.manualDeductionApplied ? e.manualDeductionPayout : 'month_end',
         shop_target_amount: shopTargetAmount,
         shop_actual_sales_amount: shopActualSalesAmount,
         shop_target_percent: shopTargetPercent,
@@ -412,19 +416,28 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
     .from('monthly_commission_records')
     .upsert(rows, { onConflict: 'employee_id,year_month' });
 
-  const upsertError = currentResult.error && isMissingColumnError(currentResult.error.message)
+  const currentWithoutPayoutResult = currentResult.error && isMissingColumnError(currentResult.error.message)
+    ? await supabase
+      .from('monthly_commission_records')
+      .upsert(
+        rows.map(({ manual_bonus_payout, manual_deduction_payout, ...row }) => row),
+        { onConflict: 'employee_id,year_month' },
+      )
+    : currentResult;
+
+  const upsertError = currentWithoutPayoutResult.error && isMissingColumnError(currentWithoutPayoutResult.error.message)
     ? (console.warn('Monthly commission schema drift detected while saving payroll; falling back to legacy shop bonus snapshot fields.'), (
       await supabase
         .from('monthly_commission_records')
         .upsert(
-          rows.map(({ shop_target_amount, shop_actual_sales_amount, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, manual_deduction_applied, manual_deduction_amount, manual_bonus_mpf_included, manual_deduction_mpf_included, mpf_ee_deduction_mode, worked_days, worked_hours, sales_amount_total, sales_amount_commission, package_no_pay_handling, redeem_bonus_amount, ...row }) => ({
+          rows.map(({ shop_target_amount, shop_actual_sales_amount, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, manual_deduction_applied, manual_deduction_amount, manual_bonus_mpf_included, manual_bonus_payout, manual_deduction_mpf_included, manual_deduction_payout, mpf_ee_deduction_mode, worked_days, worked_hours, sales_amount_total, sales_amount_commission, package_no_pay_handling, redeem_bonus_amount, ...row }) => ({
             ...row,
             job_amount: Number(row.job_amount ?? 0) + Number(street_promoter_commission_amount ?? 0) + Number(telesales_commission_amount ?? 0),
           })),
           { onConflict: 'employee_id,year_month' },
         )
     ).error)
-    : currentResult.error;
+    : currentWithoutPayoutResult.error;
 
   if (upsertError) {
     return { error: upsertError.message };

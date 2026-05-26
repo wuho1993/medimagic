@@ -110,6 +110,7 @@ const translations = {
     total: '員工數',
     groups: '分店數',
     totalWorkedDays: '合計出勤日數',
+    allStaff: '全部員工',
     search: '搜尋員工 / 編號 / 分店',
     searchPlaceholder: '輸入 Staff Code、姓名、Alias 或分店...',
     branchFilter: '分店',
@@ -190,6 +191,7 @@ const translations = {
     total: '员工数',
     groups: '分店数',
     totalWorkedDays: '合计出勤日数',
+    allStaff: '全部员工',
     search: '搜索员工 / 编号 / 分店',
     searchPlaceholder: '输入 Staff Code、姓名、Alias 或分店...',
     branchFilter: '分店',
@@ -270,6 +272,7 @@ const translations = {
     total: 'Employees',
     groups: 'Branches',
     totalWorkedDays: 'Total Worked Days',
+    allStaff: 'All Staff',
     search: 'Search Staff / Code / Branch',
     searchPlaceholder: 'Search staff code, name, alias, or branch...',
     branchFilter: 'Branch',
@@ -639,11 +642,12 @@ export default function AttendanceManagement({ overview, focusMode = false, init
       ].some((value) => String(value ?? '').toLowerCase().includes(normalizedSearch));
     });
   }, [allRows, branchFilter, salaryFilter, searchQuery]);
-  const groupedRows = useMemo(() => groupRows(rows), [rows]);
+  const groupedRows = useMemo<GroupedAttendanceRows[]>(() => [{ groupLabel: t.allStaff, rows }], [rows, t.allStaff]);
   const [drafts, setDrafts] = useState<Record<string, AttendanceDraftRow>>({});
   const [savingRows, setSavingRows] = useState<Record<string, boolean>>({});
   const [rowFeedback, setRowFeedback] = useState<Record<string, RowFeedback>>({});
   const [dirtyRows, setDirtyRows] = useState<Set<string>>(new Set());
+  const [saveAllStatus, setSaveAllStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const scaledTableRefs = useRef<Record<string, HTMLDivElement>>({});
   const [tableHeights, setTableHeights] = useState<Record<string, number>>({});
   const [supportsCssZoom, setSupportsCssZoom] = useState(true);
@@ -957,6 +961,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
       setTimeout(() => {
         setRowFeedback((current) => ({ ...current, [row.employee.id]: { tone: 'idle', message: null } }));
       }, 3000);
+      return true;
     } else {
       setRowFeedback((current) => ({
         ...current,
@@ -965,6 +970,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
           message: result.success ? t.saved : (result.error ?? t.saveError),
         },
       }));
+      return false;
     }
   };
 
@@ -1043,7 +1049,10 @@ export default function AttendanceManagement({ overview, focusMode = false, init
     const rowsToSave = allRows.filter(row => dirtyRows.has(row.employee.id));
     if (rowsToSave.length === 0) return;
 
-    await Promise.all(rowsToSave.map(row => handleSaveRow(row)));
+    setSaveAllStatus('saving');
+    const results = await Promise.all(rowsToSave.map(row => handleSaveRow(row)));
+    setSaveAllStatus(results.every(Boolean) ? 'saved' : 'error');
+    setTimeout(() => setSaveAllStatus('idle'), 3000);
   };
 
   return (
@@ -1056,9 +1065,9 @@ export default function AttendanceManagement({ overview, focusMode = false, init
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3">
-              <button type="button" onClick={() => void handleSaveAll()} disabled={dirtyRows.size === 0} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#B8871A] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap">
+              <button type="button" onClick={() => void handleSaveAll()} disabled={dirtyRows.size === 0 || saveAllStatus === 'saving'} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#B8871A] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap">
                 <SaveAll className="h-4 w-4" />
-                {t.save} {dirtyRows.size > 0 ? `(${dirtyRows.size})` : ''}
+                {saveAllStatus === 'saving' ? t.saving : saveAllStatus === 'saved' ? t.saved : saveAllStatus === 'error' ? t.saveError : t.save} {dirtyRows.size > 0 && saveAllStatus !== 'saved' ? `(${dirtyRows.size})` : ''}
               </button>
 
               {focusMode ? (
@@ -1092,7 +1101,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
             <div className="h-full rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
               <div className="flex h-full flex-col justify-center gap-1">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.groups}</div>
-                <div className="text-3xl font-bold tracking-tight text-slate-900">{groupedRows.length}</div>
+                <div className="text-3xl font-bold tracking-tight text-slate-900">{branchOptions.length}</div>
               </div>
             </div>
 
@@ -1146,7 +1155,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
           </div>
         </section>
 
-      {groupedRows.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="rounded-4xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
           <p className="text-sm text-slate-500">{t.empty}</p>
         </div>
@@ -1190,7 +1199,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                       {columns.map((column) => (
                         <th
                           key={column.key}
-                          className={`border-b border-r border-slate-300 px-2 py-3 align-middle whitespace-normal wrap-break-word leading-4 ${column.className}`}
+                          className={`sticky top-0 border-b border-r border-slate-300 px-2 py-3 align-middle whitespace-normal wrap-break-word leading-4 ${column.sticky ? 'z-50' : 'z-40'} ${column.className}`}
                         >
                           {column.label}
                         </th>
@@ -1359,7 +1368,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                       {columns.map((column) => (
                         <th
                           key={column.key}
-                          className={`border-b border-r border-slate-300 px-2 py-3 align-middle whitespace-normal wrap-break-word leading-4 ${column.className}`}
+                          className={`sticky top-0 border-b border-r border-slate-300 px-2 py-3 align-middle whitespace-normal wrap-break-word leading-4 ${column.sticky ? 'z-50' : 'z-40'} ${column.className}`}
                         >
                           {column.label}
                         </th>

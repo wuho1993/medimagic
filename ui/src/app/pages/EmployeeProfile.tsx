@@ -2861,7 +2861,12 @@ export default function EmployeeProfile({
         setSuccessMessage(t.success);
         setIsEditing(false);
 
-        router.push(`/app/people?id=${result.employeeCode}&updated=${Date.now()}`);
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          params.set('id', result.employeeCode);
+          params.set('updated', String(Date.now()));
+          window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+        }
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
       }

@@ -129,12 +129,12 @@ export function isMpfContributionEligible(
   }
 
   const age = calculateAge(dateOfBirth, referenceDate);
-  if (age !== null && age > 65) {
+  if (age !== null && age >= 65) {
     return false;
   }
 
   const employedDays = calculateDaysEmployed(hireDate, referenceDate);
-  if (employedDays !== null && employedDays < 60) {
+  if (employedDays !== null && employedDays <= 60) {
     return false;
   }
 

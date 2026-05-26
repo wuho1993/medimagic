@@ -11,9 +11,10 @@ export default function PayrollPage() {
   const searchParams = useSearchParams();
   const [data, setData] = useState<any>(null);
   const now = new Date();
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const defaultMonth = `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, '0')}`;
   const requestedMonth = searchParams?.get('month') ?? undefined;
-  const selectedMonth = requestedMonth && /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : currentMonth;
+  const selectedMonth = requestedMonth && /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : defaultMonth;
   const payrollMonth = selectedMonth;
   useEffect(() => { if (!user) return; Promise.all([fetchPayrollSummary(user), fetchCommissionRateTiers(), fetchMonthlyCommissionRecords(payrollMonth), fetchCommissionAverage365(), fetchPayrollBonusConfigCatalog(), fetchPayrollAttendanceRecords(user, payrollMonth), fetchPayrollSystemSettings(), fetchPayrollReviewAnswers(payrollMonth), fetchRollingCommissionAverages(user, payrollMonth)]).then(([employees, commissionTiers, savedRecords, commissionAvg, payrollBonusConfig, attendanceRecords, sys, payrollReviewAnswers, rollingCommissionAverages]) => { setData({ employees, commissionTiers, savedRecords, commissionAvg, payrollBonusConfig, attendanceRecords, defaultPackageNoPayHandling: sys.packageNoPayDefaultHandling, payrollReviewAnswers, rollingCommissionAverages }); }).catch(console.error); }, [payrollMonth, user]);
   if (!user || !data) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;

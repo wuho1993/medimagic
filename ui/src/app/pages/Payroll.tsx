@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type KeyboardEvent, type WheelEvent } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type KeyboardEvent, type WheelEvent } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Calculator, CalendarDays, ChevronDown, ChevronUp, CreditCard, Download, Search, TrendingUp, X } from 'lucide-react';
@@ -13,7 +13,7 @@ import { calculateStreetPromoterCommission, calculateTelesalesCommission, calcul
 import { calculateCustomCommission, normalizeCustomCommissionName } from '@/src/lib/employees/custom-commission';
 import { calculateCommissionRules } from '@/src/lib/employees/commission-rules';
 import { calculatePayrollBonus, calculateShopBonus, calculateShopTargetPercent, createLegacyPayrollBonusConfigCatalog, type PayrollBonusConfigCatalog } from '@/src/lib/employees/payroll-bonus';
-import { getMonthEndDate, isMpfContributionEligible } from '@/src/lib/employees/employment';
+import { calculateAge, calculateDaysEmployed, getMonthEndDate, isMpfContributionEligible } from '@/src/lib/employees/employment';
 import { fetchLatestPayrollEmployeeDefaults, saveMonthlyCommission, savePayrollReviewAnswers, updatePayrollImportEmployeeCode } from '@/app/app/payroll/actions';
 
 type PayrollProps = {
@@ -267,6 +267,15 @@ function isMpfStatutorilyEligible(
   return isMpfContributionEligible(true, dateOfBirth, hireDate, referenceDate);
 }
 
+function getMpfIneligibilityReasonKey(employee: PayrollEmployeeSummary, referenceDate: Date) {
+  if (!employee.mpfEnabled) return 'profileDisabled' as const;
+  const age = calculateAge(employee.dateOfBirth, referenceDate);
+  if (age !== null && age >= 65) return 'age65OrAbove' as const;
+  const employedDays = calculateDaysEmployed(employee.hireDate, referenceDate);
+  if (employedDays !== null && employedDays <= 60) return 'under60Days' as const;
+  return null;
+}
+
 function splitManualAmount(primaryAmount: number, secondaryAmount: number, totalAmount: number, primaryGross: number, secondaryGross: number) {
   if (totalAmount <= 0) {
     return { primaryMpf: 0, secondaryMpf: 0 };
@@ -339,6 +348,7 @@ type EmployeeMonthlyMpfState = {
   mpfErManualOverride: boolean;
   mpfErAmount: string;
 };
+type ManualAdjustmentPayout = 'primary' | 'month_end';
 type EmployeeMonthlyBonusState = {
   briefingApplied: boolean;
   briefingAmount: string;
@@ -349,9 +359,11 @@ type EmployeeMonthlyBonusState = {
   manualBonusApplied: boolean;
   manualBonusAmount: string;
   manualBonusMpfIncluded: boolean;
+  manualBonusPayout: ManualAdjustmentPayout;
   manualDeductionApplied: boolean;
   manualDeductionAmount: string;
   manualDeductionMpfIncluded: boolean;
+  manualDeductionPayout: ManualAdjustmentPayout;
   shopTargetAmount: string;
   shopActualSalesAmount: string;
 };
@@ -544,6 +556,9 @@ const translations = {
       bookingBonus: 'Booking 獎金',
       manualBonus: '手動增加金額',
       manualDeduction: '手動扣減金額',
+      payoutTiming: '出糧期數',
+      payoutTimingPrimary: '第一期/月頭',
+      payoutTimingMonthEnd: '第二期/月尾',
       countForMpf: '需扣減 MPF',
       shopBonus: '鋪數',
       shopTargetAmount: '本月 Target',
@@ -588,7 +603,10 @@ const translations = {
       manualAmount: '手動更改金額',
       amount: '金額',
       autoAmount: '系統計算',
-      notApplicable: '本月原本毋須供款，可手動開啟。',
+      notApplicable: '本月毋須供款。',
+      profileDisabled: '員工 Profile 已設定不用 MPF。',
+      under60Days: '入職首60日毋須供款，第61日起 Payroll 會自動按 MPF 計算。',
+      age65OrAbove: '65歲或以上毋須供款。',
     },
     booleanLabels: {
       yes: '是',
@@ -690,6 +708,9 @@ const translations = {
       bookingBonus: 'Booking 奖金',
       manualBonus: '手动增加金额',
       manualDeduction: '手动扣减金额',
+      payoutTiming: '发薪期数',
+      payoutTimingPrimary: '第一期/月头',
+      payoutTimingMonthEnd: '第二期/月尾',
       countForMpf: '需扣减 MPF',
       shopBonus: '铺数',
       shopTargetAmount: '本月 Target',
@@ -734,7 +755,10 @@ const translations = {
       manualAmount: '手动更改金额',
       amount: '金额',
       autoAmount: '系统计算',
-      notApplicable: '本月原本毋须供款，可手动开启。',
+      notApplicable: '本月毋须供款。',
+      profileDisabled: '员工 Profile 已设定不用 MPF。',
+      under60Days: '入职首60日毋须供款，第61日起 Payroll 会自动按 MPF 计算。',
+      age65OrAbove: '65岁或以上毋须供款。',
     },
     booleanLabels: {
       yes: '是',
@@ -836,6 +860,9 @@ const translations = {
       bookingBonus: 'Booking Bonus',
       manualBonus: 'Manual Addition',
       manualDeduction: 'Manual Deduction',
+      payoutTiming: 'Payout timing',
+      payoutTimingPrimary: 'Primary / month start',
+      payoutTimingMonthEnd: 'Secondary / month end',
       countForMpf: 'Count For MPF',
       shopBonus: 'Shop Bonus',
       shopTargetAmount: 'Monthly Target',
@@ -880,7 +907,10 @@ const translations = {
       manualAmount: 'Manual amount',
       amount: 'Amount',
       autoAmount: 'System calculated',
-      notApplicable: 'MPF is not required by default this month, but you can enable it manually.',
+      notApplicable: 'MPF is not required this month.',
+      profileDisabled: 'MPF is disabled in the employee profile.',
+      under60Days: 'No MPF for the first 60 days. Payroll resumes MPF automatically from day 61.',
+      age65OrAbove: 'No MPF for employees aged 65 or above.',
     },
     booleanLabels: {
       yes: 'Yes',
@@ -946,9 +976,11 @@ function buildInitialMonthlyBonuses(
       manualBonusApplied: saved?.manualBonusApplied ?? false,
       manualBonusAmount: saved?.manualBonusApplied ? String(saved.manualBonusAmount) : '',
       manualBonusMpfIncluded: saved?.manualBonusMpfIncluded ?? false,
+      manualBonusPayout: saved?.manualBonusPayout ?? 'month_end',
       manualDeductionApplied: legacyAutoAttendanceRemainder ? false : (saved?.manualDeductionApplied ?? false),
       manualDeductionAmount: legacyAutoAttendanceRemainder ? '' : (saved?.manualDeductionApplied ? String(saved.manualDeductionAmount) : ''),
       manualDeductionMpfIncluded: legacyAutoAttendanceRemainder ? false : (saved?.manualDeductionMpfIncluded ?? false),
+      manualDeductionPayout: saved?.manualDeductionPayout ?? 'month_end',
       shopTargetAmount: saved?.shopTargetAmount ? String(saved.shopTargetAmount) : '',
       shopActualSalesAmount: saved?.shopActualSalesAmount ? String(saved.shopActualSalesAmount) : '',
     }];
@@ -1077,9 +1109,11 @@ function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, lateDa
     manualBonusApplied: false,
     manualBonusAmount: '',
     manualBonusMpfIncluded: false,
+    manualBonusPayout: 'month_end',
     manualDeductionApplied: false,
     manualDeductionAmount: '',
     manualDeductionMpfIncluded: false,
+    manualDeductionPayout: 'month_end',
     shopTargetAmount: '',
     shopActualSalesAmount: '',
   };
@@ -1145,13 +1179,13 @@ function buildInitialMonthlyMpfStates(
     const defaultApplicable = employee.mpfEnabled && isMpfStatutorilyEligible(employee.dateOfBirth, employee.hireDate, payrollReferenceDate);
 
     return [employee.employeeCode, {
-      mpfEeApplied: saved?.mpfEeApplied ?? defaultApplicable,
+      mpfEeApplied: defaultApplicable ? (saved?.mpfEeApplied ?? true) : false,
       mpfEeDeductionMode: saved?.mpfEeDeductionMode ?? 'split',
-      mpfEeManualOverride: saved?.mpfEeManualOverride ?? false,
-      mpfEeAmount: saved?.mpfEeManualOverride ? String(saved.mpfEeAmount) : '',
-      mpfErApplied: saved?.mpfErApplied ?? defaultApplicable,
-      mpfErManualOverride: saved?.mpfErManualOverride ?? false,
-      mpfErAmount: saved?.mpfErManualOverride ? String(saved.mpfErAmount) : '',
+      mpfEeManualOverride: defaultApplicable ? (saved?.mpfEeManualOverride ?? false) : false,
+      mpfEeAmount: defaultApplicable && saved?.mpfEeManualOverride ? String(saved.mpfEeAmount) : '',
+      mpfErApplied: defaultApplicable ? (saved?.mpfErApplied ?? true) : false,
+      mpfErManualOverride: defaultApplicable ? (saved?.mpfErManualOverride ?? false) : false,
+      mpfErAmount: defaultApplicable && saved?.mpfErManualOverride ? String(saved.mpfErAmount) : '',
     }];
   }));
 }
@@ -1396,6 +1430,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const [resyncingCodes, setResyncingCodes] = useState<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [payrollSearch, setPayrollSearch] = useState('');
+  const deferredPayrollSearch = useDeferredValue(payrollSearch);
   const [companyFilter, setCompanyFilter] = useState(ALL_FILTER_VALUE);
   const [branchFilter, setBranchFilter] = useState(ALL_FILTER_VALUE);
   const [typeFilter, setTypeFilter] = useState(ALL_FILTER_VALUE);
@@ -1917,14 +1952,26 @@ ${tablePreview}`;
     return monthlyMpfStates[code] ?? createDefaultMonthlyMpfState(employee, payrollReferenceDate);
   };
   const setMonthlyMpfState = (code: string, employee: PayrollEmployeeSummary, patch: Partial<EmployeeMonthlyMpfState>) => {
+    const canApplyMpf = employee.mpfEnabled && isMpfStatutorilyEligible(employee.dateOfBirth, employee.hireDate, payrollReferenceDate);
+    const guardedPatch = canApplyMpf
+      ? patch
+      : {
+        ...patch,
+        mpfEeApplied: false,
+        mpfEeManualOverride: false,
+        mpfEeAmount: '',
+        mpfErApplied: false,
+        mpfErManualOverride: false,
+        mpfErAmount: '',
+      };
     setMonthlyMpfStates((prev) => ({
       ...prev,
       [code]: {
         ...getMonthlyMpfState(code, employee),
-        ...patch,
+        ...guardedPatch,
       },
     }));
-    markDirty();
+    if (canApplyMpf) markDirty();
   };
   const getPackageNoPayHandling = (code: string): EmployeePackageNoPayHandlingState => packageNoPayHandlingByCode[code] ?? '';
   const setPackageNoPayHandling = (code: string, value: EmployeePackageNoPayHandlingState) => {
@@ -2065,7 +2112,7 @@ ${tablePreview}`;
     router.push(`/app/payroll/average-wages?month=${encodeURIComponent(selectedMonth)}`);
   };
 
-  const rows = employees.map((sourceEmployee) => {
+  const rows = useMemo(() => employees.map((sourceEmployee) => {
     const emp = liveEmployeeDefaults[sourceEmployee.employeeCode] ?? sourceEmployee;
     const savedRecord = savedRecordByCode.get(emp.employeeCode);
     const attendanceRecord = attendanceRecords[emp.employeeCode];
@@ -2151,8 +2198,6 @@ ${tablePreview}`;
     const manualDeductionApplied = monthlyBonus.manualDeductionApplied;
     const manualDeduction = manualDeductionApplied ? Number(monthlyBonus.manualDeductionAmount) || 0 : 0;
     const totalDeduction = attendanceDeductionRemainder + manualDeduction;
-    const manualBonusMpfRelevant = 0;
-    const manualDeductionMpfRelevant = 0;
     const shopTargetAmount = Number(monthlyBonus.shopTargetAmount) || 0;
     const shopActualSalesAmount = Number(monthlyBonus.shopActualSalesAmount) || 0;
     const hasShopAmounts = monthlyBonus.shopTargetAmount !== '' || monthlyBonus.shopActualSalesAmount !== '';
@@ -2201,58 +2246,84 @@ ${tablePreview}`;
     const proratedPackageCommission = isPackageEmployee
       ? calculateProratedPackageCommission(packageCommissionAmount, attendanceRecord)
       : 0;
-    const packageCommission = isPackageEmployee
+    const packageGuaranteeCommission = isPackageEmployee
       ? (!hasAttendanceNoPay
-        ? Math.max(calculatedCommission, packageCommissionAmount)
+        ? packageCommissionAmount
         : actualCommissionExceedsPackage
-          ? calculatedCommission
+          ? packageCommissionAmount
           : packageNoPayHandling === 'no_package'
             ? 0
             : packageNoPayHandling === 'pro_rate'
-              ? Math.max(calculatedCommission, proratedPackageCommission)
-              : Math.max(calculatedCommission, packageCommissionAmount))
+              ? proratedPackageCommission
+              : packageCommissionAmount)
+      : 0;
+    const packageCommission = isPackageEmployee
+      ? (calculatedCommission >= packageGuaranteeCommission
+        ? calculatedCommission
+        : Math.max(calculatedCommission, packageGuaranteeCommission))
       : calculatedCommission;
     const displayedCommission = packageCommission + specialCommission;
     const hasSecondaryPayout = Boolean(emp.payDaySecondary);
-    const monthEndAlShAverageCommissionPay = hasSecondaryPayout ? finalAlShAverageCommissionPay : 0;
-    const primaryAlShAverageCommissionPay = hasSecondaryPayout ? 0 : finalAlShAverageCommissionPay;
+    const manualBonusGoesMonthEnd = hasSecondaryPayout && monthlyBonus.manualBonusPayout === 'month_end';
+    const manualDeductionGoesMonthEnd = hasSecondaryPayout && monthlyBonus.manualDeductionPayout === 'month_end';
+    const primaryManualBonus = manualBonusGoesMonthEnd ? 0 : manualBonus;
+    const monthEndManualBonus = manualBonusGoesMonthEnd ? manualBonus : 0;
+    const primaryManualDeduction = manualDeductionGoesMonthEnd ? 0 : manualDeduction;
+    const monthEndManualDeduction = manualDeductionGoesMonthEnd ? manualDeduction : 0;
+    const primaryManualBonusMpfRelevant = monthlyBonus.manualBonusMpfIncluded ? primaryManualBonus : 0;
+    const monthEndManualBonusMpfRelevant = monthlyBonus.manualBonusMpfIncluded ? monthEndManualBonus : 0;
+    const primaryManualDeductionMpfRelevant = monthlyBonus.manualDeductionMpfIncluded ? primaryManualDeduction : 0;
+    const monthEndManualDeductionMpfRelevant = monthlyBonus.manualDeductionMpfIncluded ? monthEndManualDeduction : 0;
+    const alShAverageCommissionPayAfterPackage = isPackageEmployee
+      ? (calculatedCommission >= packageGuaranteeCommission
+        ? finalAlShAverageCommissionPay
+        : Math.max(0, calculatedCommission + finalAlShAverageCommissionPay - packageGuaranteeCommission))
+      : finalAlShAverageCommissionPay;
+    const annualLeaveAverageCommissionPayAfterPackage = finalAlShAverageCommissionPay > 0
+      ? roundMoney(alShAverageCommissionPayAfterPackage * (annualLeaveAverageCommissionPay / finalAlShAverageCommissionPay))
+      : 0;
+    const statutoryHolidayAverageCommissionPayAfterPackage = roundMoney(alShAverageCommissionPayAfterPackage - annualLeaveAverageCommissionPayAfterPackage);
+    const monthEndAlShAverageCommissionPay = hasSecondaryPayout ? alShAverageCommissionPayAfterPackage : 0;
+    const primaryAlShAverageCommissionPay = hasSecondaryPayout ? 0 : alShAverageCommissionPayAfterPackage;
     const monthEndShopBonus = hasSecondaryPayout ? shopBonus : 0;
     const primaryShopBonus = hasSecondaryPayout ? 0 : shopBonus;
     const monthEndSalesBonus = hasSecondaryPayout && commissionCalculationEnabled ? commResult.totalBonus : 0;
     const primarySalesBonus = hasSecondaryPayout ? 0 : (commissionCalculationEnabled ? commResult.totalBonus : 0);
-    const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonus + primaryShopBonus + primaryAlShAverageCommissionPay - totalDeduction;
+    const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + primaryManualBonus + primaryShopBonus + primaryAlShAverageCommissionPay - attendanceDeductionRemainder - primaryManualDeduction;
     const displayedBonus = fixedBonus + primarySalesBonus;
     const bonus = Math.round(displayedBonus * 100) / 100;
     const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus;
-    const mpfApplicable = isMpfStatutorilyEligible(emp.dateOfBirth, emp.hireDate, payrollReferenceDate);
+    const mpfApplicable = emp.mpfEnabled && isMpfStatutorilyEligible(emp.dateOfBirth, emp.hireDate, payrollReferenceDate);
     const primaryPayoutGross = hasSecondaryPayout ? grossBase : grossBase + displayedCommission;
-    const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus : 0;
-    const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + manualBonusMpfRelevant + primaryShopBonus + primaryAlShAverageCommissionPay - manualDeductionMpfRelevant;
+    const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonus - monthEndManualDeduction : 0;
+    const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + primaryManualBonusMpfRelevant + primaryShopBonus + primaryAlShAverageCommissionPay - primaryManualDeductionMpfRelevant;
     const mpfRelevantDisplayedBonus = mpfRelevantFixedBonus + primarySalesBonus;
     const mpfRelevantBonus = Math.round(mpfRelevantDisplayedBonus * 100) / 100;
     const mpfRelevantGrossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + mpfRelevantBonus;
     const mpfRelevantPrimaryGross = hasSecondaryPayout ? mpfRelevantGrossBase : mpfRelevantGrossBase + displayedCommission;
-    const mpfRelevantSecondaryGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus : 0;
+    const mpfRelevantSecondaryGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonusMpfRelevant - monthEndManualDeductionMpfRelevant : 0;
     const autoPrimaryMpfBasis = mpfApplicable ? roundMoney(mpfRelevantPrimaryGross * MPF_RATE) : 0;
     const autoSecondaryMpfBasis = mpfApplicable && hasSecondaryPayout ? roundMoney(mpfRelevantSecondaryGross * MPF_RATE) : 0;
     const calculatedMpf = mpfApplicable ? calcMpf(mpfRelevantPrimaryGross + mpfRelevantSecondaryGross) : 0;
-    const mpfEe = monthlyMpf.mpfEeApplied
+    const effectiveMpfEeApplied = mpfApplicable && monthlyMpf.mpfEeApplied;
+    const effectiveMpfErApplied = mpfApplicable && monthlyMpf.mpfErApplied;
+    const mpfEe = effectiveMpfEeApplied
       ? (monthlyMpf.mpfEeManualOverride ? Number(monthlyMpf.mpfEeAmount) || 0 : calculatedMpf)
       : 0;
-    const mpfEr = monthlyMpf.mpfErApplied
+    const mpfEr = effectiveMpfErApplied
       ? (monthlyMpf.mpfErManualOverride ? Number(monthlyMpf.mpfErAmount) || 0 : calculatedMpf)
       : 0;
-    const { primaryMpf, secondaryMpf } = !monthlyMpf.mpfEeApplied
+    const { primaryMpf, secondaryMpf } = !effectiveMpfEeApplied
       ? { primaryMpf: 0, secondaryMpf: 0 }
       : monthlyMpf.mpfEeDeductionMode === 'month_end'
         ? { primaryMpf: 0, secondaryMpf: 0 }
         : monthlyMpf.mpfEeManualOverride
           ? splitManualAmount(autoPrimaryMpfBasis, autoSecondaryMpfBasis, mpfEe, primaryPayoutGross, secondaryPayoutGross)
           : splitAutoCappedAmount(autoPrimaryMpfBasis, autoSecondaryMpfBasis, calculatedMpf);
-    const monthEndMpf = monthlyMpf.mpfEeApplied && monthlyMpf.mpfEeDeductionMode === 'month_end' ? mpfEe : 0;
+    const monthEndMpf = effectiveMpfEeApplied && monthlyMpf.mpfEeDeductionMode === 'month_end' ? mpfEe : 0;
     const primaryPayoutNet = roundMoney(primaryPayoutGross - primaryMpf);
     const secondaryPayoutNet = roundMoney(secondaryPayoutGross - secondaryMpf);
-    const net = grossBase + displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus - mpfEe;
+    const net = grossBase + displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonus - monthEndManualDeduction - mpfEe;
     return {
       ...emp,
       rawCalculatedBaseSalary,
@@ -2271,13 +2342,13 @@ ${tablePreview}`;
       statutoryHolidayDays: attendanceRecord?.statutoryHolidayDays ?? 0,
       alShDays,
       rollingAverageCommission,
-      alShAverageCommissionPay,
-      annualLeaveAverageCommissionPay,
-      statutoryHolidayAverageCommissionPay,
+      alShAverageCommissionPay: alShAverageCommissionPayAfterPackage,
+      annualLeaveAverageCommissionPay: annualLeaveAverageCommissionPayAfterPackage,
+      statutoryHolidayAverageCommissionPay: statutoryHolidayAverageCommissionPayAfterPackage,
       fixedDailyWage,
       legalDailyAverageWage,
       legalMinimumAlShTopUp,
-      finalAlShAverageCommissionPay,
+      finalAlShAverageCommissionPay: alShAverageCommissionPayAfterPackage,
       monthEndAlShAverageCommissionPay,
       alShComplianceWarning,
       attendanceNoPayDeduction,
@@ -2346,7 +2417,23 @@ ${tablePreview}`;
       primaryPayoutNet,
       secondaryPayoutNet,
     };
-  });
+  }), [
+    employees,
+    liveEmployeeDefaults,
+    savedRecordByCode,
+    attendanceRecords,
+    empVolumes,
+    workUnits,
+    monthlyBonuses,
+    monthlyMpfStates,
+    packageNoPayHandlingByCode,
+    defaultPackageNoPayHandling,
+    salaryMonth,
+    payrollReferenceDate,
+    rollingCommissionAverages,
+    commissionTiers,
+    safePayrollBonusConfig,
+  ]);
 
   const filterOptions = useMemo(() => {
     const uniqueOptions = (values: Array<string | null | undefined>) => Array.from(new Set(values.filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
@@ -2358,8 +2445,8 @@ ${tablePreview}`;
     };
   }, [rows]);
 
-  const filteredRows = rows.filter((row) => {
-    const normalizedSearch = payrollSearch.trim().toLowerCase();
+  const filteredRows = useMemo(() => rows.filter((row) => {
+    const normalizedSearch = deferredPayrollSearch.trim().toLowerCase();
     const companyValue = row.companyNameZh || row.companyType;
     const typeValue = row.salaryType || row.employmentType;
     const searchText = [row.employeeCode, row.nameZh, row.nameEn, row.alias, row.positionNameZh, row.branchName, companyValue]
@@ -2372,7 +2459,7 @@ ${tablePreview}`;
       && (branchFilter === ALL_FILTER_VALUE || row.branchName === branchFilter)
       && (typeFilter === ALL_FILTER_VALUE || typeValue === typeFilter)
       && (statusFilter === ALL_FILTER_VALUE || row.employmentStatus === statusFilter);
-  });
+  }), [rows, deferredPayrollSearch, companyFilter, branchFilter, typeFilter, statusFilter]);
 
   const totals = filteredRows.reduce((acc, r) => ({
     base: acc.base + r.calculatedBaseSalary,
@@ -2419,9 +2506,11 @@ ${tablePreview}`;
       manualBonusApplied: monthlyBonus.manualBonusApplied,
       manualBonusAmount: monthlyBonus.manualBonusApplied ? Number(monthlyBonus.manualBonusAmount) || 0 : 0,
       manualBonusMpfIncluded: monthlyBonus.manualBonusMpfIncluded,
+      manualBonusPayout: monthlyBonus.manualBonusPayout,
       manualDeductionApplied,
       manualDeductionAmount,
       manualDeductionMpfIncluded: monthlyBonus.manualDeductionMpfIncluded,
+      manualDeductionPayout: monthlyBonus.manualDeductionPayout,
       shopTargetAmount: Number(monthlyBonus.shopTargetAmount) || 0,
       shopActualSalesAmount: Number(monthlyBonus.shopActualSalesAmount) || 0,
       shopTargetPercent: r.shopTargetPercent,
@@ -3287,6 +3376,7 @@ ${tablePreview}`;
                   const vol = getVolumes(row.employeeCode);
                   const monthlyBonus = getMonthlyBonus(row.employeeCode, row);
                   const monthlyMpf = getMonthlyMpfState(row.employeeCode, row);
+                  const mpfIneligibilityReasonKey = getMpfIneligibilityReasonKey(row, payrollReferenceDate);
                   return (
                     <Fragment key={row.employeeCode}><tr className="transition-colors hover:bg-slate-50">
                       <td className="px-3 py-3">
@@ -3510,7 +3600,7 @@ ${tablePreview}`;
                                     ) : null}
                                   </div>
                                 ) : null}
-                                {(row.commResult.redeem.amount > 0 || row.commResult.sales.amount > 0 || row.commResult.sgm.amount > 0 || row.commResult.job > 0 || row.commResult.salesAmount.amount > 0 || row.commResult.salesBonus > 0 || row.commResult.payrollBonus > 0 || row.shopCommission > 0 || row.shopBonus > 0) ? (
+                                {(row.commResult.redeem.amount > 0 || row.commResult.sales.amount > 0 || row.commResult.sgm.amount > 0 || row.commResult.job > 0 || row.commResult.salesAmount.amount > 0 || row.commResult.salesBonus > 0 || row.commResult.payrollBonus > 0 || row.shopCommission > 0 || row.shopBonus > 0 || row.annualLeaveAverageCommissionPay > 0 || row.statutoryHolidayAverageCommissionPay > 0) ? (
                                   <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-4">
                                     {row.commResult.redeem.amount > 0 ? (
                                       <div className="rounded-lg bg-white px-3 py-2">
@@ -3564,6 +3654,18 @@ ${tablePreview}`;
                                       <div className="rounded-lg bg-white px-3 py-2">
                                         <div className="text-xs text-slate-500">{getPayrollBonusDisplayName(row, t.commInput)}</div>
                                         <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.commResult.payrollBonus)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.annualLeaveAverageCommissionPay > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">AL 平均佣金</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.annualLeaveAverageCommissionPay)}</div>
+                                      </div>
+                                    ) : null}
+                                    {row.statutoryHolidayAverageCommissionPay > 0 ? (
+                                      <div className="rounded-lg bg-white px-3 py-2">
+                                        <div className="text-xs text-slate-500">SH 平均佣金</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.statutoryHolidayAverageCommissionPay)}</div>
                                       </div>
                                     ) : null}
                                   </div>
@@ -3687,6 +3789,26 @@ ${tablePreview}`;
                                     />
                                     <span>{t.commInput.applyThisMonth}</span>
                                   </label>
+                                  <label className={toggleRowClasses}>
+                                    <input
+                                      type="checkbox"
+                                      checked={monthlyBonus.manualBonusMpfIncluded}
+                                      onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualBonusMpfIncluded', e.target.checked)}
+                                      className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
+                                    />
+                                    <span>{t.commInput.countForMpf}</span>
+                                  </label>
+                                  <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                                    <span>{t.commInput.payoutTiming}</span>
+                                    <select
+                                      value={monthlyBonus.manualBonusPayout}
+                                      onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualBonusPayout', e.target.value as ManualAdjustmentPayout)}
+                                      className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10"
+                                    >
+                                      <option value="primary">{t.commInput.payoutTimingPrimary}</option>
+                                      <option value="month_end">{t.commInput.payoutTimingMonthEnd}</option>
+                                    </select>
+                                  </label>
                                 </div>
                               </div>
                               {row.attendanceDeductionRemainder > 0 ? (
@@ -3743,6 +3865,26 @@ ${tablePreview}`;
                                       className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                     />
                                     <span>{t.commInput.applyThisMonth}</span>
+                                  </label>
+                                  <label className={toggleRowClasses}>
+                                    <input
+                                      type="checkbox"
+                                      checked={monthlyBonus.manualDeductionMpfIncluded}
+                                      onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualDeductionMpfIncluded', e.target.checked)}
+                                      className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
+                                    />
+                                    <span>{t.commInput.countForMpf}</span>
+                                  </label>
+                                  <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                                    <span>{t.commInput.payoutTiming}</span>
+                                    <select
+                                      value={monthlyBonus.manualDeductionPayout}
+                                      onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualDeductionPayout', e.target.value as ManualAdjustmentPayout)}
+                                      className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10"
+                                    >
+                                      <option value="primary">{t.commInput.payoutTimingPrimary}</option>
+                                      <option value="month_end">{t.commInput.payoutTimingMonthEnd}</option>
+                                    </select>
                                   </label>
                                 </div>
                               </div>
@@ -3819,7 +3961,7 @@ ${tablePreview}`;
                           <div className={`mt-3 ${sectionCardClasses}`}>
                             <div className="mb-3 text-sm font-semibold text-slate-700">{t.mpfSectionTitle}</div>
                             {!row.mpfApplicable ? (
-                              <div className="mb-3 text-xs font-medium text-slate-500">{t.mpf.notApplicable}</div>
+                              <div className="mb-3 text-xs font-medium text-slate-500">{mpfIneligibilityReasonKey ? t.mpf[mpfIneligibilityReasonKey] : t.mpf.notApplicable}</div>
                             ) : null}
                             <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                               <div className="text-xs font-medium text-slate-500">{t.commInput.mpfRelevantIncome}</div>
@@ -3835,8 +3977,9 @@ ${tablePreview}`;
                                   <label className={toggleRowClasses}>
                                     <input
                                       type="checkbox"
-                                      checked={monthlyMpf.mpfEeApplied}
+                                      checked={row.mpfApplicable && monthlyMpf.mpfEeApplied}
                                       onChange={(e) => setMonthlyMpfState(row.employeeCode, row, { mpfEeApplied: e.target.checked })}
+                                      disabled={!row.mpfApplicable}
                                       className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                     />
                                     <span>{t.mpf.applyThisMonth}</span>
@@ -3844,11 +3987,12 @@ ${tablePreview}`;
                                   <label className={toggleRowClasses}>
                                     <input
                                       type="checkbox"
-                                      checked={monthlyMpf.mpfEeManualOverride}
+                                      checked={row.mpfApplicable && monthlyMpf.mpfEeManualOverride}
                                       onChange={(e) => setMonthlyMpfState(row.employeeCode, row, {
                                         mpfEeManualOverride: e.target.checked,
                                         mpfEeAmount: e.target.checked ? (monthlyMpf.mpfEeAmount || String(row.mpfEe)) : '',
                                       })}
+                                      disabled={!row.mpfApplicable || !monthlyMpf.mpfEeApplied}
                                       className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                     />
                                     <span>{t.mpf.manualAmount}</span>
@@ -3863,6 +4007,7 @@ ${tablePreview}`;
                                         className={inputClasses}
                                         value={monthlyMpf.mpfEeAmount}
                                         onChange={(e) => setMonthlyMpfState(row.employeeCode, row, { mpfEeAmount: e.target.value })}
+                                        disabled={!row.mpfApplicable || !monthlyMpf.mpfEeApplied}
                                         onKeyDown={preventAccidentalNumberStep}
                                         onWheel={preventAccidentalNumberScroll}
                                         placeholder="0"
@@ -3881,8 +4026,9 @@ ${tablePreview}`;
                                   <label className={toggleRowClasses}>
                                     <input
                                       type="checkbox"
-                                      checked={monthlyMpf.mpfErApplied}
+                                      checked={row.mpfApplicable && monthlyMpf.mpfErApplied}
                                       onChange={(e) => setMonthlyMpfState(row.employeeCode, row, { mpfErApplied: e.target.checked })}
+                                      disabled={!row.mpfApplicable}
                                       className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                     />
                                     <span>{t.mpf.applyThisMonth}</span>
@@ -3890,11 +4036,12 @@ ${tablePreview}`;
                                   <label className={toggleRowClasses}>
                                     <input
                                       type="checkbox"
-                                      checked={monthlyMpf.mpfErManualOverride}
+                                      checked={row.mpfApplicable && monthlyMpf.mpfErManualOverride}
                                       onChange={(e) => setMonthlyMpfState(row.employeeCode, row, {
                                         mpfErManualOverride: e.target.checked,
                                         mpfErAmount: e.target.checked ? (monthlyMpf.mpfErAmount || String(row.mpfEr)) : '',
                                       })}
+                                      disabled={!row.mpfApplicable || !monthlyMpf.mpfErApplied}
                                       className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                     />
                                     <span>{t.mpf.manualAmount}</span>
@@ -3909,6 +4056,7 @@ ${tablePreview}`;
                                         className={inputClasses}
                                         value={monthlyMpf.mpfErAmount}
                                         onChange={(e) => setMonthlyMpfState(row.employeeCode, row, { mpfErAmount: e.target.value })}
+                                        disabled={!row.mpfApplicable || !monthlyMpf.mpfErApplied}
                                         onKeyDown={preventAccidentalNumberStep}
                                         onWheel={preventAccidentalNumberScroll}
                                         placeholder="0"
