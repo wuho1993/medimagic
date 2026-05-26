@@ -2407,6 +2407,7 @@ export default function EmployeeProfile({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [savingPreset, setSavingPreset] = useState<'commission' | 'shop' | null>(null);
+  const previousEmployeeIdRef = useRef(employee.id);
 
   const t = translations[lang] ?? translations.en;
   const locale = lang === 'en' ? 'en-HK' : lang === 'zh-CN' ? 'zh-CN' : 'zh-HK';
@@ -2421,14 +2422,26 @@ export default function EmployeeProfile({
   const isCustomShopBonusSelected = formState.shopBonusScheme === 'custom';
 
   useEffect(() => {
-    setFormState(createInitialState(employee));
+    if (previousEmployeeIdRef.current !== employee.id) {
+      previousEmployeeIdRef.current = employee.id;
+      setFormState(createInitialState(employee));
+      setBankSearchQuery(employee.bankNameZh || employee.bankNameEn || '');
+      setIsEditing(false);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (!isEditing) {
+      setFormState(createInitialState(employee));
+      setBankSearchQuery(employee.bankNameZh || employee.bankNameEn || '');
+    }
+  }, [employee, isEditing]);
+
+  useEffect(() => {
     setCommissionPresetOptions(savedCommissionPresets);
     setShopCommissionPresetOptionsState(savedShopCommissionPresets);
-    setBankSearchQuery(employee.bankNameZh || employee.bankNameEn || '');
-    setIsEditing(false);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-  }, [employee, savedCommissionPresets, savedShopCommissionPresets]);
+  }, [savedCommissionPresets, savedShopCommissionPresets]);
 
   const displayName = employee.alias || employee.nameZh || employee.nameEn;
   const formattedHireDate = formatDate(employee.hireDate, locale, t.emptyValue);
@@ -2754,6 +2767,93 @@ export default function EmployeeProfile({
     });
   }
 
+  function handleExportProfile() {
+    const fileSafeName = (displayName || employee.employeeCode || 'employee')
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, '_')
+      .slice(0, 80);
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      employee: {
+        employeeCode: employee.employeeCode,
+        nameZh: employee.nameZh,
+        nameEn: employee.nameEn,
+        alias: employee.alias,
+        gender: employee.gender,
+        identityType: employee.identityType,
+        identityNumber: employee.identityNumber,
+        phone: employee.phone,
+        address: employee.address,
+        companyNameZh: employee.companyNameZh,
+        companyNameEn: employee.companyNameEn,
+        branchNameZh: employee.branchNameZh,
+        branchNameEn: employee.branchNameEn,
+        positionNameZh: employee.positionNameZh,
+        employmentType: employee.employmentType,
+        employmentStatus: employee.employmentStatus,
+        hireDate: employee.hireDate,
+        probationMonths: employee.probationMonths,
+        probationEndDate: displayedProbationEndDate,
+        employmentEndDate: employee.employmentEndDate,
+        terminationReason: employee.terminationReason,
+        finalPayrollMonth: employee.finalPayrollMonth,
+      },
+      payment: {
+        paymentMethod: employee.paymentMethod,
+        bankName,
+        bankAccountNumber: employee.bankAccountNumber,
+        mpfEnabled: employee.mpfEnabled,
+        payDayPrimary: employee.payDayPrimary,
+        payDaySecondary: employee.payDaySecondary,
+      },
+      salary: {
+        salaryType: employee.salaryType,
+        baseSalary: employee.baseSalary,
+        packageCommissionAmount: employee.packageCommissionAmount,
+        allowanceAmount: employee.allowanceAmount,
+        attendanceBonusAmount: employee.attendanceBonusAmount,
+        transportAllowance: employee.transportAllowance,
+        briefingBonus: employee.briefingBonus,
+        bookingBonus: employee.bookingBonus,
+        effectiveFrom: employee.salaryEffectiveFrom,
+        remarks: employee.salaryRemarks,
+      },
+      commission: {
+        commissionMethod: employee.commissionMethod,
+        commissionCustomName: employee.commissionCustomName,
+        commissionCustomTiers: employee.commissionCustomTiers,
+        commissionRules: employee.commissionRules,
+        salesAmountRatePercent: employee.salesAmountRatePercent,
+        salesBonusEnabled: employee.salesBonusEnabled,
+        payrollBonusEnabled: employee.payrollBonusEnabled,
+        payrollBonusScheme: employee.payrollBonusScheme,
+        salesBonusCustomName: employee.salesBonusCustomName,
+        salesBonusCustomTiers: employee.salesBonusCustomTiers,
+        shopBonusEnabled: employee.shopBonusEnabled,
+        shopBonusScheme: employee.shopBonusScheme,
+        shopBonusCustomName: employee.shopBonusCustomName,
+        shopBonusCustomTiers: employee.shopBonusCustomTiers,
+        streetPromoterEnabled: employee.streetPromoterEnabled,
+        telesalesEnabled: employee.telesalesEnabled,
+        commissionNotes: employee.commissionNotes,
+      },
+      leave: {
+        annualLeaveDays: employee.annualLeaveDays,
+      },
+      notes: employee.notes,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${employee.employeeCode || fileSafeName}_${fileSafeName}_profile.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function renderTextValue(value: string | null) {
     return value && value.trim().length > 0 ? value : t.emptyValue;
   }
@@ -2795,7 +2895,7 @@ export default function EmployeeProfile({
               </button>
             </>
           )}
-          <button type="button" className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800">
+          <button type="button" onClick={handleExportProfile} className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">{t.export}</span>
           </button>
