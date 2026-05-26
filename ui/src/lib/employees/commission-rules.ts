@@ -36,6 +36,11 @@ export type CommissionRuleCalculationItem = {
 const METRICS = new Set<CommissionRuleMetric>(COMMISSION_RULE_METRICS);
 const TYPES = new Set<CommissionRuleType>(['rate', 'bar']);
 
+function roundNumber(value: number, decimalPlaces = 6) {
+  const factor = 10 ** decimalPlaces;
+  return Math.round(value * factor) / factor;
+}
+
 function normalizeText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
@@ -72,10 +77,10 @@ export function normalizeCommissionRules(value: unknown): CommissionRule[] {
           if (amount !== null && !Number.isFinite(amount)) return null;
 
           return {
-            minAmount: Math.max(0, minAmount),
-            maxAmount: maxAmount === null ? null : Math.max(Math.max(0, minAmount), maxAmount),
-            rate: rate === null ? null : Math.max(0, rate),
-            amount: amount === null ? null : Math.max(0, amount),
+            minAmount: roundNumber(Math.max(0, minAmount), 2),
+            maxAmount: maxAmount === null ? null : roundNumber(Math.max(Math.max(0, minAmount), maxAmount), 2),
+            rate: rate === null ? null : roundNumber(Math.max(0, rate), 6),
+            amount: amount === null ? null : roundNumber(Math.max(0, amount), 2),
           } satisfies CommissionRuleTier;
         })
         .filter((tier): tier is CommissionRuleTier => tier !== null)

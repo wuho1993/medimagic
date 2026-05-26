@@ -1015,8 +1015,8 @@ function sanitizeShopBonusDraftTiers(value: unknown): ShopBonusTier[] {
       }
 
       return {
-        minPercent: Math.max(0, minPercent),
-        amount: Math.max(0, amount),
+        minPercent: roundEditableNumber(Math.max(0, minPercent), 4),
+        amount: roundEditableNumber(Math.max(0, amount), 2),
       } satisfies ShopBonusTier;
     })
     .filter((entry): entry is ShopBonusTier => entry !== null);
@@ -1055,9 +1055,9 @@ function sanitizeCustomCommissionDraftTiers(value: unknown): CustomCommissionTie
 
       return {
         commissionType,
-        minAmount: Math.max(0, minAmount),
-        maxAmount: maxAmount === null ? null : Math.max(0, maxAmount),
-        rate: Math.max(0, rate),
+        minAmount: roundEditableNumber(Math.max(0, minAmount), 2),
+        maxAmount: maxAmount === null ? null : roundEditableNumber(Math.max(0, maxAmount), 2),
+        rate: roundEditableNumber(Math.max(0, rate), 6),
       } satisfies CustomCommissionTier;
     })
     .filter((entry): entry is CustomCommissionTier => entry !== null);
@@ -1181,6 +1181,21 @@ function parseJsonSafely(value: string) {
   } catch {
     return null;
   }
+}
+
+function roundEditableNumber(value: number, decimalPlaces = 6) {
+  const factor = 10 ** decimalPlaces;
+  return Math.round(value * factor) / factor;
+}
+
+function rateToPercent(value: number | null | undefined) {
+  if (value === null || typeof value === 'undefined' || !Number.isFinite(value)) return 0;
+  return roundEditableNumber(value * 100, 4);
+}
+
+function percentToRate(value: number | null | undefined) {
+  if (value === null || typeof value === 'undefined' || !Number.isFinite(value)) return 0;
+  return roundEditableNumber(value / 100, 6);
 }
 
 function parseSerializedPayrollBonusTiers(value: string) {
@@ -1455,7 +1470,17 @@ function CommissionRulesPreview({ rules, title = '自訂佣金規則' }: { rules
 
 function formatEditableNumber(value: number | null): number | null {
   if (value === null || !Number.isFinite(value)) return value;
-  return Number(value.toFixed(6));
+  return roundEditableNumber(value, 6);
+}
+
+function mergeCommissionRulesWithCurrentShop(current: string, mainRules: CommissionRule[]) {
+  const currentShopRules = normalizeCommissionRules(parseJsonSafely(current)).filter((rule) => rule.metric === 'shop');
+  return serializeCommissionRules([...mainRules, ...currentShopRules]);
+}
+
+function mergeCommissionRulesWithCurrentMain(current: string, shopRules: CommissionRule[]) {
+  const currentMainRules = normalizeCommissionRules(parseJsonSafely(current)).filter((rule) => rule.metric !== 'shop');
+  return serializeCommissionRules([...currentMainRules, ...shopRules]);
 }
 
 function ShopCommissionRulesEditor({
@@ -1496,7 +1521,7 @@ function ShopCommissionRulesEditor({
                   <tr key={`${rule.code}-shop-tier-${tierIndex}`}>
                     <td className="px-3 py-2"><InlineNumberInput value={formatEditableNumber(tier.minAmount)} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { minAmount: value ?? 0 })} /></td>
                     <td className="px-3 py-2"><InlineNumberInput value={formatEditableNumber(tier.maxAmount)} allowDecimal allowEmpty placeholder="無上限" onCommit={(value) => updateTier(ruleIndex, tierIndex, { maxAmount: value })} /></td>
-                    <td className="px-3 py-2"><InlineNumberInput value={formatEditableNumber((tier.rate ?? 0) * 100)} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { rate: (value ?? 0) / 100, amount: null })} /></td>
+                    <td className="px-3 py-2"><InlineNumberInput value={rateToPercent(tier.rate)} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, { rate: percentToRate(value), amount: null })} /></td>
                     <td className="px-3 py-2 text-right"><button type="button" onClick={() => updateRule(ruleIndex, { tiers: rule.tiers.filter((_, index) => index !== tierIndex) })} className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50">刪除</button></td>
                   </tr>
                 ))}
@@ -1539,6 +1564,10 @@ function CommissionRulesEditor({ rules, onChange }: { rules: CommissionRule[]; o
     if (!rule) return;
     updateRule(ruleIndex, { tiers: rule.tiers.map((tier, index) => index === tierIndex ? { ...tier, ...patch } : tier) });
   };
+  const addRule = () => {
+    const nextIndex = rules.length + 1;
+    onChange([...rules, { code: `commission_rule_${Date.now()}`, name: `佣金規則 ${nextIndex}`, type: 'bar', metric: 'sales', enabled: true, stackable: false, tiers: [{ minAmount: 0, maxAmount: null, amount: 0, rate: null }] }]);
+  };
 
   return (
     <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
@@ -1547,7 +1576,7 @@ function CommissionRulesEditor({ rules, onChange }: { rules: CommissionRule[]; o
           <div className="text-sm font-bold text-slate-900">自訂佣金規則</div>
           <div className="mt-1 text-xs text-slate-600">佣金還佣金：BAR / rate 在這裡設定；Bonus 分開設定。</div>
         </div>
-        <button type="button" onClick={() => onChange([...rules, { code: `commission_rule_${rules.length + 1}`, name: `佣金規則 ${rules.length + 1}`, type: 'bar', metric: 'sales', enabled: true, stackable: false, tiers: [{ minAmount: 0, maxAmount: null, amount: 0, rate: null }] }])} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">新增佣金規則</button>
+        <button type="button" onClick={addRule} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">新增佣金規則</button>
       </div>
       {conflicts.length > 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><div className="font-semibold">佣金規則可能有衝突</div>{conflicts.map((conflict) => <div key={conflict} className="mt-1">• {conflict}</div>)}</div> : rules.length > 0 ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">✅ 佣金規則暫時未見衝突</div> : null}
       {rules.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">未設定自訂佣金規則。可繼續使用標準佣金 / 舊自訂佣金，或新增 BAR / rate 規則。</div> : null}
@@ -1561,7 +1590,7 @@ function CommissionRulesEditor({ rules, onChange }: { rules: CommissionRule[]; o
             <button type="button" onClick={() => onChange(rules.filter((_, index) => index !== ruleIndex))} className="self-end rounded-xl border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50">刪除</button>
           </div>
           <label className="mt-3 flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={rule.stackable} onChange={(event) => updateRule(ruleIndex, { stackable: event.target.checked })} className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />允許與同一計算基準的其他佣金疊加</label>
-          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200"><table className="w-full text-sm"><thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-3 py-2 text-left">門檻</th><th className="px-3 py-2 text-left">{rule.type === 'bar' ? '佣金金額' : '佣金率 (%)'}</th><th className="px-3 py-2 text-right">操作</th></tr></thead><tbody className="divide-y divide-slate-100">{rule.tiers.map((tier, tierIndex) => (<tr key={`${rule.code}-tier-${tierIndex}`}><td className="px-3 py-2"><InlineNumberInput value={tier.minAmount} onCommit={(value) => updateTier(ruleIndex, tierIndex, { minAmount: value ?? 0 })} /></td><td className="px-3 py-2"><InlineNumberInput value={rule.type === 'bar' ? (tier.amount ?? 0) : ((tier.rate ?? 0) * 100)} onCommit={(value) => updateTier(ruleIndex, tierIndex, rule.type === 'bar' ? { amount: value ?? 0, rate: null } : { rate: (value ?? 0) / 100, amount: null })} /></td><td className="px-3 py-2 text-right"><button type="button" onClick={() => updateRule(ruleIndex, { tiers: rule.tiers.filter((_, index) => index !== tierIndex) })} className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50">刪除</button></td></tr>))}</tbody></table></div>
+          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200"><table className="w-full text-sm"><thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-3 py-2 text-left">門檻</th><th className="px-3 py-2 text-left">{rule.type === 'bar' ? '佣金金額' : '佣金率 (%)'}</th><th className="px-3 py-2 text-right">操作</th></tr></thead><tbody className="divide-y divide-slate-100">{rule.tiers.map((tier, tierIndex) => (<tr key={`${rule.code}-tier-${tierIndex}`}><td className="px-3 py-2"><InlineNumberInput value={formatEditableNumber(tier.minAmount)} onCommit={(value) => updateTier(ruleIndex, tierIndex, { minAmount: value ?? 0 })} /></td><td className="px-3 py-2"><InlineNumberInput value={rule.type === 'bar' ? formatEditableNumber(tier.amount ?? 0) : rateToPercent(tier.rate)} allowDecimal onCommit={(value) => updateTier(ruleIndex, tierIndex, rule.type === 'bar' ? { amount: value ?? 0, rate: null } : { rate: percentToRate(value), amount: null })} /></td><td className="px-3 py-2 text-right"><button type="button" onClick={() => updateRule(ruleIndex, { tiers: rule.tiers.filter((_, index) => index !== tierIndex) })} className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50">刪除</button></td></tr>))}</tbody></table></div>
           <button type="button" onClick={() => updateRule(ruleIndex, { tiers: [...rule.tiers, { minAmount: rule.tiers.at(-1)?.minAmount ?? 0, maxAmount: null, amount: rule.type === 'bar' ? (rule.tiers.at(-1)?.amount ?? 0) : null, rate: rule.type === 'rate' ? (rule.tiers.at(-1)?.rate ?? 0) : null }] })} className="mt-3 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">新增門檻</button>
         </div>
       ))}
@@ -3116,10 +3145,10 @@ export default function EmployeeProfile({
                       />
                     ) : null}
                     {isCustomCommissionSelected && (
-                      <CommissionRulesEditor
-                        rules={commissionRulesForEditor}
-                        onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: serializeCommissionRules([...rules, ...shopCommissionRules]), commissionCustomTiers: '' }))}
-                      />
+                        <CommissionRulesEditor
+                          rules={commissionRulesForEditor}
+                          onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: mergeCommissionRulesWithCurrentShop(prev.commissionRules, rules), commissionCustomTiers: '' }))}
+                        />
                     )}
                     <div className="mt-2 border-t border-slate-100 pt-4">
                       <label className="flex items-center gap-3 cursor-pointer">
@@ -3222,12 +3251,12 @@ export default function EmployeeProfile({
                             {shopCommissionRules.length > 0 ? (
                               <ShopCommissionRulesEditor
                                 rules={shopCommissionRules}
-                                onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: serializeCommissionRules([...commissionRulesForEditor, ...rules]), commissionCustomTiers: '' }))}
+                                onChange={(rules) => setFormState((prev) => ({ ...prev, commissionRules: mergeCommissionRulesWithCurrentMain(prev.commissionRules, rules), commissionCustomTiers: '' }))}
                                 onClear={() => setFormState((prev) => ({
                                   ...prev,
                                   shopBonusCustomName: '',
                                   shopBonusCustomTiers: serializeShopBonusTiers(createDefaultShopBonusTiers(standardShopBonusTiers)),
-                                  commissionRules: serializeCommissionRules(commissionRulesForEditor),
+                                  commissionRules: mergeCommissionRulesWithCurrentMain(prev.commissionRules, []),
                                   commissionCustomTiers: '',
                                 }))}
                               />
