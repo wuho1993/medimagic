@@ -1961,7 +1961,7 @@ ${tablePreview}`;
     setMonthlyBonuses((prev) => ({
       ...prev,
       [code]: {
-        ...getMonthlyBonus(code, employee),
+        ...(prev[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code]?.lateDays ?? 0)),
         [key]: value,
       },
     }));
@@ -2245,7 +2245,7 @@ ${tablePreview}`;
       ? calculateTelesalesCommission(telesalesHeadcount)
       : { amount: 0, ratePerHead: 0 };
     const telesalesCommission = telesalesCommissionResult.amount;
-    const commissionCalculationEnabled = hasCommission || hasSalesAmountCommission || hasPayrollBonus || (hasShopCommissionRule && shopActualSalesAmount > 0);
+    const commissionCalculationEnabled = hasCommission || hasSalesAmountCommission || hasPayrollBonus || isPackageEmployee || (hasShopCommissionRule && shopActualSalesAmount > 0);
     const monthlyMpf = getMonthlyMpfState(emp.employeeCode, emp);
     const commResult = commissionCalculationEnabled
       ? calcEmployeeCommission(
@@ -3819,12 +3819,13 @@ ${tablePreview}`;
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.manualBonus}</div>
                                   <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(Number(monthlyBonus.manualBonusAmount) || 0)}</div>
+                                  <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t.commInput.manualRemarks}</label>
                                   <input
                                     type="text"
-                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
                                     value={monthlyBonus.manualBonusRemarks}
                                     onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualBonusRemarks', e.target.value)}
-                                    placeholder={`${t.commInput.manualRemarks}: ${t.commInput.manualRemarksPlaceholder}`}
+                                    placeholder={t.commInput.manualRemarksPlaceholder}
                                   />
                                 </div>
                                 <input
@@ -3912,12 +3913,13 @@ ${tablePreview}`;
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.manualDeduction}</div>
                                   <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(Number(monthlyBonus.manualDeductionAmount) || 0)}</div>
+                                  <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t.commInput.manualRemarks}</label>
                                   <input
                                     type="text"
-                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
                                     value={monthlyBonus.manualDeductionRemarks}
                                     onChange={(e) => setMonthlyBonus(row.employeeCode, row, 'manualDeductionRemarks', e.target.value)}
-                                    placeholder={`${t.commInput.manualRemarks}: ${t.commInput.manualRemarksPlaceholder}`}
+                                    placeholder={t.commInput.manualRemarksPlaceholder}
                                   />
                                 </div>
                                 <input
