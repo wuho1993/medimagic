@@ -2713,6 +2713,35 @@ export default function EmployeeProfile({
     return { id: data.id as string, name, rules: normalizeCommissionRules(rules) };
   }
 
+  async function renameSavedPreset(type: 'commission' | 'shop', presetId: string, currentName: string) {
+    const nextName = window.prompt('輸入新的方案名稱', currentName)?.trim();
+    if (!nextName || nextName === currentName) return;
+
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const isSharedShopPreset = type === 'shop' && presetId.startsWith('shared:');
+      const table = isSharedShopPreset || type === 'commission' ? 'saved_commission_presets' : 'saved_shop_commission_presets';
+      const id = presetId.replace(/^shared:/, '');
+      const { error } = await supabase.from(table).update({ name: nextName }).eq('id', id);
+      if (error) throw new Error(error.message);
+
+      if (type === 'commission') {
+        setCommissionPresetOptions((current) => current.map((preset) => preset.id === presetId ? { ...preset, name: nextName } : preset).sort((left, right) => left.name.localeCompare(right.name)));
+      } else {
+        setShopCommissionPresetOptionsState((current) => current.map((preset) => preset.id === presetId ? { ...preset, name: nextName } : preset).sort((left, right) => left.name.localeCompare(right.name)));
+      }
+
+      setSuccessMessage(`已重新命名方案：${nextName}`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '重新命名方案失敗。');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
   async function handleSaveCommissionPreset() {
     const mainRules = normalizeCommissionRules(parseJsonSafely(formState.commissionRules)).filter((rule) => rule.metric !== 'shop');
     const presetName = normalizePayrollBonusCustomName(formState.commissionCustomName) ?? (mainRules.length === 1 ? mainRules[0]?.name : null) ?? '自訂佣金方案';
@@ -3334,14 +3363,22 @@ export default function EmployeeProfile({
                             新增佣金方案
                           </button>
                           {commissionPresetOptions.map((preset) => (
-                            <button
-                              key={preset.id}
-                              type="button"
-                              onClick={() => setFormState((prev) => applyCommissionPresetToState(prev, preset))}
-                              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                            >
-                              套用 {preset.name}
-                            </button>
+                            <div key={preset.id} className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                              <button
+                                type="button"
+                                onClick={() => setFormState((prev) => applyCommissionPresetToState(prev, preset))}
+                                className="px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                              >
+                                套用 {preset.name}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => renameSavedPreset('commission', preset.id, preset.name)}
+                                className="border-l border-slate-200 px-2.5 py-2 text-xs font-semibold text-slate-500 hover:bg-white hover:text-slate-800"
+                              >
+                                改名
+                              </button>
+                            </div>
                           ))}
                           <button
                             type="button"
@@ -3485,14 +3522,22 @@ export default function EmployeeProfile({
                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">{savedPresetsLabel}</div>
                                 <div className="flex flex-wrap gap-2">
                                   {shopCommissionPresetOptions.map((preset) => (
-                                    <button
-                                      key={preset.id}
-                                      type="button"
-                                      onClick={() => setFormState((prev) => applyShopCommissionPresetToState(prev, preset))}
-                                      className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                                    >
-                                      套用 {preset.name}
-                                    </button>
+                                    <div key={preset.id} className="flex overflow-hidden rounded-xl border border-emerald-200 bg-white">
+                                      <button
+                                        type="button"
+                                        onClick={() => setFormState((prev) => applyShopCommissionPresetToState(prev, preset))}
+                                        className="px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                                      >
+                                        套用 {preset.name}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => renameSavedPreset('shop', preset.id, preset.name)}
+                                        className="border-l border-emerald-200 px-2.5 py-2 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800"
+                                      >
+                                        改名
+                                      </button>
+                                    </div>
                                   ))}
                                   <button
                                     type="button"
