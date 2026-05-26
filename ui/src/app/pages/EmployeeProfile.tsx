@@ -2428,7 +2428,7 @@ export default function EmployeeProfile({
   const { lang } = useLanguage();
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [formState, setFormState] = useState<FormState>(() => createInitialState(employee));
   const [commissionPresetOptions, setCommissionPresetOptions] = useState<SavedCommissionPresetRecord[]>(savedCommissionPresets);
   const [shopCommissionPresetOptionsState, setShopCommissionPresetOptionsState] = useState<SavedShopCommissionPresetRecord[]>(savedShopCommissionPresets);
@@ -2814,7 +2814,7 @@ export default function EmployeeProfile({
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -2855,22 +2855,21 @@ export default function EmployeeProfile({
       payload.set(key, value == null || value === 'null' || value === 'undefined' ? '' : value);
     });
 
-    startTransition(async () => {
-      try {
-        const result = await updateEmployee(payload);
-        setSuccessMessage(t.success);
-        setIsEditing(false);
+    setIsSavingProfile(true);
+    try {
+      const result = await updateEmployee(payload);
+      setSuccessMessage(t.success);
+      setIsEditing(false);
 
-        if (typeof window !== 'undefined') {
-          const params = new URLSearchParams(window.location.search);
-          params.set('id', result.employeeCode);
-          params.set('updated', String(Date.now()));
-          router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
-        }
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
-      }
-    });
+      const params = new URLSearchParams();
+      params.set('id', result.employeeCode);
+      params.set('updated', String(Date.now()));
+      router.replace(`/app/people?${params.toString()}`, { scroll: false });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
+    } finally {
+      setIsSavingProfile(false);
+    }
   }
 
   function handleExportProfile() {
@@ -2993,11 +2992,11 @@ export default function EmployeeProfile({
               </button>
               <button
                 type="submit"
-                disabled={isPending}
+                disabled={isSavingProfile}
                 className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 <Save className="h-4 w-4" />
-                {isPending ? t.saving : t.save}
+                {isSavingProfile ? t.saving : t.save}
               </button>
             </>
           )}
