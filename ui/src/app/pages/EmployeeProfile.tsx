@@ -2864,7 +2864,7 @@ export default function EmployeeProfile({
       const params = new URLSearchParams();
       params.set('id', result.employeeCode);
       params.set('updated', String(Date.now()));
-      router.replace(`/app/people?${params.toString()}`, { scroll: false });
+      window.location.replace(`/medimagic/app/people?${params.toString()}`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
     } finally {
@@ -2966,7 +2966,7 @@ export default function EmployeeProfile({
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
-        <button onClick={() => router.push('/app/people')} type="button" className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900">
+        <button onClick={() => window.location.assign('/medimagic/app/people')} type="button" className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
           {t.back}
         </button>

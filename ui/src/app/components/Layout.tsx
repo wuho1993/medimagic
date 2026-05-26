@@ -1,7 +1,6 @@
 "use client";
 
 import React from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import BrandLogo from './BrandLogo';
 import {
@@ -157,9 +156,9 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-6">
           {visibleNavigation.map((item) => (
-            <Link
+            <a
               key={item.key}
-              href={item.href}
+              href={`/medimagic${item.href}`}
               className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all ${
                 pathname === item.href || pathname.startsWith(`${item.href}/`)
                   ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5'
@@ -168,7 +167,7 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
             >
               <item.icon className="h-4 w-4 shrink-0" />
               <span className="truncate">{t.nav[item.key]}</span>
-            </Link>
+            </a>
           ))}
         </nav>
 
@@ -271,9 +270,9 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
               </div>
               <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-6">
                 {visibleNavigation.map((item) => (
-                  <Link
+                  <a
                     key={item.key}
-                    href={item.href}
+                    href={`/medimagic${item.href}`}
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all ${
                       pathname === item.href || pathname.startsWith(`${item.href}/`)
@@ -283,7 +282,7 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
                   >
                     <item.icon className="h-5 w-5 shrink-0" />
                     <span className="truncate">{t.nav[item.key]}</span>
-                  </Link>
+                  </a>
                 ))}
               </nav>
               <div className="shrink-0 border-t border-slate-800 p-4">

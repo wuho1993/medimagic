@@ -430,7 +430,7 @@ export default function People({ employees, positions, banks, companies, branche
   function openEmployeeProfile(employeeCode: string) {
     setIsSearchFocused(false);
     setSearchValue('');
-    router.push(`/app/people?id=${employeeCode}`);
+    window.location.assign(`/medimagic/app/people?id=${encodeURIComponent(employeeCode)}`);
   }
 
   async function handleCreateEmployee(event: FormEvent<HTMLFormElement>) {
@@ -622,7 +622,7 @@ export default function People({ employees, positions, banks, companies, branche
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.04 }}
-                      onClick={() => router.push(`/app/people?id=${employee.employeeCode}`)}
+                      onClick={() => window.location.assign(`/medimagic/app/people?id=${encodeURIComponent(employee.employeeCode)}`)}
                       className="group cursor-pointer transition-colors hover:bg-slate-50/80"
                     >
                       <td className="whitespace-nowrap px-6 py-4">
