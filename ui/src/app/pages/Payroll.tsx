@@ -4309,13 +4309,13 @@ ${tablePreview}`;
                                   )}
                                   {(row.annualLeaveAverageCommissionPay > 0 || row.alShComplianceWarning) && (
                                     <div className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 ${row.alShComplianceWarning ? 'bg-amber-50' : 'bg-emerald-50'}`}>
-                                      <span className={`text-xs ${row.alShComplianceWarning ? 'text-amber-700' : 'text-emerald-600'}`}>AL 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.annualLeaveDays}日；月尾發放)</span>
+                                      <span className={`text-xs ${row.alShComplianceWarning ? 'text-amber-700' : 'text-emerald-600'}`}>AL 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.annualLeaveDays}日；月底發放)</span>
                                       <span className={`font-semibold tabular-nums ${row.alShComplianceWarning ? 'text-amber-800' : 'text-emerald-800'}`}>{fmtDec(row.annualLeaveAverageCommissionPay)}</span>
                                     </div>
                                   )}
                                   {row.statutoryHolidayAverageCommissionPay > 0 && (
                                     <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-2.5 py-1.5">
-                                      <span className="text-xs text-emerald-600">SH 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.statutoryHolidayDays}日；月尾發放)</span>
+                                      <span className="text-xs text-emerald-600">SH 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.statutoryHolidayDays}日；月底發放)</span>
                                       <span className="font-semibold tabular-nums text-emerald-800">{fmtDec(row.statutoryHolidayAverageCommissionPay)}</span>
                                     </div>
                                   )}
@@ -4936,13 +4936,13 @@ ${tablePreview}`;
               incomeRows.push([payrollBonusLabel, activePayslipPdfEntry.payrollBonus]);
               incomeRows.push([
                 activePayslipPdfEntry.annualLeaveDays > 0
-                  ? `AL Commission  大假平均佣金 (${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${activePayslipPdfEntry.annualLeaveDays}日; month-end 月尾發放)`
+                  ? `AL Commission  大假平均佣金 (${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${activePayslipPdfEntry.annualLeaveDays}日; 月底發放)`
                   : 'AL Commission  大假平均佣金',
                 activePayslipPdfEntry.annualLeaveAverageCommissionPay,
               ]);
               incomeRows.push([
                 activePayslipPdfEntry.statutoryHolidayDays > 0
-                  ? `SH Commission  勞工假平均佣金 (${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${activePayslipPdfEntry.statutoryHolidayDays}日; month-end 月尾發放)`
+                  ? `SH Commission  勞工假平均佣金 (${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${activePayslipPdfEntry.statutoryHolidayDays}日; 月底發放)`
                   : 'SH Commission  勞工假平均佣金',
                 activePayslipPdfEntry.statutoryHolidayAverageCommissionPay,
               ]);
