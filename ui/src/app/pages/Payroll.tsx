@@ -1,8 +1,6 @@
 "use client";
 
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type KeyboardEvent, type WheelEvent } from 'react';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { Calculator, CalendarDays, ChevronDown, ChevronUp, CreditCard, Download, Search, TrendingUp, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -2896,6 +2894,11 @@ ${tablePreview}`;
     if (!target) {
       throw new Error('Payslip preview is unavailable.');
     }
+
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf'),
+    ]);
 
     const canvas = await html2canvas(target, {
       scale: 2,
