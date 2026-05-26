@@ -55,6 +55,8 @@ const MPF_RATE = 0.05;
 const MPF_CAP = 1500; // Both employee and employer cap at HK$1,500
 const LATE_ATTENDANCE_BONUS_THRESHOLD_MINUTES = 30;
 const ALL_FILTER_VALUE = '__all__';
+const INITIAL_PAYROLL_RENDER_LIMIT = 40;
+const PAYROLL_RENDER_BATCH_SIZE = 40;
 const PAYROLL_IMPORT_MAPPING_STORAGE_KEY = 'medi_magic_payroll_import_code_mappings';
 
 function calcMpf(relevantIncome: number) {
@@ -1433,6 +1435,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const [branchFilter, setBranchFilter] = useState(ALL_FILTER_VALUE);
   const [typeFilter, setTypeFilter] = useState(ALL_FILTER_VALUE);
   const [statusFilter, setStatusFilter] = useState(ALL_FILTER_VALUE);
+  const [payrollRenderLimit, setPayrollRenderLimit] = useState(INITIAL_PAYROLL_RENDER_LIMIT);
   const savedRecordByCode = useMemo(
     () => new Map(savedRecords.map((record) => [record.employeeCode, record])),
     [savedRecords],
@@ -1445,6 +1448,10 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   useEffect(() => {
     setSelectedMonth(initialMonth);
   }, [initialMonth]);
+
+  useEffect(() => {
+    setPayrollRenderLimit(INITIAL_PAYROLL_RENDER_LIMIT);
+  }, [deferredPayrollSearch, companyFilter, branchFilter, typeFilter, statusFilter, salaryMonth]);
 
   useEffect(() => {
     setImportMonth(selectedMonth);
@@ -2458,6 +2465,8 @@ ${tablePreview}`;
       && (typeFilter === ALL_FILTER_VALUE || typeValue === typeFilter)
       && (statusFilter === ALL_FILTER_VALUE || row.employmentStatus === statusFilter);
   }), [rows, deferredPayrollSearch, companyFilter, branchFilter, typeFilter, statusFilter]);
+  const visibleFilteredRows = useMemo(() => filteredRows.slice(0, payrollRenderLimit), [filteredRows, payrollRenderLimit]);
+  const hasMorePayrollRows = visibleFilteredRows.length < filteredRows.length;
 
   const totals = filteredRows.reduce((acc, r) => ({
     base: acc.base + r.calculatedBaseSalary,
@@ -3339,7 +3348,7 @@ ${tablePreview}`;
             </select>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
-            <p className="text-xs text-slate-500">顯示 {filteredRows.length} / {rows.length} 位員工。列表會受登入帳戶公司及分店權限限制。</p>
+            <p className="text-xs text-slate-500">已篩選 {filteredRows.length} / {rows.length} 位員工，現正顯示 {visibleFilteredRows.length} 位。列表會受登入帳戶公司及分店權限限制。</p>
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
               <span className="h-2 w-2 rounded-full bg-[#D4AF37]" />
               已套用篩選條件
@@ -3374,7 +3383,7 @@ ${tablePreview}`;
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredRows.map((row) => {
+                {visibleFilteredRows.map((row) => {
                   const isExpanded = expandedRows.has(row.employeeCode);
                   const vol = getVolumes(row.employeeCode);
                   const monthlyBonus = getMonthlyBonus(row.employeeCode, row);
@@ -4346,6 +4355,17 @@ ${tablePreview}`;
               </tfoot>
             </table>
           </div>
+          {hasMorePayrollRows ? (
+            <div className="border-t border-slate-100 bg-slate-50 px-4 py-4 text-center">
+              <button
+                type="button"
+                onClick={() => setPayrollRenderLimit((current) => current + PAYROLL_RENDER_BATCH_SIZE)}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#D4AF37] hover:text-[#B38E18]"
+              >
+                顯示更多員工 ({visibleFilteredRows.length}/{filteredRows.length})
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 
