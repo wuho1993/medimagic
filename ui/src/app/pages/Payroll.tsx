@@ -2246,8 +2246,10 @@ ${tablePreview}`;
       .reduce((sum, item) => sum + item.amount, 0);
     const specialCommission = streetPromoterCommission + telesalesCommission;
     const calculatedCommission = commissionCalculationEnabled ? commResult.commissionTotal : 0;
+    const packageExcludedCommission = roundMoney(commResult.sgm.amount + shopCommission);
+    const packageCoveredCommission = roundMoney(Math.max(0, calculatedCommission - packageExcludedCommission));
     const hasAttendanceNoPay = attendanceNoPayDays > 0;
-    const actualCommissionExceedsPackage = isPackageEmployee && calculatedCommission > packageCommissionAmount;
+    const actualCommissionExceedsPackage = isPackageEmployee && packageCoveredCommission > packageCommissionAmount;
     const proratedPackageCommission = isPackageEmployee
       ? calculateProratedPackageCommission(packageCommissionAmount, attendanceRecord)
       : 0;
@@ -2263,11 +2265,13 @@ ${tablePreview}`;
               : packageCommissionAmount)
       : 0;
     const packageCommission = isPackageEmployee
-      ? (calculatedCommission >= packageGuaranteeCommission
-        ? calculatedCommission
-        : Math.max(calculatedCommission, packageGuaranteeCommission))
+      ? (packageCoveredCommission >= packageGuaranteeCommission
+        ? packageCoveredCommission
+        : Math.max(packageCoveredCommission, packageGuaranteeCommission))
       : calculatedCommission;
-    const displayedCommission = packageCommission + specialCommission;
+    const displayedCommission = isPackageEmployee
+      ? packageCommission + packageExcludedCommission + specialCommission
+      : packageCommission + specialCommission;
     const hasSecondaryPayout = Boolean(emp.payDaySecondary);
     const manualBonusGoesMonthEnd = hasSecondaryPayout && monthlyBonus.manualBonusPayout === 'month_end';
     const manualDeductionGoesMonthEnd = hasSecondaryPayout && monthlyBonus.manualDeductionPayout === 'month_end';
@@ -2280,9 +2284,9 @@ ${tablePreview}`;
     const primaryManualDeductionMpfRelevant = monthlyBonus.manualDeductionMpfIncluded ? primaryManualDeduction : 0;
     const monthEndManualDeductionMpfRelevant = monthlyBonus.manualDeductionMpfIncluded ? monthEndManualDeduction : 0;
     const alShAverageCommissionPayAfterPackage = isPackageEmployee
-      ? (calculatedCommission >= packageGuaranteeCommission
+      ? (packageCoveredCommission >= packageGuaranteeCommission
         ? finalAlShAverageCommissionPay
-        : Math.max(0, calculatedCommission + finalAlShAverageCommissionPay - packageGuaranteeCommission))
+        : Math.max(0, packageCoveredCommission + finalAlShAverageCommissionPay - packageGuaranteeCommission))
       : finalAlShAverageCommissionPay;
     const annualLeaveAverageCommissionPayAfterPackage = finalAlShAverageCommissionPay > 0
       ? roundMoney(alShAverageCommissionPayAfterPackage * (annualLeaveAverageCommissionPay / finalAlShAverageCommissionPay))
@@ -2412,6 +2416,8 @@ ${tablePreview}`;
       commissionCalculationEnabled,
       packageCommissionAmount,
       calculatedCommission,
+      packageCoveredCommission,
+      packageExcludedCommission,
       packageCommission,
       mpfRelevantIncome: roundMoney(mpfRelevantPrimaryGross + mpfRelevantSecondaryGross),
       calculatedMpf,
@@ -3505,19 +3511,28 @@ ${tablePreview}`;
                                   <div className="mt-1 text-xs font-medium">{t.commInput.packageAppliedCommission}</div>
                                 </div>
                               </div>
-                              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                              <div className="mt-3 grid gap-2 md:grid-cols-4">
                                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                                   <div className="text-xs font-medium text-slate-500">{t.commInput.packageGuaranteedCommission}</div>
                                   <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.packageCommissionAmount)}</div>
                                 </div>
                                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                                   <div className="text-xs font-medium text-slate-500">{t.commInput.packageCalculatedCommission}</div>
-                                  <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.calculatedCommission)}</div>
+                                  <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.packageCoveredCommission)}</div>
+                                  {row.packageExcludedCommission > 0 ? (
+                                    <div className="mt-1 text-[11px] text-slate-500">SGM / 鋪數分開計：{fmtDec(row.packageExcludedCommission)}</div>
+                                  ) : null}
                                 </div>
                                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                                   <div className="text-xs font-medium text-slate-500">{t.commInput.packageAppliedCommission}</div>
                                   <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.packageCommission)}</div>
                                 </div>
+                                {row.packageExcludedCommission > 0 ? (
+                                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                    <div className="text-xs font-medium text-slate-500">包佣外分開計</div>
+                                    <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.packageExcludedCommission)}</div>
+                                  </div>
+                                ) : null}
                               </div>
                               {row.hasAttendanceNoPay ? (
                                 <div className="mt-3 rounded-lg border border-amber-200 bg-white px-3 py-3">
@@ -4210,12 +4225,18 @@ ${tablePreview}`;
                                       </div>
                                       <div className={subtleStatClasses}>
                                         <div className="text-xs text-slate-500">{t.commInput.packageCalculatedCommission}</div>
-                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.calculatedCommission)}</div>
+                                        <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.packageCoveredCommission)}</div>
                                       </div>
                                       <div className={subtleStatClasses}>
                                         <div className="text-xs text-slate-500">{t.commInput.packageAppliedCommission}</div>
                                         <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.packageCommission)}</div>
                                       </div>
+                                      {row.packageExcludedCommission > 0 ? (
+                                        <div className={subtleStatClasses}>
+                                          <div className="text-xs text-slate-500">包佣外分開計</div>
+                                          <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.packageExcludedCommission)}</div>
+                                        </div>
+                                      ) : null}
                                     </>
                                   ) : null}
                                 </div>
