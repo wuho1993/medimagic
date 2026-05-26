@@ -2273,7 +2273,7 @@ ${tablePreview}`;
       .reduce((sum, item) => sum + item.amount, 0);
     const specialCommission = streetPromoterCommission + telesalesCommission;
     const calculatedCommission = commissionCalculationEnabled ? commResult.commissionTotal : 0;
-    const packageExcludedCommission = roundMoney(commResult.sgm.amount + shopCommission);
+    const packageExcludedCommission = roundMoney(commResult.sgm.amount + shopCommission + commResult.salesAmount.amount);
     const packageCoveredCommission = roundMoney(Math.max(0, calculatedCommission - packageExcludedCommission));
     const hasAttendanceNoPay = attendanceNoPayDays > 0;
     const actualCommissionExceedsPackage = isPackageEmployee && packageCoveredCommission > packageCommissionAmount;
@@ -4865,8 +4865,7 @@ ${tablePreview}`;
               const packageComparisonRows: Array<[string, number | null]> = [
                 [`Redeem Commission  Redeem 佣金：${fmtPayslipAmount(activePayslipPdfEntry.redeemVolume)} x ${(activePayslipPdfEntry.redeemRate * 100).toFixed(1)}% = ${fmtPayslipAmount(activePayslipPdfEntry.redeemCommission)}`, null],
                 [`Sales Commission  Sales 佣金：${fmtPayslipAmount(activePayslipPdfEntry.salesVolume)} x ${(activePayslipPdfEntry.salesRate * 100).toFixed(1)}% = ${fmtPayslipAmount(activePayslipPdfEntry.salesCommission)}`, null],
-                [`Sales Amount Commission  銷售大數佣金：${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)} x ${activePayslipPdfEntry.salesAmountRatePercent.toFixed(2)}% = ${fmtPayslipAmount(activePayslipPdfEntry.salesAmountCommission)}`, null],
-                [`Job Done Commission  手工工錢：fixed amount 固定金額 = ${fmtPayslipAmount(activePayslipPdfEntry.jobCommission)}`, null],
+                [`Job Done Commission  手工工錢：${fmtPayslipAmount(activePayslipPdfEntry.jobCommission)}`, null],
                 [`AL Average Commission  年假平均佣金：${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${fmtPayslipAmount(activePayslipPdfEntry.annualLeaveDays)} day(s) = ${fmtPayslipAmount(activePayslipPdfEntry.rawAnnualLeaveAverageCommissionPay)}`, null],
                 [`SH Average Commission  勞工假平均佣金：${fmtPayslipAmount(activePayslipPdfEntry.rollingAverageCommission)} x ${fmtPayslipAmount(activePayslipPdfEntry.statutoryHolidayDays)} day(s) = ${fmtPayslipAmount(activePayslipPdfEntry.rawStatutoryHolidayAverageCommissionPay)}`, null],
                 [`Package-covered total  包佣內項目合計：${fmtPayslipAmount(packageComparisonTotal)}`, null],
@@ -4913,8 +4912,9 @@ ${tablePreview}`;
                   ['Package Commission  包佣金額', activePayslipPdfEntry.actualCommissionExceedsPackage ? activePayslipPdfEntry.packageCommission : activePayslipPdfEntry.packageCommissionAmount],
                   ...packageComparisonRows,
                   [packageResultLabel, null],
-                  [`SGM Commission  介紹獎金：${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}% = ${fmtPayslipAmount(activePayslipPdfEntry.sgmCommission)}（不屬包佣範圍，另行發放）`, activePayslipPdfEntry.sgmCommission],
-                  ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金（不屬包佣範圍，另行發放）', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
+                  [`SGM Commission  介紹獎金：${fmtPayslipAmount(activePayslipPdfEntry.sgmVolume)} x ${(activePayslipPdfEntry.sgmRate * 100).toFixed(1)}% = ${fmtPayslipAmount(activePayslipPdfEntry.sgmCommission)}`, activePayslipPdfEntry.sgmCommission],
+                  [`Sales Amount Commission  銷售大數佣金：${fmtPayslipAmount(activePayslipPdfEntry.salesAmountTotal)} x ${activePayslipPdfEntry.salesAmountRatePercent.toFixed(2)}% = ${fmtPayslipAmount(activePayslipPdfEntry.salesAmountCommission)}`, activePayslipPdfEntry.salesAmountCommission],
+                  ...(activePayslipPdfEntry.shopCommission > 0 ? [['Shop Commission  店舖佣金', activePayslipPdfEntry.shopCommission] as [string, number]] : []),
                   ...(activePayslipPdfEntry.streetPromoterCommission > 0 ? [[`Street Promoter Commission  街霸佣金`, activePayslipPdfEntry.streetPromoterCommission] as [string, number]] : []),
                   ...(activePayslipPdfEntry.telesalesCommission > 0 ? [[`Telesales Commission  電話銷售員佣金`, activePayslipPdfEntry.telesalesCommission] as [string, number]] : []),
                 ]
@@ -5054,7 +5054,7 @@ ${tablePreview}`;
                       </tr>
                       {visibleIncomeRows.map(([label, value]) => (
                         <tr key={label}>
-                          <td colSpan={6} style={value === null ? { ...labelCell, fontSize: '9pt', color: '#333333' } : labelCell}>{label}</td>
+                          <td colSpan={6} style={value === null ? { ...labelCell, whiteSpace: 'normal', overflowWrap: 'break-word', fontSize: '9pt', color: '#333333' } : labelCell}>{label}</td>
                           <td style={amountCell}></td>
                           <td style={amountCell}>{value === null ? '' : fmtPayslipAmount(value)}</td>
                           <td></td>
