@@ -1264,23 +1264,13 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                                 onChange={(event) => updateDraft(row.employee.id, 'remarks', event.target.value)}
                                 placeholder={t.remarksPlaceholder}
                                 rows={2}
-                                className="min-h-14 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 outline-none transition focus:border-[#B8871A]"
+                                className="h-14 w-full resize-none rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 outline-none transition focus:border-[#B8871A]"
                               />
-                              <div className="mt-2 flex items-center justify-between gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => void handleSaveRow(row)}
-                                  disabled={Boolean(savingRows[row.employee.id])}
-                                  className="inline-flex items-center rounded-lg bg-[#B8871A] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {savingRows[row.employee.id] ? t.saving : t.save}
-                                </button>
-                                {rowFeedback[row.employee.id]?.message ? (
-                                  <span className={`text-[10px] ${rowFeedback[row.employee.id]?.tone === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                    {rowFeedback[row.employee.id]?.message}
-                                  </span>
-                                ) : null}
-                              </div>
+                              {rowFeedback[row.employee.id]?.message ? (
+                                <div className={`mt-2 text-[10px] ${rowFeedback[row.employee.id]?.tone === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                  {rowFeedback[row.employee.id]?.message}
+                                </div>
+                              ) : null}
                             </td>
                           );
                         } else if (column.key === 'calendarDays') {
@@ -1361,7 +1351,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                 </table>
                 </div>
               ) : (
-              <div style={{ height: `${tableHeights[group.groupLabel] ?? estimatedScaledTableHeight(group.rows.length)}px` }}>
+              <div style={{ height: `${estimatedScaledTableHeight(group.rows.length)}px` }}>
               <div ref={(node) => setScaledTableRef(group.groupLabel, node)} style={transformTableScaleStyle}>
                 <table className="border-separate border-spacing-0 text-[13px] text-slate-800">
                   <thead>
@@ -1444,23 +1434,13 @@ export default function AttendanceManagement({ overview, focusMode = false, init
                                 onChange={(event) => updateDraft(row.employee.id, 'remarks', event.target.value)}
                                 placeholder={t.remarksPlaceholder}
                                 rows={2}
-                                className="min-h-14 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 outline-none transition focus:border-[#B8871A]"
+                                className="h-14 w-full resize-none rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 outline-none transition focus:border-[#B8871A]"
                               />
-                              <div className="mt-2 flex items-center justify-between gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => void handleSaveRow(row)}
-                                  disabled={Boolean(savingRows[row.employee.id])}
-                                  className="inline-flex items-center rounded-lg bg-[#B8871A] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {savingRows[row.employee.id] ? t.saving : t.save}
-                                </button>
-                                {rowFeedback[row.employee.id]?.message ? (
-                                  <span className={`text-[10px] ${rowFeedback[row.employee.id]?.tone === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                    {rowFeedback[row.employee.id]?.message}
-                                  </span>
-                                ) : null}
-                              </div>
+                              {rowFeedback[row.employee.id]?.message ? (
+                                <div className={`mt-2 text-[10px] ${rowFeedback[row.employee.id]?.tone === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                  {rowFeedback[row.employee.id]?.message}
+                                </div>
+                              ) : null}
                             </td>
                           );
                         } else if (column.key === 'calendarDays') {
