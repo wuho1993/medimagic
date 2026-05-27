@@ -75,6 +75,7 @@ type FormState = {
   transportAllowance: string;
   briefingBonus: string;
   bookingBonus: string;
+  officeJobAmount: string;
   mpfEnabled: string;
   commissionMethod: string;
   commissionCustomName: string;
@@ -204,6 +205,7 @@ const translations = {
       transportAllowance: '交通津貼',
       briefingBonus: 'Briefing 獎金預設金額',
       bookingBonus: 'Booking 獎金預設金額',
+      officeJobAmount: 'Job (Office) 預設金額',
       mpfEnabled: 'MPF 供款',
       commissionMethod: '佣金計算方式',
       commissionCustomName: '自訂佣金名稱',
@@ -472,6 +474,7 @@ const translations = {
       transportAllowance: '交通津贴',
       briefingBonus: 'Briefing 奖金预设金额',
       bookingBonus: 'Booking 奖金预设金额',
+      officeJobAmount: 'Job (Office) 预设金额',
       mpfEnabled: 'MPF 供款',
       commissionMethod: '佣金计算方式',
       commissionCustomName: '自定义佣金名称',
@@ -740,6 +743,7 @@ const translations = {
       transportAllowance: 'Transport Allowance',
       briefingBonus: 'Briefing Bonus Default Amount',
       bookingBonus: 'Booking Bonus Default Amount',
+      officeJobAmount: 'Job (Office) Default Amount',
       mpfEnabled: 'MPF Contribution',
       commissionMethod: 'Commission Method',
       commissionCustomName: 'Custom Commission Name',
@@ -1395,6 +1399,7 @@ function createInitialState(employee: EmployeeDetailRecord): FormState {
     transportAllowance: employee.transportAllowance === null ? '' : String(employee.transportAllowance),
     briefingBonus: employee.briefingBonus === null ? '' : String(employee.briefingBonus),
     bookingBonus: employee.bookingBonus === null ? '' : String(employee.bookingBonus),
+    officeJobAmount: employee.officeJobAmount === null ? '' : String(employee.officeJobAmount),
     mpfEnabled: employee.mpfEnabled ? 'true' : 'false',
     commissionMethod: employeeMainCommissionRules.length > 0 || employee.commissionPresetId
       ? 'custom'
@@ -2920,6 +2925,7 @@ export default function EmployeeProfile({
         transportAllowance: employee.transportAllowance,
         briefingBonus: employee.briefingBonus,
         bookingBonus: employee.bookingBonus,
+        officeJobAmount: employee.officeJobAmount,
         effectiveFrom: employee.salaryEffectiveFrom,
         remarks: employee.salaryRemarks,
       },
@@ -3320,6 +3326,7 @@ export default function EmployeeProfile({
                     <FieldShell label={t.fields.transportAllowance}><input type="number" min="0" step="0.01" name="transportAllowance" value={formState.transportAllowance} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label={t.fields.briefingBonus}><input type="number" min="0" step="0.01" name="briefingBonus" value={formState.briefingBonus} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label={t.fields.bookingBonus}><input type="number" min="0" step="0.01" name="bookingBonus" value={formState.bookingBonus} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label={t.fields.officeJobAmount}><input type="number" min="0" step="0.01" name="officeJobAmount" value={formState.officeJobAmount} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label={t.fields.salaryEffectiveFrom}><input type="date" name="salaryEffectiveFrom" value={formState.salaryEffectiveFrom} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label={t.fields.salaryRemarks}><textarea name="salaryRemarks" value={formState.salaryRemarks} onChange={handleInputChange} rows={4} className={inputClasses()} /></FieldShell>
                   </div>
@@ -3335,6 +3342,7 @@ export default function EmployeeProfile({
                     <InfoRow label={t.fields.transportAllowance} value={formatCurrency(employee.transportAllowance, locale, t.emptyValue)} />
                     <InfoRow label={t.fields.briefingBonus} value={formatCurrency(employee.briefingBonus, locale, t.emptyValue)} />
                     <InfoRow label={t.fields.bookingBonus} value={formatCurrency(employee.bookingBonus, locale, t.emptyValue)} />
+                    <InfoRow label={t.fields.officeJobAmount} value={formatCurrency(employee.officeJobAmount, locale, t.emptyValue)} />
                     <InfoRow label={t.fields.salaryEffectiveFrom} value={formatDate(employee.salaryEffectiveFrom, locale, t.emptyValue)} />
                     <InfoRow label={t.fields.salaryRemarks} value={renderTextValue(employee.salaryRemarks)} />
                     {viewingSalaryAmountHint ? <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{viewingSalaryAmountHint}</div> : null}

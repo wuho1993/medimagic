@@ -490,6 +490,7 @@ export async function updateEmployee(formData: FormData) {
   const transportAllowance = getNullableNumber(formData, 'transportAllowance');
   const briefingBonus = getNullableNumber(formData, 'briefingBonus');
   const bookingBonus = getNullableNumber(formData, 'bookingBonus');
+  const officeJobAmount = getNullableNumber(formData, 'officeJobAmount');
   const attendanceBonusEnabled = (attendanceBonusAmount ?? 0) > 0;
   const mpfEnabled = getValue(formData, 'mpfEnabled') === 'true';
   const commissionMethodValue = getNullableValue(formData, 'commissionMethod');
@@ -564,6 +565,7 @@ export async function updateEmployee(formData: FormData) {
     transportAllowance,
     briefingBonus,
     bookingBonus,
+    officeJobAmount,
     effectiveCommissionMethod,
     commissionPresetId,
     commissionCustomName,
@@ -597,6 +599,7 @@ export async function updateEmployee(formData: FormData) {
       transport_allowance: transportAllowance,
       briefing_bonus: briefingBonus,
       booking_bonus: bookingBonus,
+      office_job_amount: officeJobAmount,
       mpf_enabled: mpfEnabled,
       commission_method: effectiveCommissionMethod,
       commission_preset_id: effectiveCommissionMethod === 'custom' ? commissionPresetId : null,
@@ -634,7 +637,7 @@ export async function updateEmployee(formData: FormData) {
         await supabase
           .from('employee_salary_profiles')
           .upsert(
-            (({ package_commission_amount, street_promoter_enabled, telesales_enabled, sales_amount_rate_percent, commission_rules, ...legacyPayload }) => legacyPayload)(salaryProfilePayload),
+            (({ package_commission_amount, office_job_amount, street_promoter_enabled, telesales_enabled, sales_amount_rate_percent, commission_rules, ...legacyPayload }) => legacyPayload)(salaryProfilePayload),
             { onConflict: 'employee_id' },
           )
       ).error)

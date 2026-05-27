@@ -157,7 +157,7 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
 
   const supabase = createSupabaseAdminClient();
   const legacyProfileSelect = 'salary_type, base_salary, allowance_amount, attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus, mpf_enabled, pay_day_primary, pay_day_secondary, commission_method, commission_custom_name, commission_custom_tiers, commission_redeem_rate, commission_sales_rate, commission_sgm_rate, sales_bonus_enabled, sales_bonus_rate, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme';
-  const currentProfileSelect = `${legacyProfileSelect}, package_commission_amount, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
+  const currentProfileSelect = `${legacyProfileSelect}, package_commission_amount, office_job_amount, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
   const buildQuery = (profileSelect: string) => supabase
     .from('employees')
     .select(`employee_code, name_zh, alias, hire_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
@@ -193,6 +193,7 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
       transport_allowance: number | string | null;
       briefing_bonus: number | string | null;
       booking_bonus: number | string | null;
+      office_job_amount: number | string | null;
       mpf_enabled: boolean | null;
       pay_day_primary: number | null;
       pay_day_secondary: number | null;
@@ -251,6 +252,7 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
       transportAllowance: profile?.transport_allowance ? Number(profile.transport_allowance) : 0,
       briefingBonus: profile?.briefing_bonus ? Number(profile.briefing_bonus) : 0,
       bookingBonus: profile?.booking_bonus ? Number(profile.booking_bonus) : 0,
+      officeJobAmount: profile?.office_job_amount ? Number(profile.office_job_amount) : 0,
       mpfEnabled: profile?.mpf_enabled ?? false,
       payDayPrimary: profile?.pay_day_primary ?? null,
       payDaySecondary: profile?.pay_day_secondary ?? null,

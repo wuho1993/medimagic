@@ -998,8 +998,12 @@ function buildInitialMonthlyBonuses(
         : employee.bookingBonus > 0
           ? String(employee.bookingBonus)
           : '',
-      officeJobApplied: saved?.officeJobApplied ?? false,
-      officeJobAmount: saved?.officeJobApplied ? String(saved.officeJobAmount) : '',
+      officeJobApplied: saved?.officeJobApplied ?? employee.officeJobAmount > 0,
+      officeJobAmount: saved?.officeJobApplied
+        ? String(saved.officeJobAmount)
+        : employee.officeJobAmount > 0
+          ? String(employee.officeJobAmount)
+          : '',
       manualBonusApplied: saved?.manualBonusApplied ?? false,
       manualBonusAmount: saved?.manualBonusApplied ? String(saved.manualBonusAmount) : '',
       manualBonusMpfIncluded: saved?.manualBonusMpfIncluded ?? true,
@@ -1135,8 +1139,8 @@ function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, lateDa
     attendanceAmount: employee.attendanceBonusAmount > 0 ? String(employee.attendanceBonusAmount) : '',
     bookingApplied: employee.bookingBonus > 0,
     bookingAmount: employee.bookingBonus > 0 ? String(employee.bookingBonus) : '',
-    officeJobApplied: false,
-    officeJobAmount: '',
+    officeJobApplied: employee.officeJobAmount > 0,
+    officeJobAmount: employee.officeJobAmount > 0 ? String(employee.officeJobAmount) : '',
     manualBonusApplied: false,
     manualBonusAmount: '',
     manualBonusMpfIncluded: true,
@@ -2216,7 +2220,8 @@ ${tablePreview}`;
     const attendanceBonusApplied = hasLateDays ? false : monthlyBonus.attendanceApplied;
     const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
-    const officeJobAmount = monthlyBonus.officeJobApplied ? Number(monthlyBonus.officeJobAmount) || 0 : 0;
+    const officeJobDefaultAmount = Number(monthlyBonus.officeJobAmount) || emp.officeJobAmount || 0;
+    const officeJobAmount = monthlyBonus.officeJobApplied ? officeJobDefaultAmount : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
       allowanceAmount: emp.allowanceAmount,
@@ -2438,6 +2443,7 @@ ${tablePreview}`;
       attendanceBonus,
       rawBookingBonus: rawBookingBonus,
       bookingBonus,
+      officeJobDefaultAmount,
       officeJobAmount,
       manualBonus,
       manualBonusRemarks: monthlyBonus.manualBonusRemarks.trim() || null,
@@ -2580,7 +2586,7 @@ ${tablePreview}`;
       bookingBonusApplied: monthlyBonus.bookingApplied,
       bookingBonusAmount: monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0,
       officeJobApplied: monthlyBonus.officeJobApplied,
-      officeJobAmount: monthlyBonus.officeJobApplied ? Number(monthlyBonus.officeJobAmount) || 0 : 0,
+      officeJobAmount: monthlyBonus.officeJobApplied ? Number(monthlyBonus.officeJobAmount) || r.officeJobDefaultAmount || 0 : 0,
       manualBonusApplied: monthlyBonus.manualBonusApplied,
       manualBonusAmount: monthlyBonus.manualBonusApplied ? Number(monthlyBonus.manualBonusAmount) || 0 : 0,
       manualBonusMpfIncluded: monthlyBonus.manualBonusMpfIncluded,
@@ -3884,26 +3890,9 @@ ${tablePreview}`;
                               <div className={simpleRowClasses}>
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.officeJob}</div>
-                                  <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(Number(monthlyBonus.officeJobAmount) || 0)}</div>
+                                  <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(row.officeJobDefaultAmount)}</div>
                                 </div>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  className={inputClasses}
-                                  value={monthlyBonus.officeJobAmount}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    const amount = Number(value) || 0;
-                                    setMonthlyBonusPatch(row.employeeCode, row, {
-                                      officeJobAmount: value,
-                                      ...(amount > 0 ? { officeJobApplied: true } : {}),
-                                    });
-                                  }}
-                                  onKeyDown={preventAccidentalNumberStep}
-                                  onWheel={preventAccidentalNumberScroll}
-                                  placeholder="0"
-                                />
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-sm font-semibold text-slate-900">{fmtDec(row.officeJobDefaultAmount)}</div>
                                 <div className="flex flex-col items-start gap-2 md:items-end">
                                   <label className={toggleRowClasses}>
                                     <input
@@ -3913,7 +3902,7 @@ ${tablePreview}`;
                                         const nextApplied = e.target.checked;
                                         setMonthlyBonus(row.employeeCode, row, 'officeJobApplied', nextApplied);
                                         if (nextApplied && !monthlyBonus.officeJobAmount) {
-                                          setMonthlyBonus(row.employeeCode, row, 'officeJobAmount', '0');
+                                          setMonthlyBonus(row.employeeCode, row, 'officeJobAmount', row.officeJobDefaultAmount > 0 ? String(row.officeJobDefaultAmount) : '0');
                                         }
                                       }}
                                       className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"

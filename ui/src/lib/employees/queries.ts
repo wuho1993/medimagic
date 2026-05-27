@@ -96,6 +96,7 @@ export type EmployeeDetailRecord = EmployeeDirectoryRecord & {
   transportAllowance: number | null;
   briefingBonus: number | null;
   bookingBonus: number | null;
+  officeJobAmount: number | null;
   mpfEnabled: boolean;
   commissionMethod: 'standard' | 'none' | 'custom' | null;
   commissionPresetId: string | null;
@@ -211,6 +212,7 @@ type EmployeeSalaryProfileRow = {
   transport_allowance: number | string | null;
   briefing_bonus: number | string | null;
   booking_bonus: number | string | null;
+  office_job_amount?: number | string | null;
   mpf_enabled: boolean | null;
   commission_method: EmployeeDetailRecord['commissionMethod'];
   commission_preset_id: string | null;
@@ -278,10 +280,10 @@ type PayrollSchemeConfigRow = {
 
 const EMPLOYEE_SALARY_PROFILE_SELECT_LEGACY = 'salary_type, base_salary, allowance_amount, effective_from, remarks, attendance_bonus_enabled, attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus, mpf_enabled, commission_method, commission_preset_id, commission_custom_name, commission_custom_tiers, commission_redeem_rate, commission_sales_rate, commission_sgm_rate, sales_bonus_enabled, sales_bonus_rate, payroll_bonus_preset_id, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme, pay_day_primary, pay_day_secondary, commission_notes';
 const EMPLOYEE_SALARY_PROFILE_SELECT_WITH_PACKAGE = `${EMPLOYEE_SALARY_PROFILE_SELECT_LEGACY}, package_commission_amount`;
-const EMPLOYEE_SALARY_PROFILE_SELECT_CURRENT = `${EMPLOYEE_SALARY_PROFILE_SELECT_WITH_PACKAGE}, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
+const EMPLOYEE_SALARY_PROFILE_SELECT_CURRENT = `${EMPLOYEE_SALARY_PROFILE_SELECT_WITH_PACKAGE}, office_job_amount, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
 const PAYROLL_SUMMARY_PROFILE_SELECT_LEGACY = 'salary_type, base_salary, allowance_amount, attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus, mpf_enabled, pay_day_primary, pay_day_secondary, commission_method, commission_custom_name, commission_custom_tiers, commission_redeem_rate, commission_sales_rate, commission_sgm_rate, sales_bonus_enabled, sales_bonus_rate, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme';
 const PAYROLL_SUMMARY_PROFILE_SELECT_WITH_PACKAGE = `${PAYROLL_SUMMARY_PROFILE_SELECT_LEGACY}, package_commission_amount`;
-const PAYROLL_SUMMARY_PROFILE_SELECT_CURRENT = `${PAYROLL_SUMMARY_PROFILE_SELECT_WITH_PACKAGE}, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
+const PAYROLL_SUMMARY_PROFILE_SELECT_CURRENT = `${PAYROLL_SUMMARY_PROFILE_SELECT_WITH_PACKAGE}, office_job_amount, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
 const MONTHLY_COMMISSION_RECORD_SELECT_LEGACY = 'employee_id, year_month, redeem_volume, sales_volume, job_amount, sgm_volume, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, total_commission, employees!inner(employee_code)';
 const MONTHLY_COMMISSION_RECORD_SELECT_CURRENT = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
 const MONTHLY_COMMISSION_RECORD_SELECT_WITH_PAYOUT = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_bonus_payout, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, manual_deduction_payout, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
@@ -382,6 +384,7 @@ function normalizeSalaryProfile(profile: EmployeeSalaryProfileRow | null) {
       transportAllowance: null,
       briefingBonus: null,
       bookingBonus: null,
+      officeJobAmount: null,
       mpfEnabled: false,
       commissionMethod: null,
       commissionPresetId: null,
@@ -434,6 +437,7 @@ function normalizeSalaryProfile(profile: EmployeeSalaryProfileRow | null) {
     transportAllowance: profile.transport_allowance === null ? null : Number(profile.transport_allowance),
     briefingBonus: profile.briefing_bonus === null ? null : Number(profile.briefing_bonus),
     bookingBonus: profile.booking_bonus === null ? null : Number(profile.booking_bonus),
+    officeJobAmount: profile.office_job_amount == null ? null : Number(profile.office_job_amount),
     mpfEnabled: profile.mpf_enabled ?? false,
     commissionMethod,
     commissionPresetId: profile.commission_preset_id ?? null,
@@ -537,6 +541,7 @@ function mapEmployeeDetail(
     transportAllowance: salaryProfile.transportAllowance,
     briefingBonus: salaryProfile.briefingBonus,
     bookingBonus: salaryProfile.bookingBonus,
+    officeJobAmount: salaryProfile.officeJobAmount,
     mpfEnabled: salaryProfile.mpfEnabled,
     commissionMethod: salaryProfile.commissionMethod,
     commissionPresetId: salaryProfile.commissionPresetId,
@@ -1107,6 +1112,7 @@ export type PayrollEmployeeSummary = {
   transportAllowance: number;
   briefingBonus: number;
   bookingBonus: number;
+  officeJobAmount: number;
   mpfEnabled: boolean;
   payDayPrimary: number | null;
   payDaySecondary: number | null;
@@ -1173,7 +1179,7 @@ export async function fetchPayrollSummary(user: AppShellUser, supabaseClient?: Q
     position: { code: string | null; name_zh: string | null } | { code: string | null; name_zh: string | null }[] | null;
     company: NamedLookup;
     branch: NamedLookup;
-    employee_salary_profiles: { salary_type: EmployeeDetailRecord['salaryType']; base_salary: number | string | null; package_commission_amount: number | string | null; allowance_amount: number | string | null; attendance_bonus_amount: number | string | null; transport_allowance: number | string | null; briefing_bonus: number | string | null; booking_bonus: number | string | null; mpf_enabled: boolean | null; pay_day_primary: number | null; pay_day_secondary: number | null; commission_method: string | null; commission_custom_name: string | null; commission_custom_tiers: unknown | null; commission_rules: unknown | null; commission_redeem_rate: number | string | null; commission_sales_rate: number | string | null; commission_sgm_rate: number | string | null; sales_amount_rate_percent: number | string | null; sales_bonus_enabled: boolean | null; sales_bonus_rate: number | string | null; sales_bonus_custom_name: string | null; sales_bonus_custom_tiers: unknown | null; redeem_bonus_enabled: boolean | null; redeem_bonus_custom_name: string | null; redeem_bonus_custom_tiers: unknown | null; payroll_bonus_enabled: boolean | null; payroll_bonus_scheme: PayrollBonusScheme | null; street_promoter_enabled: boolean | null; telesales_enabled: boolean | null; shop_bonus_enabled: boolean | null; shop_bonus_custom_name: string | null; shop_bonus_custom_tiers: unknown | null; shop_bonus_scheme: ShopBonusScheme | null } | null;
+    employee_salary_profiles: { salary_type: EmployeeDetailRecord['salaryType']; base_salary: number | string | null; package_commission_amount: number | string | null; allowance_amount: number | string | null; attendance_bonus_amount: number | string | null; transport_allowance: number | string | null; briefing_bonus: number | string | null; booking_bonus: number | string | null; office_job_amount?: number | string | null; mpf_enabled: boolean | null; pay_day_primary: number | null; pay_day_secondary: number | null; commission_method: string | null; commission_custom_name: string | null; commission_custom_tiers: unknown | null; commission_rules: unknown | null; commission_redeem_rate: number | string | null; commission_sales_rate: number | string | null; commission_sgm_rate: number | string | null; sales_amount_rate_percent: number | string | null; sales_bonus_enabled: boolean | null; sales_bonus_rate: number | string | null; sales_bonus_custom_name: string | null; sales_bonus_custom_tiers: unknown | null; redeem_bonus_enabled: boolean | null; redeem_bonus_custom_name: string | null; redeem_bonus_custom_tiers: unknown | null; payroll_bonus_enabled: boolean | null; payroll_bonus_scheme: PayrollBonusScheme | null; street_promoter_enabled: boolean | null; telesales_enabled: boolean | null; shop_bonus_enabled: boolean | null; shop_bonus_custom_name: string | null; shop_bonus_custom_tiers: unknown | null; shop_bonus_scheme: ShopBonusScheme | null } | null;
   }[]).map((row) => {
     // employee_salary_profiles is a single object (unique FK), not an array
     const sp = row.employee_salary_profiles;
@@ -1210,6 +1216,7 @@ export async function fetchPayrollSummary(user: AppShellUser, supabaseClient?: Q
       transportAllowance: sp?.transport_allowance ? Number(sp.transport_allowance) : 0,
       briefingBonus: sp?.briefing_bonus ? Number(sp.briefing_bonus) : 0,
       bookingBonus: sp?.booking_bonus ? Number(sp.booking_bonus) : 0,
+      officeJobAmount: sp?.office_job_amount ? Number(sp.office_job_amount) : 0,
       mpfEnabled: sp?.mpf_enabled ?? false,
       payDayPrimary: sp?.pay_day_primary ?? null,
       payDaySecondary: sp?.pay_day_secondary ?? null,
@@ -1566,7 +1573,7 @@ export async function fetchCommissionAverageAuditRecords(user: AppShellUser, sel
     const calendarDays = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0
       ? attendanceRecord.calendarDays
       : getCalendarDaysForYearMonth(selectedMonth);
-    const fixedMonthlyWage = employee.baseSalary + employee.allowanceAmount + employee.transportAllowance + employee.attendanceBonusAmount + employee.briefingBonus + employee.bookingBonus;
+    const fixedMonthlyWage = employee.baseSalary + employee.allowanceAmount + employee.transportAllowance + employee.attendanceBonusAmount + employee.briefingBonus + employee.bookingBonus + employee.officeJobAmount;
     const fixedDailyWage = calendarDays > 0 ? roundAuditMoney(fixedMonthlyWage / calendarDays) : 0;
     const legalDailyAverageWage = roundAuditMoney(fixedDailyWage + average.dailyAverageCommission);
     const legalMinimumAlShTopUp = roundAuditMoney(Math.max(0, (legalDailyAverageWage - fixedDailyWage) * alShDays));
@@ -2017,8 +2024,8 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
         baseSalary: employee.baseSalary,
         allowanceAmount: employee.allowanceAmount,
         transportAllowance: employee.transportAllowance,
-        bonusAmount: employee.attendanceBonusAmount + employee.briefingBonus + employee.bookingBonus,
-        deductionBase: employee.baseSalary + employee.allowanceAmount + employee.transportAllowance + employee.attendanceBonusAmount + employee.briefingBonus + employee.bookingBonus,
+        bonusAmount: employee.attendanceBonusAmount + employee.briefingBonus + employee.bookingBonus + employee.officeJobAmount,
+        deductionBase: employee.baseSalary + employee.allowanceAmount + employee.transportAllowance + employee.attendanceBonusAmount + employee.briefingBonus + employee.bookingBonus + employee.officeJobAmount,
       },
     ]),
   );
