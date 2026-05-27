@@ -356,6 +356,8 @@ type EmployeeMonthlyBonusState = {
   attendanceAmount: string;
   bookingApplied: boolean;
   bookingAmount: string;
+  officeJobApplied: boolean;
+  officeJobAmount: string;
   manualBonusApplied: boolean;
   manualBonusAmount: string;
   manualBonusMpfIncluded: boolean;
@@ -393,6 +395,7 @@ type PayslipPdfEntry = {
   attendanceBonus: number;
   rawBookingBonus: number;
   bookingBonus: number;
+  officeJobAmount: number;
   manualBonus: number;
   manualBonusRemarks: string | null;
   manualDeduction: number;
@@ -563,6 +566,7 @@ const translations = {
       briefingBonus: 'Briefing 獎金',
       attendanceBonus: '出勤獎金',
       bookingBonus: 'Booking 獎金',
+      officeJob: 'Job (Office)',
       manualBonus: '手動增加金額',
       manualDeduction: '手動扣減金額',
       manualRemarks: '備注',
@@ -719,6 +723,7 @@ const translations = {
       briefingBonus: 'Briefing 奖金',
       attendanceBonus: '出勤奖金',
       bookingBonus: 'Booking 奖金',
+      officeJob: 'Job (Office)',
       manualBonus: '手动增加金额',
       manualDeduction: '手动扣减金额',
       manualRemarks: '备注',
@@ -875,6 +880,7 @@ const translations = {
       briefingBonus: 'Briefing Bonus',
       attendanceBonus: 'Attendance Bonus',
       bookingBonus: 'Booking Bonus',
+      officeJob: 'Job (Office)',
       manualBonus: 'Manual Addition',
       manualDeduction: 'Manual Deduction',
       manualRemarks: 'Remarks',
@@ -992,6 +998,8 @@ function buildInitialMonthlyBonuses(
         : employee.bookingBonus > 0
           ? String(employee.bookingBonus)
           : '',
+      officeJobApplied: saved?.officeJobApplied ?? false,
+      officeJobAmount: saved?.officeJobApplied ? String(saved.officeJobAmount) : '',
       manualBonusApplied: saved?.manualBonusApplied ?? false,
       manualBonusAmount: saved?.manualBonusApplied ? String(saved.manualBonusAmount) : '',
       manualBonusMpfIncluded: saved?.manualBonusMpfIncluded ?? true,
@@ -1127,6 +1135,8 @@ function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, lateDa
     attendanceAmount: employee.attendanceBonusAmount > 0 ? String(employee.attendanceBonusAmount) : '',
     bookingApplied: employee.bookingBonus > 0,
     bookingAmount: employee.bookingBonus > 0 ? String(employee.bookingBonus) : '',
+    officeJobApplied: false,
+    officeJobAmount: '',
     manualBonusApplied: false,
     manualBonusAmount: '',
     manualBonusMpfIncluded: true,
@@ -2206,6 +2216,7 @@ ${tablePreview}`;
     const attendanceBonusApplied = hasLateDays ? false : monthlyBonus.attendanceApplied;
     const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
+    const officeJobAmount = monthlyBonus.officeJobApplied ? Number(monthlyBonus.officeJobAmount) || 0 : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
       allowanceAmount: emp.allowanceAmount,
@@ -2227,7 +2238,7 @@ ${tablePreview}`;
       ? attendanceRecord.calendarDays
       : getCalendarDaysForMonth(salaryMonth);
     const fixedDailyWage = payrollCalendarDays > 0
-      ? roundMoney((calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + briefingBonus + attendanceBonus + bookingBonus) / payrollCalendarDays)
+      ? roundMoney((calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + briefingBonus + attendanceBonus + bookingBonus + officeJobAmount) / payrollCalendarDays)
       : 0;
     const legalDailyAverageWage = roundMoney(fixedDailyWage + rollingAverageCommission);
     const legalMinimumAlShTopUp = roundMoney(Math.max(0, (legalDailyAverageWage - fixedDailyWage) * alShDays));
@@ -2343,14 +2354,14 @@ ${tablePreview}`;
     const primaryShopBonus = hasSecondaryPayout ? 0 : shopBonus;
     const monthEndSalesBonus = hasSecondaryPayout && commissionCalculationEnabled ? commResult.totalBonus : 0;
     const primarySalesBonus = hasSecondaryPayout ? 0 : (commissionCalculationEnabled ? commResult.totalBonus : 0);
-    const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + primaryManualBonus + primaryShopBonus + primaryAlShAverageCommissionPay - attendanceDeductionRemainder - primaryManualDeduction;
+    const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + officeJobAmount + primaryManualBonus + primaryShopBonus + primaryAlShAverageCommissionPay - attendanceDeductionRemainder - primaryManualDeduction;
     const displayedBonus = fixedBonus + primarySalesBonus;
     const bonus = Math.round(displayedBonus * 100) / 100;
     const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus;
     const mpfApplicable = emp.mpfEnabled && isMpfStatutorilyEligible(emp.dateOfBirth, emp.hireDate, payrollReferenceDate);
     const primaryPayoutGross = hasSecondaryPayout ? grossBase : grossBase + displayedCommission;
     const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonus - monthEndManualDeduction : 0;
-    const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + primaryManualBonusMpfRelevant + primaryShopBonus + primaryAlShAverageCommissionPay - primaryManualDeductionMpfRelevant;
+    const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + officeJobAmount + primaryManualBonusMpfRelevant + primaryShopBonus + primaryAlShAverageCommissionPay - primaryManualDeductionMpfRelevant;
     const mpfRelevantDisplayedBonus = mpfRelevantFixedBonus + primarySalesBonus;
     const mpfRelevantBonus = Math.round(mpfRelevantDisplayedBonus * 100) / 100;
     const mpfRelevantGrossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + mpfRelevantBonus;
@@ -2427,6 +2438,7 @@ ${tablePreview}`;
       attendanceBonus,
       rawBookingBonus: rawBookingBonus,
       bookingBonus,
+      officeJobAmount,
       manualBonus,
       manualBonusRemarks: monthlyBonus.manualBonusRemarks.trim() || null,
       manualDeduction,
@@ -2567,6 +2579,8 @@ ${tablePreview}`;
       attendanceBonusAmount: monthlyBonus.attendanceApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0,
       bookingBonusApplied: monthlyBonus.bookingApplied,
       bookingBonusAmount: monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0,
+      officeJobApplied: monthlyBonus.officeJobApplied,
+      officeJobAmount: monthlyBonus.officeJobApplied ? Number(monthlyBonus.officeJobAmount) || 0 : 0,
       manualBonusApplied: monthlyBonus.manualBonusApplied,
       manualBonusAmount: monthlyBonus.manualBonusApplied ? Number(monthlyBonus.manualBonusAmount) || 0 : 0,
       manualBonusMpfIncluded: monthlyBonus.manualBonusMpfIncluded,
@@ -2620,6 +2634,7 @@ ${tablePreview}`;
       attendanceBonus: row.attendanceBonus,
       rawBookingBonus: row.rawBookingBonus,
       bookingBonus: row.bookingBonus,
+      officeJobAmount: row.officeJobAmount,
       manualBonus: row.manualBonus,
       manualBonusRemarks: row.manualBonusRemarks,
       manualDeduction: row.totalDeduction,
@@ -3868,6 +3883,48 @@ ${tablePreview}`;
                               ) : null}
                               <div className={simpleRowClasses}>
                                 <div>
+                                  <div className="text-sm font-medium text-slate-700">{t.commInput.officeJob}</div>
+                                  <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(Number(monthlyBonus.officeJobAmount) || 0)}</div>
+                                </div>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  className={inputClasses}
+                                  value={monthlyBonus.officeJobAmount}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    const amount = Number(value) || 0;
+                                    setMonthlyBonusPatch(row.employeeCode, row, {
+                                      officeJobAmount: value,
+                                      ...(amount > 0 ? { officeJobApplied: true } : {}),
+                                    });
+                                  }}
+                                  onKeyDown={preventAccidentalNumberStep}
+                                  onWheel={preventAccidentalNumberScroll}
+                                  placeholder="0"
+                                />
+                                <div className="flex flex-col items-start gap-2 md:items-end">
+                                  <label className={toggleRowClasses}>
+                                    <input
+                                      type="checkbox"
+                                      checked={monthlyBonus.officeJobApplied}
+                                      onChange={(e) => {
+                                        const nextApplied = e.target.checked;
+                                        setMonthlyBonus(row.employeeCode, row, 'officeJobApplied', nextApplied);
+                                        if (nextApplied && !monthlyBonus.officeJobAmount) {
+                                          setMonthlyBonus(row.employeeCode, row, 'officeJobAmount', '0');
+                                        }
+                                      }}
+                                      className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
+                                    />
+                                    <span>{t.commInput.applyThisMonth}</span>
+                                  </label>
+                                  <div className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">{t.commInput.payoutTimingPrimary}</div>
+                                </div>
+                              </div>
+                              <div className={simpleRowClasses}>
+                                <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.manualBonus}</div>
                                   <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(Number(monthlyBonus.manualBonusAmount) || 0)}</div>
                                   <label className="mt-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t.commInput.manualRemarks}</label>
@@ -4287,7 +4344,7 @@ ${tablePreview}`;
                             </div>
                           </div>
 
-                          {(row.displayedCommission > 0 || row.commResult.total > 0 || row.commResult.salesAmount.amount > 0 || row.streetPromoterCommission > 0 || row.telesalesCommission > 0 || row.briefingBonus > 0 || row.attendanceBonus > 0 || row.bookingBonus > 0 || row.manualBonus > 0 || row.manualDeduction > 0 || row.shopBonus > 0 || row.finalAlShAverageCommissionPay > 0 || row.alShComplianceWarning) && (
+                          {(row.displayedCommission > 0 || row.commResult.total > 0 || row.commResult.salesAmount.amount > 0 || row.streetPromoterCommission > 0 || row.telesalesCommission > 0 || row.briefingBonus > 0 || row.attendanceBonus > 0 || row.bookingBonus > 0 || row.officeJobAmount > 0 || row.manualBonus > 0 || row.manualDeduction > 0 || row.shopBonus > 0 || row.finalAlShAverageCommissionPay > 0 || row.alShComplianceWarning) && (
                             <details className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
                               <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">
                                 {t.commInput.breakdown}
@@ -4339,6 +4396,12 @@ ${tablePreview}`;
                                     <div className="flex items-center justify-between rounded-lg bg-cyan-50 px-2.5 py-1.5">
                                       <span className="text-cyan-600 text-xs">{t.commInput.bookingBonus}</span>
                                       <span className="font-semibold tabular-nums text-cyan-800">{fmtDec(row.bookingBonus)}</span>
+                                    </div>
+                                  )}
+                                  {row.officeJobAmount > 0 && (
+                                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-2.5 py-1.5">
+                                      <span className="text-slate-600 text-xs">{t.commInput.officeJob}</span>
+                                      <span className="font-semibold tabular-nums text-slate-900">{fmtDec(row.officeJobAmount)}</span>
                                     </div>
                                   )}
                                   {(row.annualLeaveAverageCommissionPay > 0 || row.alShComplianceWarning) && (
@@ -4955,6 +5018,7 @@ ${tablePreview}`;
                 ['Diligent  勤工獎', activePayslipPdfEntry.displayAttendanceBonus],
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.rawBriefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
+                ['Job (Office)  辦公室 Job', activePayslipPdfEntry.officeJobAmount],
               ];
               const commissionIncomeRows: Array<[string, number | null]> = showPackageCommission
                 ? [

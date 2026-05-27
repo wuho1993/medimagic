@@ -286,6 +286,7 @@ const MONTHLY_COMMISSION_RECORD_SELECT_LEGACY = 'employee_id, year_month, redeem
 const MONTHLY_COMMISSION_RECORD_SELECT_CURRENT = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
 const MONTHLY_COMMISSION_RECORD_SELECT_WITH_PAYOUT = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_bonus_payout, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, manual_deduction_payout, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
 const MONTHLY_COMMISSION_RECORD_SELECT_WITH_MANUAL_REMARKS = `employee_id, year_month, mpf_ee_applied, mpf_ee_deduction_mode, mpf_ee_amount, mpf_ee_manual_override, mpf_er_applied, mpf_er_amount, mpf_er_manual_override, worked_days, worked_hours, redeem_volume, sales_volume, sales_amount_total, sales_amount_commission, job_amount, sgm_volume, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, briefing_bonus_applied, briefing_bonus_amount, attendance_bonus_applied, attendance_bonus_amount, booking_bonus_applied, booking_bonus_amount, manual_bonus_applied, manual_bonus_amount, manual_bonus_mpf_included, manual_bonus_payout, manual_bonus_remarks, manual_deduction_applied, manual_deduction_amount, manual_deduction_mpf_included, manual_deduction_payout, manual_deduction_remarks, shop_target_amount, shop_actual_sales_amount, shop_target_percent, shop_bonus_amount, redeem_commission, sales_commission, sgm_commission, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission, package_no_pay_handling, employees!inner(employee_code)`;
+const MONTHLY_COMMISSION_RECORD_SELECT_WITH_OFFICE_JOB = MONTHLY_COMMISSION_RECORD_SELECT_WITH_MANUAL_REMARKS.replace('booking_bonus_applied, booking_bonus_amount, manual_bonus_applied', 'booking_bonus_applied, booking_bonus_amount, office_job_applied, office_job_amount, manual_bonus_applied');
 
 function isMissingColumnError(message: string | null | undefined) {
   return typeof message === 'string' && (
@@ -1274,6 +1275,8 @@ export type MonthlyCommissionRecord = {
   attendanceBonusAmount: number;
   bookingBonusApplied: boolean;
   bookingBonusAmount: number;
+  officeJobApplied: boolean;
+  officeJobAmount: number;
   manualBonusApplied: boolean;
   manualBonusAmount: number;
   manualBonusMpfIncluded: boolean;
@@ -1723,10 +1726,17 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
 /** Fetch saved commission records for a given year-month */
 export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<MonthlyCommissionRecord[]> {
   const supabase = await createServerSupabaseClient();
-  const manualRemarksResult = await supabase
+  const officeJobResult = await supabase
     .from('monthly_commission_records')
-    .select(MONTHLY_COMMISSION_RECORD_SELECT_WITH_MANUAL_REMARKS)
+    .select(MONTHLY_COMMISSION_RECORD_SELECT_WITH_OFFICE_JOB)
     .eq('year_month', yearMonth);
+
+  const manualRemarksResult = officeJobResult.error && isMissingColumnError(officeJobResult.error.message)
+    ? await supabase
+      .from('monthly_commission_records')
+      .select(MONTHLY_COMMISSION_RECORD_SELECT_WITH_MANUAL_REMARKS)
+      .eq('year_month', yearMonth)
+    : officeJobResult;
 
   const payoutResult = manualRemarksResult.error && isMissingColumnError(manualRemarksResult.error.message)
     ? await supabase
@@ -1784,6 +1794,8 @@ export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<
     attendance_bonus_amount: number | string;
     booking_bonus_applied: boolean | null;
     booking_bonus_amount: number | string;
+    office_job_applied?: boolean | null;
+    office_job_amount?: number | string | null;
     manual_bonus_applied: boolean | null;
     manual_bonus_amount: number | string | null;
     manual_bonus_mpf_included: boolean | null;
@@ -1835,6 +1847,8 @@ export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<
     attendanceBonusAmount: Number(r.attendance_bonus_amount),
     bookingBonusApplied: r.booking_bonus_applied ?? false,
     bookingBonusAmount: Number(r.booking_bonus_amount),
+    officeJobApplied: r.office_job_applied ?? false,
+    officeJobAmount: Number(r.office_job_amount ?? 0),
     manualBonusApplied: r.manual_bonus_applied ?? false,
     manualBonusAmount: Number(r.manual_bonus_amount ?? 0),
     manualBonusMpfIncluded: r.manual_bonus_mpf_included ?? false,

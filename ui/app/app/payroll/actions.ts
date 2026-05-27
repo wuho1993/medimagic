@@ -51,6 +51,8 @@ type CommissionEntry = {
   attendanceBonusAmount: number;
   bookingBonusApplied: boolean;
   bookingBonusAmount: number;
+  officeJobApplied: boolean;
+  officeJobAmount: number;
   manualBonusApplied: boolean;
   manualBonusAmount: number;
   manualBonusMpfIncluded: boolean;
@@ -318,6 +320,8 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
     e.briefingBonusApplied ||
     e.attendanceBonusApplied ||
     e.bookingBonusApplied ||
+    e.officeJobApplied ||
+    e.officeJobAmount > 0 ||
     e.manualBonusApplied ||
     e.manualBonusAmount > 0 ||
     e.manualBonusMpfIncluded ||
@@ -390,6 +394,8 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
         attendance_bonus_amount: e.attendanceBonusApplied ? e.attendanceBonusAmount : 0,
         booking_bonus_applied: e.bookingBonusApplied,
         booking_bonus_amount: e.bookingBonusApplied ? e.bookingBonusAmount : 0,
+        office_job_applied: e.officeJobApplied,
+        office_job_amount: e.officeJobApplied ? e.officeJobAmount : 0,
         manual_bonus_applied: e.manualBonusApplied,
         manual_bonus_amount: e.manualBonusApplied ? e.manualBonusAmount : 0,
         manual_bonus_mpf_included: e.manualBonusApplied ? e.manualBonusMpfIncluded : false,
@@ -424,7 +430,7 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
     ? await supabase
       .from('monthly_commission_records')
       .upsert(
-        rows.map(({ manual_bonus_payout, manual_bonus_remarks, manual_deduction_payout, manual_deduction_remarks, ...row }) => row),
+        rows.map(({ office_job_applied, office_job_amount, manual_bonus_payout, manual_bonus_remarks, manual_deduction_payout, manual_deduction_remarks, ...row }) => row),
         { onConflict: 'employee_id,year_month' },
       )
     : currentResult;
@@ -434,7 +440,7 @@ export async function saveMonthlyCommission(yearMonth: string, entries: Commissi
       await supabase
         .from('monthly_commission_records')
         .upsert(
-          rows.map(({ shop_target_amount, shop_actual_sales_amount, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, manual_deduction_applied, manual_deduction_amount, manual_bonus_mpf_included, manual_bonus_payout, manual_bonus_remarks, manual_deduction_mpf_included, manual_deduction_payout, manual_deduction_remarks, mpf_ee_deduction_mode, worked_days, worked_hours, sales_amount_total, sales_amount_commission, package_no_pay_handling, redeem_bonus_amount, ...row }) => ({
+          rows.map(({ shop_target_amount, shop_actual_sales_amount, street_promoter_headcount, street_promoter_commission_amount, telesales_headcount, telesales_commission_amount, office_job_applied, office_job_amount, manual_deduction_applied, manual_deduction_amount, manual_bonus_mpf_included, manual_bonus_payout, manual_bonus_remarks, manual_deduction_mpf_included, manual_deduction_payout, manual_deduction_remarks, mpf_ee_deduction_mode, worked_days, worked_hours, sales_amount_total, sales_amount_commission, package_no_pay_handling, redeem_bonus_amount, ...row }) => ({
             ...row,
             job_amount: Number(row.job_amount ?? 0) + Number(street_promoter_commission_amount ?? 0) + Number(telesales_commission_amount ?? 0),
           })),
