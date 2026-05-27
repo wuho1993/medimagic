@@ -1059,6 +1059,7 @@ function scaleBasisCompensationForNoPay(input: {
   briefingBonus: number;
   attendanceBonus: number;
   bookingBonus: number;
+  officeJobAmount: number;
   deductionAmount: number;
 }) {
   const items = [
@@ -1068,6 +1069,7 @@ function scaleBasisCompensationForNoPay(input: {
     { key: 'briefingBonus' as const, amount: Math.max(input.briefingBonus, 0) },
     { key: 'attendanceBonus' as const, amount: Math.max(input.attendanceBonus, 0) },
     { key: 'bookingBonus' as const, amount: Math.max(input.bookingBonus, 0) },
+    { key: 'officeJobAmount' as const, amount: Math.max(input.officeJobAmount, 0) },
   ];
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
 
@@ -1079,6 +1081,7 @@ function scaleBasisCompensationForNoPay(input: {
       briefingBonus: roundMoney(input.briefingBonus),
       attendanceBonus: roundMoney(input.attendanceBonus),
       bookingBonus: roundMoney(input.bookingBonus),
+      officeJobAmount: roundMoney(input.officeJobAmount),
       appliedDeduction: 0,
       remainingDeduction: roundMoney(Math.max(input.deductionAmount, 0)),
     };
@@ -1087,13 +1090,14 @@ function scaleBasisCompensationForNoPay(input: {
   const appliedDeduction = roundMoney(Math.min(input.deductionAmount, totalAmount));
   const targetTotal = roundMoney(totalAmount - appliedDeduction);
   const activeItems = items.filter((item) => item.amount > 0);
-  const scaled: Record<'baseSalary' | 'allowanceAmount' | 'transportAllowance' | 'briefingBonus' | 'attendanceBonus' | 'bookingBonus', number> = {
+  const scaled: Record<'baseSalary' | 'allowanceAmount' | 'transportAllowance' | 'briefingBonus' | 'attendanceBonus' | 'bookingBonus' | 'officeJobAmount', number> = {
     baseSalary: 0,
     allowanceAmount: 0,
     transportAllowance: 0,
     briefingBonus: 0,
     attendanceBonus: 0,
     bookingBonus: 0,
+    officeJobAmount: 0,
   };
 
   let assignedTotal = 0;
@@ -2221,7 +2225,7 @@ ${tablePreview}`;
     const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
     const officeJobDefaultAmount = Number(monthlyBonus.officeJobAmount) || emp.officeJobAmount || 0;
-    const officeJobAmount = monthlyBonus.officeJobApplied ? officeJobDefaultAmount : 0;
+    const rawOfficeJobAmount = monthlyBonus.officeJobApplied ? officeJobDefaultAmount : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
       allowanceAmount: emp.allowanceAmount,
@@ -2229,6 +2233,7 @@ ${tablePreview}`;
       briefingBonus: rawBriefingBonus,
       attendanceBonus: rawAttendanceBonus,
       bookingBonus: rawBookingBonus,
+      officeJobAmount: rawOfficeJobAmount,
       deductionAmount: attendanceNoPayDeduction,
     });
     const calculatedBaseSalary = isDailyEmployee || isHourlyEmployee
@@ -2239,6 +2244,7 @@ ${tablePreview}`;
     const briefingBonus = scaledBasisCompensation.briefingBonus;
     const attendanceBonus = scaledBasisCompensation.attendanceBonus;
     const bookingBonus = scaledBasisCompensation.bookingBonus;
+    const officeJobAmount = scaledBasisCompensation.officeJobAmount;
     const payrollCalendarDays = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0
       ? attendanceRecord.calendarDays
       : getCalendarDaysForMonth(salaryMonth);
@@ -3887,31 +3893,29 @@ ${tablePreview}`;
                                 </label>
                               </div>
                               ) : null}
-                              <div className={simpleRowClasses}>
+                              {(row.officeJobDefaultAmount > 0 || monthlyBonus.officeJobApplied || Number(monthlyBonus.officeJobAmount) > 0) ? (
+                              <div className="grid gap-2 border-t border-slate-100 py-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-center">
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.officeJob}</div>
                                   <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(row.officeJobDefaultAmount)}</div>
                                 </div>
-                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-sm font-semibold text-slate-900">{fmtDec(row.officeJobDefaultAmount)}</div>
-                                <div className="flex flex-col items-start gap-2 md:items-end">
-                                  <label className={toggleRowClasses}>
-                                    <input
-                                      type="checkbox"
-                                      checked={monthlyBonus.officeJobApplied}
-                                      onChange={(e) => {
-                                        const nextApplied = e.target.checked;
-                                        setMonthlyBonus(row.employeeCode, row, 'officeJobApplied', nextApplied);
-                                        if (nextApplied && !monthlyBonus.officeJobAmount) {
-                                          setMonthlyBonus(row.employeeCode, row, 'officeJobAmount', row.officeJobDefaultAmount > 0 ? String(row.officeJobDefaultAmount) : '0');
-                                        }
-                                      }}
-                                      className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
-                                    />
-                                    <span>{t.commInput.applyThisMonth}</span>
-                                  </label>
-                                  <div className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">{t.commInput.payoutTimingPrimary}</div>
-                                </div>
+                                <label className={`${toggleRowClasses} justify-start md:justify-end`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={monthlyBonus.officeJobApplied}
+                                    onChange={(e) => {
+                                      const nextApplied = e.target.checked;
+                                      setMonthlyBonus(row.employeeCode, row, 'officeJobApplied', nextApplied);
+                                      if (nextApplied && !monthlyBonus.officeJobAmount) {
+                                        setMonthlyBonus(row.employeeCode, row, 'officeJobAmount', row.officeJobDefaultAmount > 0 ? String(row.officeJobDefaultAmount) : '0');
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
+                                  />
+                                  <span>{t.commInput.applyThisMonth}</span>
+                                </label>
                               </div>
+                              ) : null}
                               <div className={simpleRowClasses}>
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.manualBonus}</div>
