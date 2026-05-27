@@ -395,6 +395,7 @@ type PayslipPdfEntry = {
   attendanceBonus: number;
   rawBookingBonus: number;
   bookingBonus: number;
+  rawOfficeJobAmount: number;
   officeJobAmount: number;
   manualBonus: number;
   manualBonusRemarks: string | null;
@@ -2449,6 +2450,7 @@ ${tablePreview}`;
       attendanceBonus,
       rawBookingBonus: rawBookingBonus,
       bookingBonus,
+      rawOfficeJobAmount,
       officeJobDefaultAmount,
       officeJobAmount,
       manualBonus,
@@ -2646,6 +2648,7 @@ ${tablePreview}`;
       attendanceBonus: row.attendanceBonus,
       rawBookingBonus: row.rawBookingBonus,
       bookingBonus: row.bookingBonus,
+      rawOfficeJobAmount: row.rawOfficeJobAmount,
       officeJobAmount: row.officeJobAmount,
       manualBonus: row.manualBonus,
       manualBonusRemarks: row.manualBonusRemarks,
@@ -4951,6 +4954,7 @@ ${tablePreview}`;
               const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));
               const attendanceDeduction = roundMoney(Math.max(activePayslipPdfEntry.displayAttendanceBonus - activePayslipPdfEntry.attendanceBonus, 0));
               const bookingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBookingBonus - activePayslipPdfEntry.bookingBonus, 0));
+              const officeJobDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawOfficeJobAmount - activePayslipPdfEntry.officeJobAmount, 0));
               const packageCommissionDeduction = showPackageCommission
                 ? roundMoney(Math.max(activePayslipPdfEntry.packageCommissionAmount - activePayslipPdfEntry.packageCommission, 0))
                 : 0;
@@ -4992,6 +4996,7 @@ ${tablePreview}`;
                 [`No Pay Leave - Allowance  無薪假扣津貼${noPayDeductionSuffix}`, allowanceDeduction] as [string, number],
                 [`No Pay Leave - Briefing Bonus  無薪假扣早會獎金${noPayDeductionSuffix}`, briefingDeduction] as [string, number],
                 [`No Pay Leave - Booking Bonus  無薪假扣預約獎金${noPayDeductionSuffix}`, bookingDeduction] as [string, number],
+                [`No Pay Leave - Job (Office)  無薪假扣辦公室 Job${noPayDeductionSuffix}`, officeJobDeduction] as [string, number],
               ].filter(([, value]) => value > 0);
               if (attendanceDeduction > 0 && !hasLateAttendanceDeduction) {
                 attendanceDeductionRows.push([
@@ -5011,7 +5016,7 @@ ${tablePreview}`;
                 ['Diligent  勤工獎', activePayslipPdfEntry.displayAttendanceBonus],
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.rawBriefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
-                ['Job (Office)  辦公室 Job', activePayslipPdfEntry.officeJobAmount],
+                ['Job (Office)  辦公室 Job', activePayslipPdfEntry.rawOfficeJobAmount],
               ];
               const commissionIncomeRows: Array<[string, number | null]> = showPackageCommission
                 ? [
