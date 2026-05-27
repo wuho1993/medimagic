@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type KeyboardEvent, type WheelEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type KeyboardEvent, type WheelEvent } from 'react';
 import { Calculator, CalendarDays, ChevronDown, ChevronUp, CreditCard, Download, Search, TrendingUp, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -101,6 +101,10 @@ function normalizeImportName(value: string | null | undefined) {
     .toLowerCase()
     .replace(/[\s·・,，.。()（）/\\_-]+/g, '')
     .trim();
+}
+
+function normalizePayrollSearchText(value: string | null | undefined) {
+  return normalizeImportName(value);
 }
 
 function loadPayrollImportMappings() {
@@ -1533,7 +1537,6 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const [resyncingCodes, setResyncingCodes] = useState<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [payrollSearch, setPayrollSearch] = useState('');
-  const deferredPayrollSearch = useDeferredValue(payrollSearch);
   const [companyFilter, setCompanyFilter] = useState(ALL_FILTER_VALUE);
   const [branchFilter, setBranchFilter] = useState(ALL_FILTER_VALUE);
   const [typeFilter, setTypeFilter] = useState(ALL_FILTER_VALUE);
@@ -1554,7 +1557,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
 
   useEffect(() => {
     setPayrollRenderLimit(INITIAL_PAYROLL_RENDER_LIMIT);
-  }, [deferredPayrollSearch, companyFilter, branchFilter, typeFilter, statusFilter, salaryMonth]);
+  }, [payrollSearch, companyFilter, branchFilter, typeFilter, statusFilter, salaryMonth]);
 
   useEffect(() => {
     setImportMonth(selectedMonth);
@@ -2601,20 +2604,21 @@ ${tablePreview}`;
   }, [rows]);
 
   const filteredRows = useMemo(() => rows.filter((row) => {
-    const normalizedSearch = deferredPayrollSearch.trim().toLowerCase();
+    const normalizedSearch = normalizePayrollSearchText(payrollSearch);
     const companyValue = row.companyNameZh || row.companyType;
     const typeValue = row.salaryType || row.employmentType;
     const searchText = [row.employeeCode, row.nameZh, row.nameEn, row.alias, row.positionNameZh, row.branchName, companyValue]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
+    const normalizedSearchText = normalizePayrollSearchText(searchText);
 
-    return (!normalizedSearch || searchText.includes(normalizedSearch))
+    return (!normalizedSearch || searchText.includes(normalizedSearch) || normalizedSearchText.includes(normalizedSearch))
       && (companyFilter === ALL_FILTER_VALUE || companyValue === companyFilter)
       && (branchFilter === ALL_FILTER_VALUE || row.branchName === branchFilter)
       && (typeFilter === ALL_FILTER_VALUE || typeValue === typeFilter)
       && (statusFilter === ALL_FILTER_VALUE || row.employmentStatus === statusFilter);
-  }), [rows, deferredPayrollSearch, companyFilter, branchFilter, typeFilter, statusFilter]);
+  }), [rows, payrollSearch, companyFilter, branchFilter, typeFilter, statusFilter]);
   const visibleFilteredRows = useMemo(() => filteredRows.slice(0, payrollRenderLimit), [filteredRows, payrollRenderLimit]);
   const hasMorePayrollRows = visibleFilteredRows.length < filteredRows.length;
 
