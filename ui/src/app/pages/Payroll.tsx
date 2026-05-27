@@ -1040,14 +1040,6 @@ function calculateProratedPackageCommission(packageCommissionAmount: number, rec
   return roundMoney(packageCommissionAmount * (record.workedDays / record.calendarDays));
 }
 
-function getWorkedDayProrationRatio(record?: PayrollAttendanceRecord) {
-  if (!record || record.calendarDays <= 0 || record.workedDays <= 0 || getAttendanceNoPayDays(record) <= 0) {
-    return 1;
-  }
-
-  return Math.min(1, Math.max(0, record.workedDays / record.calendarDays));
-}
-
 function scaleBasisCompensationForNoPay(input: {
   baseSalary: number;
   allowanceAmount: number;
@@ -2192,8 +2184,6 @@ ${tablePreview}`;
     const hasWorkedDays = attendanceDrivenWorkedDays || unitInput.workedDays !== '';
     const hasWorkedHours = unitInput.workedHours !== '';
     const attendanceNoPayDays = getAttendanceNoPayDays(attendanceRecord);
-    const workedDayProrationRatio = getWorkedDayProrationRatio(attendanceRecord);
-    const shouldProrateFixedCompensationByWorkedDays = !isDailyEmployee && !isHourlyEmployee && workedDayProrationRatio < 1;
     const attendanceNoPayDeduction = calculateAttendanceNoPayDeduction(emp, attendanceRecord);
     const alShDays = (attendanceRecord?.annualLeaveDays ?? 0) + (attendanceRecord?.statutoryHolidayDays ?? 0);
     const rollingAverage = rollingCommissionAverages[emp.employeeCode];
@@ -2203,7 +2193,7 @@ ${tablePreview}`;
       ? emp.baseSalary * workedDays
       : isHourlyEmployee
         ? emp.baseSalary * workedHours
-        : roundMoney(emp.baseSalary * workedDayProrationRatio);
+        : emp.baseSalary;
     const isStreetPromoter = emp.streetPromoterEnabled;
     const isTelesales = emp.telesalesEnabled;
     const hasCommission = Boolean(emp.commissionMethod && emp.commissionMethod !== 'none');
@@ -2211,19 +2201,19 @@ ${tablePreview}`;
     const hasShopCommissionRule = emp.commissionRules.some((rule) => rule.enabled && rule.metric === 'shop');
     const hasPayrollBonus = emp.salesBonusEnabled && Boolean(emp.payrollBonusScheme);
     const packageCommissionAmount = isPackageEmployee ? emp.packageCommissionAmount : 0;
-    const rawBriefingBonus = monthlyBonus.briefingApplied ? roundMoney((Number(monthlyBonus.briefingAmount) || 0) * workedDayProrationRatio) : 0;
+    const rawBriefingBonus = monthlyBonus.briefingApplied ? Number(monthlyBonus.briefingAmount) || 0 : 0;
     const displayAttendanceBonus = Number(monthlyBonus.attendanceAmount) || 0;
     const attendanceBonusApplied = hasLateDays ? false : monthlyBonus.attendanceApplied;
-    const rawAttendanceBonus = attendanceBonusApplied ? roundMoney((Number(monthlyBonus.attendanceAmount) || 0) * workedDayProrationRatio) : 0;
-    const rawBookingBonus = monthlyBonus.bookingApplied ? roundMoney((Number(monthlyBonus.bookingAmount) || 0) * workedDayProrationRatio) : 0;
+    const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
+    const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
-      allowanceAmount: roundMoney(emp.allowanceAmount * workedDayProrationRatio),
-      transportAllowance: roundMoney(emp.transportAllowance * workedDayProrationRatio),
+      allowanceAmount: emp.allowanceAmount,
+      transportAllowance: emp.transportAllowance,
       briefingBonus: rawBriefingBonus,
       attendanceBonus: rawAttendanceBonus,
       bookingBonus: rawBookingBonus,
-      deductionAmount: shouldProrateFixedCompensationByWorkedDays ? 0 : attendanceNoPayDeduction,
+      deductionAmount: attendanceNoPayDeduction,
     });
     const calculatedBaseSalary = isDailyEmployee || isHourlyEmployee
       ? rawCalculatedBaseSalary
@@ -2251,9 +2241,7 @@ ${tablePreview}`;
         ? 'AL/SH 有日數但 rolling 365 平均佣金為 0，需確認是否真的沒有佣金歷史。'
         : null;
     const manualBonus = monthlyBonus.manualBonusApplied ? Number(monthlyBonus.manualBonusAmount) || 0 : 0;
-    const attendanceDeductionRemainder = shouldProrateFixedCompensationByWorkedDays
-      ? 0
-      : attendanceRecord?.remainingDeductionAmount > 0
+    const attendanceDeductionRemainder = attendanceRecord?.remainingDeductionAmount > 0
       ? roundMoney(attendanceRecord.remainingDeductionAmount)
       : scaledBasisCompensation.remainingDeduction;
     const manualDeductionApplied = monthlyBonus.manualDeductionApplied;
