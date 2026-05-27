@@ -1062,7 +1062,31 @@ function scaleBasisCompensationForNoPay(input: {
   bookingBonus: number;
   officeJobAmount: number;
   deductionAmount: number;
+  deductionRatio?: number;
 }) {
+  const ratio = Math.min(1, Math.max(0, input.deductionRatio ?? 0));
+
+  if (ratio > 0) {
+    const scale = (amount: number) => roundMoney(Math.max(amount, 0) * (1 - ratio));
+    const scaled = {
+      baseSalary: scale(input.baseSalary),
+      allowanceAmount: scale(input.allowanceAmount),
+      transportAllowance: scale(input.transportAllowance),
+      briefingBonus: scale(input.briefingBonus),
+      attendanceBonus: scale(input.attendanceBonus),
+      bookingBonus: scale(input.bookingBonus),
+      officeJobAmount: scale(input.officeJobAmount),
+    };
+    const originalTotal = input.baseSalary + input.allowanceAmount + input.transportAllowance + input.briefingBonus + input.attendanceBonus + input.bookingBonus + input.officeJobAmount;
+    const scaledTotal = scaled.baseSalary + scaled.allowanceAmount + scaled.transportAllowance + scaled.briefingBonus + scaled.attendanceBonus + scaled.bookingBonus + scaled.officeJobAmount;
+
+    return {
+      ...scaled,
+      appliedDeduction: roundMoney(originalTotal - scaledTotal),
+      remainingDeduction: 0,
+    };
+  }
+
   const items = [
     { key: 'baseSalary' as const, amount: Math.max(input.baseSalary, 0) },
     { key: 'allowanceAmount' as const, amount: Math.max(input.allowanceAmount, 0) },
@@ -2237,6 +2261,9 @@ ${tablePreview}`;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
     const officeJobDefaultAmount = Number(monthlyBonus.officeJobAmount) || emp.officeJobAmount || 0;
     const rawOfficeJobAmount = monthlyBonus.officeJobApplied ? officeJobDefaultAmount : 0;
+    const attendanceDeductionRatio = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0 && attendanceNoPayDays > 0
+      ? attendanceNoPayDays / attendanceRecord.calendarDays
+      : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
       allowanceAmount: emp.allowanceAmount,
@@ -2246,6 +2273,7 @@ ${tablePreview}`;
       bookingBonus: rawBookingBonus,
       officeJobAmount: rawOfficeJobAmount,
       deductionAmount: attendanceNoPayDeduction,
+      deductionRatio: attendanceDeductionRatio,
     });
     const calculatedBaseSalary = isDailyEmployee || isHourlyEmployee
       ? rawCalculatedBaseSalary
