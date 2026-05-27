@@ -1216,10 +1216,10 @@ function buildInitialMonthlyMpfStates(
 function buildInitialPackageNoPayHandling(
   employees: PayrollEmployeeSummary[],
   savedRecords: MonthlyCommissionRecord[],
-  defaultPackageNoPayHandling: PackageNoPayHandling,
+  _defaultPackageNoPayHandling: PackageNoPayHandling,
 ): Record<string, EmployeePackageNoPayHandlingState> {
-  const savedByCode = new Map(savedRecords.map((record) => [record.employeeCode, record.packageNoPayHandling ?? defaultPackageNoPayHandling]));
-  return Object.fromEntries(employees.map((employee) => [employee.employeeCode, savedByCode.get(employee.employeeCode) ?? defaultPackageNoPayHandling]));
+  const savedByCode = new Map<string, EmployeePackageNoPayHandlingState>(savedRecords.map((record) => [record.employeeCode, record.packageNoPayHandling ?? '']));
+  return Object.fromEntries(employees.map((employee) => [employee.employeeCode, savedByCode.get(employee.employeeCode) ?? '']));
 }
 
 function createEmptyCommissionResult() {
@@ -2020,6 +2020,15 @@ ${tablePreview}`;
     }));
     markDirty();
   };
+  const handlePackageNoPayButtonClick = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    code: string,
+    value: EmployeePackageNoPayHandlingState,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setPackageNoPayHandling(code, value);
+  };
 
   const resetEmployeeMonthState = (employee: PayrollEmployeeSummary) => {
     setEmpVolumes((prev) => ({
@@ -2040,7 +2049,7 @@ ${tablePreview}`;
     }));
     setPackageNoPayHandlingByCode((prev) => ({
       ...prev,
-      [employee.employeeCode]: defaultPackageNoPayHandling,
+      [employee.employeeCode]: '',
     }));
     markDirty();
   };
@@ -2159,7 +2168,8 @@ ${tablePreview}`;
     const vol = getVolumes(emp.employeeCode);
     const unitInput = getWorkUnits(emp.employeeCode);
     const monthlyBonus = getMonthlyBonus(emp.employeeCode, emp);
-    const packageNoPayHandling = getPackageNoPayHandling(emp.employeeCode) || defaultPackageNoPayHandling;
+    const packageNoPayHandlingOverride = getPackageNoPayHandling(emp.employeeCode);
+    const packageNoPayHandling = packageNoPayHandlingOverride || defaultPackageNoPayHandling;
     const isPackageEmployee = emp.salaryType === 'package';
     const isDailyEmployee = emp.salaryType === 'daily';
     const isHourlyEmployee = emp.salaryType === 'hourly';
@@ -2400,6 +2410,7 @@ ${tablePreview}`;
       alShComplianceWarning,
       attendanceNoPayDeduction,
       attendanceDeductionRemainder,
+      packageNoPayHandlingOverride,
       packageNoPayHandling,
       hasAttendanceNoPay,
       actualCommissionExceedsPackage,
@@ -3611,22 +3622,22 @@ ${tablePreview}`;
                                       <div className="flex flex-wrap gap-2">
                                         <button
                                           type="button"
-                                          onClick={() => setPackageNoPayHandling(row.employeeCode, defaultPackageNoPayHandling)}
-                                          className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${row.packageNoPayHandling === defaultPackageNoPayHandling ? 'border-[#D4AF37] bg-amber-50 text-[#9a7411]' : 'border-slate-200 bg-white text-slate-700 hover:border-[#D4AF37] hover:text-[#B38E18]'}`}
+                                          onClick={(event) => handlePackageNoPayButtonClick(event, row.employeeCode, '')}
+                                          className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${row.packageNoPayHandlingOverride === '' ? 'border-[#D4AF37] bg-amber-50 text-[#9a7411]' : 'border-slate-200 bg-white text-slate-700 hover:border-[#D4AF37] hover:text-[#B38E18]'}`}
                                         >
                                           {t.commInput.packageNoPayResetToDefault}
                                         </button>
                                         <button
                                           type="button"
-                                          onClick={() => setPackageNoPayHandling(row.employeeCode, 'no_package')}
-                                          className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${row.packageNoPayHandling === 'no_package' ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-700 hover:border-rose-300 hover:text-rose-700'}`}
+                                          onClick={(event) => handlePackageNoPayButtonClick(event, row.employeeCode, 'no_package')}
+                                          className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${row.packageNoPayHandlingOverride === 'no_package' ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-700 hover:border-rose-300 hover:text-rose-700'}`}
                                         >
                                           {t.commInput.packageNoPayNoPackage}
                                         </button>
                                         <button
                                           type="button"
-                                          onClick={() => setPackageNoPayHandling(row.employeeCode, 'pro_rate')}
-                                          className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${row.packageNoPayHandling === 'pro_rate' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:text-emerald-700'}`}
+                                          onClick={(event) => handlePackageNoPayButtonClick(event, row.employeeCode, 'pro_rate')}
+                                          className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${row.packageNoPayHandlingOverride === 'pro_rate' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:text-emerald-700'}`}
                                         >
                                           {t.commInput.packageNoPayProRate}
                                         </button>
