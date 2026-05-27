@@ -395,6 +395,7 @@ type PayslipPdfEntry = {
   attendanceBonus: number;
   rawBookingBonus: number;
   bookingBonus: number;
+  rawOfficeJobAmount: number;
   officeJobAmount: number;
   manualBonus: number;
   manualBonusRemarks: string | null;
@@ -1055,6 +1056,7 @@ function scaleBasisCompensationForNoPay(input: {
   briefingBonus: number;
   attendanceBonus: number;
   bookingBonus: number;
+  officeJobAmount: number;
   deductionAmount: number;
 }) {
   const items = [
@@ -1064,6 +1066,7 @@ function scaleBasisCompensationForNoPay(input: {
     { key: 'briefingBonus' as const, amount: Math.max(input.briefingBonus, 0) },
     { key: 'attendanceBonus' as const, amount: Math.max(input.attendanceBonus, 0) },
     { key: 'bookingBonus' as const, amount: Math.max(input.bookingBonus, 0) },
+    { key: 'officeJobAmount' as const, amount: Math.max(input.officeJobAmount, 0) },
   ];
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
 
@@ -1075,6 +1078,7 @@ function scaleBasisCompensationForNoPay(input: {
       briefingBonus: roundMoney(input.briefingBonus),
       attendanceBonus: roundMoney(input.attendanceBonus),
       bookingBonus: roundMoney(input.bookingBonus),
+      officeJobAmount: roundMoney(input.officeJobAmount),
       appliedDeduction: 0,
       remainingDeduction: roundMoney(Math.max(input.deductionAmount, 0)),
     };
@@ -1083,13 +1087,14 @@ function scaleBasisCompensationForNoPay(input: {
   const appliedDeduction = roundMoney(Math.min(input.deductionAmount, totalAmount));
   const targetTotal = roundMoney(totalAmount - appliedDeduction);
   const activeItems = items.filter((item) => item.amount > 0);
-  const scaled: Record<'baseSalary' | 'allowanceAmount' | 'transportAllowance' | 'briefingBonus' | 'attendanceBonus' | 'bookingBonus', number> = {
+  const scaled: Record<'baseSalary' | 'allowanceAmount' | 'transportAllowance' | 'briefingBonus' | 'attendanceBonus' | 'bookingBonus' | 'officeJobAmount', number> = {
     baseSalary: 0,
     allowanceAmount: 0,
     transportAllowance: 0,
     briefingBonus: 0,
     attendanceBonus: 0,
     bookingBonus: 0,
+    officeJobAmount: 0,
   };
 
   let assignedTotal = 0;
@@ -2216,7 +2221,7 @@ ${tablePreview}`;
     const attendanceBonusApplied = hasLateDays ? false : monthlyBonus.attendanceApplied;
     const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
-    const officeJobAmount = monthlyBonus.officeJobApplied ? Number(monthlyBonus.officeJobAmount) || 0 : 0;
+    const rawOfficeJobAmount = monthlyBonus.officeJobApplied ? Number(monthlyBonus.officeJobAmount) || 0 : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
       allowanceAmount: emp.allowanceAmount,
@@ -2224,6 +2229,7 @@ ${tablePreview}`;
       briefingBonus: rawBriefingBonus,
       attendanceBonus: rawAttendanceBonus,
       bookingBonus: rawBookingBonus,
+      officeJobAmount: rawOfficeJobAmount,
       deductionAmount: attendanceNoPayDeduction,
     });
     const calculatedBaseSalary = isDailyEmployee || isHourlyEmployee
@@ -2234,6 +2240,7 @@ ${tablePreview}`;
     const briefingBonus = scaledBasisCompensation.briefingBonus;
     const attendanceBonus = scaledBasisCompensation.attendanceBonus;
     const bookingBonus = scaledBasisCompensation.bookingBonus;
+    const officeJobAmount = scaledBasisCompensation.officeJobAmount;
     const payrollCalendarDays = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0
       ? attendanceRecord.calendarDays
       : getCalendarDaysForMonth(salaryMonth);
@@ -2438,6 +2445,7 @@ ${tablePreview}`;
       attendanceBonus,
       rawBookingBonus: rawBookingBonus,
       bookingBonus,
+      rawOfficeJobAmount,
       officeJobAmount,
       manualBonus,
       manualBonusRemarks: monthlyBonus.manualBonusRemarks.trim() || null,
@@ -2634,6 +2642,7 @@ ${tablePreview}`;
       attendanceBonus: row.attendanceBonus,
       rawBookingBonus: row.rawBookingBonus,
       bookingBonus: row.bookingBonus,
+      rawOfficeJobAmount: row.rawOfficeJobAmount,
       officeJobAmount: row.officeJobAmount,
       manualBonus: row.manualBonus,
       manualBonusRemarks: row.manualBonusRemarks,
@@ -4958,6 +4967,7 @@ ${tablePreview}`;
               const briefingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBriefingBonus - activePayslipPdfEntry.briefingBonus, 0));
               const attendanceDeduction = roundMoney(Math.max(activePayslipPdfEntry.displayAttendanceBonus - activePayslipPdfEntry.attendanceBonus, 0));
               const bookingDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawBookingBonus - activePayslipPdfEntry.bookingBonus, 0));
+              const officeJobDeduction = roundMoney(Math.max(activePayslipPdfEntry.rawOfficeJobAmount - activePayslipPdfEntry.officeJobAmount, 0));
               const packageCommissionDeduction = showPackageCommission
                 ? roundMoney(Math.max(activePayslipPdfEntry.packageCommissionAmount - activePayslipPdfEntry.packageCommission, 0))
                 : 0;
@@ -4999,6 +5009,7 @@ ${tablePreview}`;
                 [`No Pay Leave - Allowance  無薪假扣津貼${noPayDeductionSuffix}`, allowanceDeduction] as [string, number],
                 [`No Pay Leave - Briefing Bonus  無薪假扣早會獎金${noPayDeductionSuffix}`, briefingDeduction] as [string, number],
                 [`No Pay Leave - Booking Bonus  無薪假扣預約獎金${noPayDeductionSuffix}`, bookingDeduction] as [string, number],
+                [`No Pay Leave - Job (Office)  無薪假扣辦公室 Job${noPayDeductionSuffix}`, officeJobDeduction] as [string, number],
               ].filter(([, value]) => value > 0);
               if (attendanceDeduction > 0 && !hasLateAttendanceDeduction) {
                 attendanceDeductionRows.push([
@@ -5018,7 +5029,7 @@ ${tablePreview}`;
                 ['Diligent  勤工獎', activePayslipPdfEntry.displayAttendanceBonus],
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.rawBriefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
-                ['Job (Office)  辦公室 Job', activePayslipPdfEntry.officeJobAmount],
+                ['Job (Office)  辦公室 Job', activePayslipPdfEntry.rawOfficeJobAmount],
               ];
               const commissionIncomeRows: Array<[string, number | null]> = showPackageCommission
                 ? [
