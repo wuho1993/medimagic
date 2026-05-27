@@ -1040,6 +1040,14 @@ function calculateProratedPackageCommission(packageCommissionAmount: number, rec
   return roundMoney(packageCommissionAmount * (record.workedDays / record.calendarDays));
 }
 
+function getWorkedDayProrationRatio(record?: PayrollAttendanceRecord) {
+  if (!record || record.calendarDays <= 0 || record.workedDays <= 0 || getAttendanceNoPayDays(record) <= 0) {
+    return 1;
+  }
+
+  return Math.min(1, Math.max(0, record.workedDays / record.calendarDays));
+}
+
 function scaleBasisCompensationForNoPay(input: {
   baseSalary: number;
   allowanceAmount: number;
@@ -2169,7 +2177,7 @@ ${tablePreview}`;
     const unitInput = getWorkUnits(emp.employeeCode);
     const monthlyBonus = getMonthlyBonus(emp.employeeCode, emp);
     const packageNoPayHandlingOverride = getPackageNoPayHandling(emp.employeeCode);
-    const packageNoPayHandling = packageNoPayHandlingOverride || defaultPackageNoPayHandling;
+    const packageNoPayHandling = packageNoPayHandlingOverride || null;
     const isPackageEmployee = emp.salaryType === 'package';
     const isDailyEmployee = emp.salaryType === 'daily';
     const isHourlyEmployee = emp.salaryType === 'hourly';
@@ -2184,6 +2192,8 @@ ${tablePreview}`;
     const hasWorkedDays = attendanceDrivenWorkedDays || unitInput.workedDays !== '';
     const hasWorkedHours = unitInput.workedHours !== '';
     const attendanceNoPayDays = getAttendanceNoPayDays(attendanceRecord);
+    const workedDayProrationRatio = getWorkedDayProrationRatio(attendanceRecord);
+    const shouldProrateFixedCompensationByWorkedDays = !isDailyEmployee && !isHourlyEmployee && workedDayProrationRatio < 1;
     const attendanceNoPayDeduction = calculateAttendanceNoPayDeduction(emp, attendanceRecord);
     const alShDays = (attendanceRecord?.annualLeaveDays ?? 0) + (attendanceRecord?.statutoryHolidayDays ?? 0);
     const rollingAverage = rollingCommissionAverages[emp.employeeCode];
@@ -2193,7 +2203,7 @@ ${tablePreview}`;
       ? emp.baseSalary * workedDays
       : isHourlyEmployee
         ? emp.baseSalary * workedHours
-        : emp.baseSalary;
+        : roundMoney(emp.baseSalary * workedDayProrationRatio);
     const isStreetPromoter = emp.streetPromoterEnabled;
     const isTelesales = emp.telesalesEnabled;
     const hasCommission = Boolean(emp.commissionMethod && emp.commissionMethod !== 'none');
@@ -2201,19 +2211,19 @@ ${tablePreview}`;
     const hasShopCommissionRule = emp.commissionRules.some((rule) => rule.enabled && rule.metric === 'shop');
     const hasPayrollBonus = emp.salesBonusEnabled && Boolean(emp.payrollBonusScheme);
     const packageCommissionAmount = isPackageEmployee ? emp.packageCommissionAmount : 0;
-    const rawBriefingBonus = monthlyBonus.briefingApplied ? Number(monthlyBonus.briefingAmount) || 0 : 0;
+    const rawBriefingBonus = monthlyBonus.briefingApplied ? roundMoney((Number(monthlyBonus.briefingAmount) || 0) * workedDayProrationRatio) : 0;
     const displayAttendanceBonus = Number(monthlyBonus.attendanceAmount) || 0;
     const attendanceBonusApplied = hasLateDays ? false : monthlyBonus.attendanceApplied;
-    const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
-    const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
+    const rawAttendanceBonus = attendanceBonusApplied ? roundMoney((Number(monthlyBonus.attendanceAmount) || 0) * workedDayProrationRatio) : 0;
+    const rawBookingBonus = monthlyBonus.bookingApplied ? roundMoney((Number(monthlyBonus.bookingAmount) || 0) * workedDayProrationRatio) : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
-      allowanceAmount: emp.allowanceAmount,
-      transportAllowance: emp.transportAllowance,
+      allowanceAmount: roundMoney(emp.allowanceAmount * workedDayProrationRatio),
+      transportAllowance: roundMoney(emp.transportAllowance * workedDayProrationRatio),
       briefingBonus: rawBriefingBonus,
       attendanceBonus: rawAttendanceBonus,
       bookingBonus: rawBookingBonus,
-      deductionAmount: attendanceNoPayDeduction,
+      deductionAmount: shouldProrateFixedCompensationByWorkedDays ? 0 : attendanceNoPayDeduction,
     });
     const calculatedBaseSalary = isDailyEmployee || isHourlyEmployee
       ? rawCalculatedBaseSalary
@@ -2241,7 +2251,9 @@ ${tablePreview}`;
         ? 'AL/SH 有日數但 rolling 365 平均佣金為 0，需確認是否真的沒有佣金歷史。'
         : null;
     const manualBonus = monthlyBonus.manualBonusApplied ? Number(monthlyBonus.manualBonusAmount) || 0 : 0;
-    const attendanceDeductionRemainder = attendanceRecord?.remainingDeductionAmount > 0
+    const attendanceDeductionRemainder = shouldProrateFixedCompensationByWorkedDays
+      ? 0
+      : attendanceRecord?.remainingDeductionAmount > 0
       ? roundMoney(attendanceRecord.remainingDeductionAmount)
       : scaledBasisCompensation.remainingDeduction;
     const manualDeductionApplied = monthlyBonus.manualDeductionApplied;
@@ -2316,7 +2328,12 @@ ${tablePreview}`;
     const displayedCommission = isPackageEmployee
       ? packageCommission + packageExcludedCommission + specialCommission
       : packageCommission + specialCommission;
-    const hasSecondaryPayout = Boolean(emp.payDaySecondary);
+    const alShAverageCommissionPayAfterPackage = isPackageEmployee
+      ? (packageCoveredCommission >= packageGuaranteeCommission
+        ? finalAlShAverageCommissionPay
+        : Math.max(0, packageCoveredCommission + finalAlShAverageCommissionPay - packageGuaranteeCommission))
+      : finalAlShAverageCommissionPay;
+    const hasSecondaryPayout = displayedCommission > 0 || commResult.totalBonus > 0 || shopBonus > 0 || alShAverageCommissionPayAfterPackage > 0 || (manualBonus > 0 && monthlyBonus.manualBonusPayout === 'month_end') || (manualDeduction > 0 && monthlyBonus.manualDeductionPayout === 'month_end') || Boolean(emp.payDaySecondary);
     const manualBonusGoesMonthEnd = hasSecondaryPayout && monthlyBonus.manualBonusPayout === 'month_end';
     const manualDeductionGoesMonthEnd = hasSecondaryPayout && monthlyBonus.manualDeductionPayout === 'month_end';
     const primaryManualBonus = manualBonusGoesMonthEnd ? 0 : manualBonus;
@@ -2328,11 +2345,6 @@ ${tablePreview}`;
     const monthEndManualBonusMpfRelevant = manualBonusCountsForMpf ? monthEndManualBonus : 0;
     const primaryManualDeductionMpfRelevant = monthlyBonus.manualDeductionMpfIncluded ? primaryManualDeduction : 0;
     const monthEndManualDeductionMpfRelevant = monthlyBonus.manualDeductionMpfIncluded ? monthEndManualDeduction : 0;
-    const alShAverageCommissionPayAfterPackage = isPackageEmployee
-      ? (packageCoveredCommission >= packageGuaranteeCommission
-        ? finalAlShAverageCommissionPay
-        : Math.max(0, packageCoveredCommission + finalAlShAverageCommissionPay - packageGuaranteeCommission))
-      : finalAlShAverageCommissionPay;
     const annualLeaveAverageCommissionPayAfterPackage = finalAlShAverageCommissionPay > 0
       ? roundMoney(alShAverageCommissionPayAfterPackage * (annualLeaveAverageCommissionPay / finalAlShAverageCommissionPay))
       : 0;
@@ -3616,7 +3628,7 @@ ${tablePreview}`;
                                   ) : row.packageCommissionAmount > 0 ? (
                                     <div className="mt-3 space-y-2 text-xs text-slate-500">
                                       <div>{t.commInput.packageNoPayAutoApplied}</div>
-                                      <div>{t.commInput.packageNoPaySystemDefault}: {row.packageNoPayHandling === 'no_package' ? t.commInput.packageNoPayNoPackage : t.commInput.packageNoPayProRate}</div>
+                                      <div>{t.commInput.packageNoPaySystemDefault}: {row.packageNoPayHandling === 'no_package' ? t.commInput.packageNoPayNoPackage : row.packageNoPayHandling === 'pro_rate' ? t.commInput.packageNoPayProRate : t.commInput.packageGuaranteedCommission}</div>
                                       <div>{t.commInput.packageNoPayProratedAmount}: {fmtDec(row.proratedPackageCommission)}</div>
                                       <div className="pt-1">{t.commInput.packageNoPayOverrideLabel}</div>
                                       <div className="flex flex-wrap gap-2">
