@@ -2321,7 +2321,7 @@ ${tablePreview}`;
         ? finalAlShAverageCommissionPay
         : Math.max(0, packageCoveredCommission + finalAlShAverageCommissionPay - packageGuaranteeCommission))
       : finalAlShAverageCommissionPay;
-    const hasSecondaryPayout = displayedCommission > 0 || commResult.totalBonus > 0 || shopBonus > 0 || alShAverageCommissionPayAfterPackage > 0 || (manualBonus > 0 && monthlyBonus.manualBonusPayout === 'month_end') || (manualDeduction > 0 && monthlyBonus.manualDeductionPayout === 'month_end') || Boolean(emp.payDaySecondary);
+    const hasSecondaryPayout = displayedCommission > 0 || commResult.totalBonus > 0 || shopBonus > 0 || alShAverageCommissionPayAfterPackage > 0 || (manualBonus > 0 && monthlyBonus.manualBonusPayout === 'month_end') || (manualDeduction > 0 && monthlyBonus.manualDeductionPayout === 'month_end');
     const manualBonusGoesMonthEnd = hasSecondaryPayout && monthlyBonus.manualBonusPayout === 'month_end';
     const manualDeductionGoesMonthEnd = hasSecondaryPayout && monthlyBonus.manualDeductionPayout === 'month_end';
     const primaryManualBonus = manualBonusGoesMonthEnd ? 0 : manualBonus;
