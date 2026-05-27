@@ -25,6 +25,7 @@ type PayrollProps = {
   attendanceMonth: string;
   payrollBonusConfig: PayrollBonusConfigCatalog;
   initialPayrollReviewAnswers?: Record<string, PayrollReviewReason>;
+  previousMpfDeductionModes?: Record<string, 'split' | 'month_end'>;
   rollingCommissionAverages?: Record<string, RollingCommissionAverageRecord>;
 };
 
@@ -1198,12 +1199,13 @@ function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, lateDa
 function createDefaultMonthlyMpfState(
   employee: PayrollEmployeeSummary,
   payrollReferenceDate: Date,
+  previousMpfDeductionModes: Record<string, 'split' | 'month_end'> = {},
 ): EmployeeMonthlyMpfState {
   const defaultApplicable = employee.mpfEnabled && isMpfStatutorilyEligible(employee.dateOfBirth, employee.hireDate, payrollReferenceDate);
 
   return {
     mpfEeApplied: defaultApplicable,
-    mpfEeDeductionMode: 'split',
+    mpfEeDeductionMode: previousMpfDeductionModes[employee.employeeCode] ?? 'split',
     mpfEeManualOverride: false,
     mpfEeAmount: '',
     mpfErApplied: defaultApplicable,
@@ -1247,6 +1249,7 @@ function buildInitialMonthlyMpfStates(
   employees: PayrollEmployeeSummary[],
   savedRecords: MonthlyCommissionRecord[],
   payrollReferenceDate: Date,
+  previousMpfDeductionModes: Record<string, 'split' | 'month_end'> = {},
 ): Record<string, EmployeeMonthlyMpfState> {
   const savedByCode = new Map(savedRecords.map((record) => [record.employeeCode, record]));
 
@@ -1256,7 +1259,7 @@ function buildInitialMonthlyMpfStates(
 
     return [employee.employeeCode, {
       mpfEeApplied: defaultApplicable ? (saved?.mpfEeApplied ?? true) : false,
-      mpfEeDeductionMode: saved?.mpfEeDeductionMode ?? 'split',
+      mpfEeDeductionMode: saved?.mpfEeDeductionMode ?? previousMpfDeductionModes[employee.employeeCode] ?? 'split',
       mpfEeManualOverride: defaultApplicable ? (saved?.mpfEeManualOverride ?? false) : false,
       mpfEeAmount: defaultApplicable && saved?.mpfEeManualOverride ? String(saved.mpfEeAmount) : '',
       mpfErApplied: defaultApplicable ? (saved?.mpfErApplied ?? true) : false,
@@ -1394,7 +1397,7 @@ function getPayrollBonusDisplayName(
   return labels.bonus1;
 }
 
-export default function Payroll({ employees = [], commissionTiers = [], savedRecords = [], attendanceRecords = {}, defaultPackageNoPayHandling, commissionAvg = {}, selectedMonth: initialMonth, payrollBonusConfig = createLegacyPayrollBonusConfigCatalog(), initialPayrollReviewAnswers = {}, rollingCommissionAverages = {} }: PayrollProps) {
+export default function Payroll({ employees = [], commissionTiers = [], savedRecords = [], attendanceRecords = {}, defaultPackageNoPayHandling, commissionAvg = {}, selectedMonth: initialMonth, payrollBonusConfig = createLegacyPayrollBonusConfigCatalog(), initialPayrollReviewAnswers = {}, previousMpfDeductionModes = {}, rollingCommissionAverages = {} }: PayrollProps) {
   const { lang } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
@@ -1501,7 +1504,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const [empVolumes, setEmpVolumes] = useState<Record<string, EmployeeVolumes>>(() => buildInitialVolumes(savedRecords));
   const [workUnits, setWorkUnits] = useState<Record<string, EmployeeWorkUnits>>(() => buildInitialWorkUnits(savedRecords, attendanceRecords));
   const [monthlyBonuses, setMonthlyBonuses] = useState<Record<string, EmployeeMonthlyBonusState>>(() => buildInitialMonthlyBonuses(employees, savedRecords, attendanceRecords));
-  const [monthlyMpfStates, setMonthlyMpfStates] = useState<Record<string, EmployeeMonthlyMpfState>>(() => buildInitialMonthlyMpfStates(employees, savedRecords, payrollReferenceDate));
+  const [monthlyMpfStates, setMonthlyMpfStates] = useState<Record<string, EmployeeMonthlyMpfState>>(() => buildInitialMonthlyMpfStates(employees, savedRecords, payrollReferenceDate, previousMpfDeductionModes));
   const [packageNoPayHandlingByCode, setPackageNoPayHandlingByCode] = useState<Record<string, EmployeePackageNoPayHandlingState>>(() => buildInitialPackageNoPayHandling(employees, savedRecords, defaultPackageNoPayHandling));
   const [liveEmployeeDefaults, setLiveEmployeeDefaults] = useState<Record<string, PayrollEmployeeSummary>>(() => Object.fromEntries(employees.map((employee) => [employee.employeeCode, employee])));
   const [resyncingCodes, setResyncingCodes] = useState<Record<string, boolean>>({});
@@ -1538,7 +1541,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
     setEmpVolumes(buildInitialVolumes(savedRecords));
     setWorkUnits(buildInitialWorkUnits(savedRecords, attendanceRecords));
     setMonthlyBonuses(buildInitialMonthlyBonuses(employees, savedRecords, attendanceRecords));
-    setMonthlyMpfStates(buildInitialMonthlyMpfStates(employees, savedRecords, payrollReferenceDate));
+    setMonthlyMpfStates(buildInitialMonthlyMpfStates(employees, savedRecords, payrollReferenceDate, previousMpfDeductionModes));
     setPackageNoPayHandlingByCode(buildInitialPackageNoPayHandling(employees, savedRecords, defaultPackageNoPayHandling));
     setLiveEmployeeDefaults(Object.fromEntries(employees.map((employee) => [employee.employeeCode, employee])));
     setResyncingCodes({});
@@ -1549,7 +1552,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
     latestEditVersionRef.current = 0;
     setSaveStatus('idle');
     setPayrollReviewAnswers({});
-  }, [attendanceRecords, defaultPackageNoPayHandling, employees, initialPayrollReviewAnswers, payrollReferenceDate, savedRecords]);
+  }, [attendanceRecords, defaultPackageNoPayHandling, employees, initialPayrollReviewAnswers, payrollReferenceDate, previousMpfDeductionModes, savedRecords]);
 
   useEffect(() => {
     return () => {
@@ -2041,7 +2044,7 @@ ${tablePreview}`;
     markDirty();
   };
   const getMonthlyMpfState = (code: string, employee: PayrollEmployeeSummary): EmployeeMonthlyMpfState => {
-    return monthlyMpfStates[code] ?? createDefaultMonthlyMpfState(employee, payrollReferenceDate);
+    return monthlyMpfStates[code] ?? createDefaultMonthlyMpfState(employee, payrollReferenceDate, previousMpfDeductionModes);
   };
   const setMonthlyMpfState = (code: string, employee: PayrollEmployeeSummary, patch: Partial<EmployeeMonthlyMpfState>) => {
     const canApplyMpf = employee.mpfEnabled && isMpfStatutorilyEligible(employee.dateOfBirth, employee.hireDate, payrollReferenceDate);
@@ -2098,7 +2101,7 @@ ${tablePreview}`;
     }));
     setMonthlyMpfStates((prev) => ({
       ...prev,
-      [employee.employeeCode]: createDefaultMonthlyMpfState(employee, payrollReferenceDate),
+      [employee.employeeCode]: createDefaultMonthlyMpfState(employee, payrollReferenceDate, previousMpfDeductionModes),
     }));
     setPackageNoPayHandlingByCode((prev) => ({
       ...prev,

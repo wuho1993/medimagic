@@ -1883,6 +1883,39 @@ export async function fetchMonthlyCommissionRecords(yearMonth: string): Promise<
   }));
 }
 
+export async function fetchLatestMpfDeductionModesBeforeMonth(yearMonth: string): Promise<Record<string, 'split' | 'month_end'>> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('monthly_commission_records')
+    .select('year_month, mpf_ee_deduction_mode, employees!inner(employee_code)')
+    .lt('year_month', yearMonth)
+    .not('mpf_ee_deduction_mode', 'is', null)
+    .order('year_month', { ascending: false });
+
+  if (error) {
+    if (!isMissingColumnError(error.message)) {
+      console.warn(`Failed to load previous MPF deduction modes before ${yearMonth}:`, error.message);
+    }
+    return {};
+  }
+
+  const modes: Record<string, 'split' | 'month_end'> = {};
+  for (const row of (data ?? []) as Array<{
+    year_month: string;
+    mpf_ee_deduction_mode: 'split' | 'month_end' | null;
+    employees: { employee_code: string } | { employee_code: string }[] | null;
+  }>) {
+    const employee = Array.isArray(row.employees) ? row.employees[0] : row.employees;
+    const employeeCode = employee?.employee_code;
+    if (!employeeCode || modes[employeeCode]) continue;
+    if (row.mpf_ee_deduction_mode === 'split' || row.mpf_ee_deduction_mode === 'month_end') {
+      modes[employeeCode] = row.mpf_ee_deduction_mode;
+    }
+  }
+
+  return modes;
+}
+
 /** Fetch 365-day average commission per employee */
 export async function fetchCommissionAverage365(): Promise<Record<string, number>> {
   const supabase = await createServerSupabaseClient();
