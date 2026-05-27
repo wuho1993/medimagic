@@ -1537,6 +1537,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const [resyncingCodes, setResyncingCodes] = useState<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [payrollSearch, setPayrollSearch] = useState('');
+  const [isPayrollSearchFocused, setIsPayrollSearchFocused] = useState(false);
   const [companyFilter, setCompanyFilter] = useState(ALL_FILTER_VALUE);
   const [branchFilter, setBranchFilter] = useState(ALL_FILTER_VALUE);
   const [typeFilter, setTypeFilter] = useState(ALL_FILTER_VALUE);
@@ -2619,6 +2620,18 @@ ${tablePreview}`;
       && (typeFilter === ALL_FILTER_VALUE || typeValue === typeFilter)
       && (statusFilter === ALL_FILTER_VALUE || row.employmentStatus === statusFilter);
   }), [rows, payrollSearch, companyFilter, branchFilter, typeFilter, statusFilter]);
+  const payrollSearchSuggestions = useMemo(() => {
+    const normalizedSearch = normalizePayrollSearchText(payrollSearch);
+    if (!normalizedSearch) return [];
+
+    return rows.filter((row) => {
+      const companyValue = row.companyNameZh || row.companyType;
+      const searchText = [row.employeeCode, row.nameZh, row.nameEn, row.alias, row.positionNameZh, row.branchName, companyValue]
+        .filter(Boolean)
+        .join(' ');
+      return normalizePayrollSearchText(searchText).includes(normalizedSearch);
+    }).slice(0, 8);
+  }, [rows, payrollSearch]);
   const visibleFilteredRows = useMemo(() => filteredRows.slice(0, payrollRenderLimit), [filteredRows, payrollRenderLimit]);
   const hasMorePayrollRows = visibleFilteredRows.length < filteredRows.length;
 
@@ -3508,9 +3521,48 @@ ${tablePreview}`;
               type="search"
               value={payrollSearch}
               onChange={(event) => setPayrollSearch(event.target.value)}
+              onFocus={() => setIsPayrollSearchFocused(true)}
+              onBlur={() => {
+                window.setTimeout(() => setIsPayrollSearchFocused(false), 120);
+              }}
               className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#D4AF37] focus:bg-white focus:ring-4 focus:ring-[#D4AF37]/10"
               placeholder="搜尋員工編號、姓名、別名或職位..."
             />
+            {isPayrollSearchFocused && payrollSearchSuggestions.length > 0 ? (
+              <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)]">
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                  <div className="text-sm font-semibold text-slate-700">搜尋建議</div>
+                  <span className="text-xs text-slate-400">選取後會篩選並展開員工</span>
+                </div>
+                <div className="max-h-80 overflow-y-auto p-2">
+                  {payrollSearchSuggestions.map((row) => (
+                    <button
+                      key={`${row.employeeCode}-payroll-search-suggestion`}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setPayrollSearch(row.employeeCode);
+                        setExpandedRows(new Set([row.employeeCode]));
+                        setIsPayrollSearchFocused(false);
+                      }}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-slate-50"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-slate-800">{row.alias || row.nameZh || row.nameEn || row.employeeCode}</div>
+                        <div className="truncate text-xs text-slate-500">
+                          {row.employeeCode}
+                          {row.nameZh ? ` • ${row.nameZh}` : ''}
+                          {row.nameEn ? ` • ${row.nameEn}` : ''}
+                          {row.positionNameZh ? ` • ${row.positionNameZh}` : ''}
+                          {row.branchName ? ` • ${row.branchName}` : ''}
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-[#B8871A]">選取</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <select value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)} className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/10">
