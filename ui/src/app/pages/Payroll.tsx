@@ -1046,6 +1046,29 @@ function getAttendanceNoPayDays(record?: PayrollAttendanceRecord) {
   return record.noPayDays;
 }
 
+function getAttendanceAccruedPaidDays(record?: PayrollAttendanceRecord) {
+  if (!record) return 0;
+
+  return [
+    record.workedDays,
+    record.offDays,
+    record.statutoryHolidayDays,
+    record.birthdayLeaveDays,
+    record.tb8Days,
+    record.sickLeaveDays,
+    record.maternityLeaveDays,
+    record.rewardLeaveDays,
+    record.annualLeaveDays,
+    record.compassionateLeaveDays,
+  ].reduce((sum, value) => sum + Math.max(Number(value) || 0, 0), 0);
+}
+
+function getAttendanceAccruedExcessDays(record?: PayrollAttendanceRecord) {
+  if (!record || record.calendarDays <= 0) return 0;
+
+  return roundMoney(Math.max(0, getAttendanceAccruedPaidDays(record) - record.calendarDays));
+}
+
 function calculateProratedPackageCommission(packageCommissionAmount: number, record?: PayrollAttendanceRecord) {
   if (!record || record.calendarDays <= 0 || packageCommissionAmount <= 0) {
     return packageCommissionAmount;
@@ -2240,6 +2263,7 @@ ${tablePreview}`;
     const hasWorkedDays = attendanceDrivenWorkedDays || unitInput.workedDays !== '';
     const hasWorkedHours = unitInput.workedHours !== '';
     const attendanceNoPayDays = getAttendanceNoPayDays(attendanceRecord);
+    const attendanceAccruedExcessDays = getAttendanceAccruedExcessDays(attendanceRecord);
     const attendanceNoPayDeduction = calculateAttendanceNoPayDeduction(emp, attendanceRecord);
     const alShDays = (attendanceRecord?.annualLeaveDays ?? 0) + (attendanceRecord?.statutoryHolidayDays ?? 0);
     const rollingAverage = rollingCommissionAverages[emp.employeeCode];
@@ -2264,8 +2288,9 @@ ${tablePreview}`;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
     const officeJobDefaultAmount = Number(monthlyBonus.officeJobAmount) || emp.officeJobAmount || 0;
     const rawOfficeJobAmount = monthlyBonus.officeJobApplied ? officeJobDefaultAmount : 0;
-    const attendanceDeductionRatio = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0 && attendanceNoPayDays > 0
-      ? attendanceNoPayDays / attendanceRecord.calendarDays
+    const attendanceRatioDeductionDays = attendanceNoPayDays + attendanceAccruedExcessDays;
+    const attendanceDeductionRatio = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0 && attendanceRatioDeductionDays > 0
+      ? attendanceRatioDeductionDays / attendanceRecord.calendarDays
       : 0;
     const scaledBasisCompensation = scaleBasisCompensationForNoPay({
       baseSalary: isDailyEmployee || isHourlyEmployee ? 0 : rawCalculatedBaseSalary,
@@ -2456,6 +2481,7 @@ ${tablePreview}`;
       hasLateDays,
       lateDays: attendanceRecord?.lateDays ?? 0,
       attendanceNoPayDays,
+      attendanceAccruedExcessDays,
       annualLeaveDays: attendanceRecord?.annualLeaveDays ?? 0,
       statutoryHolidayDays: attendanceRecord?.statutoryHolidayDays ?? 0,
       alShDays,
