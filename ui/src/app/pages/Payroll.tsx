@@ -999,8 +999,8 @@ function buildInitialMonthlyBonuses(
         : employee.bookingBonus > 0
           ? String(employee.bookingBonus)
           : '',
-      officeJobApplied: saved?.officeJobApplied ?? employee.officeJobAmount > 0,
-      officeJobAmount: saved?.officeJobApplied
+      officeJobApplied: employee.officeJobAmount > 0 || (saved?.officeJobApplied ?? false),
+      officeJobAmount: saved?.officeJobApplied && saved.officeJobAmount > 0
         ? String(saved.officeJobAmount)
         : employee.officeJobAmount > 0
           ? String(employee.officeJobAmount)
@@ -1125,15 +1125,25 @@ function calculateAttendanceNoPayDeduction(employee: PayrollEmployeeSummary, rec
     return 0;
   }
 
-  if (record.attendanceDeductionAmount > 0) {
-    return roundMoney(record.attendanceDeductionAmount);
-  }
-
   if (record.noPayDays <= 0) {
     return 0;
   }
 
-  return 0;
+  const calendarDays = record.calendarDays > 0 ? record.calendarDays : 0;
+  if (calendarDays <= 0) {
+    return roundMoney(record.attendanceDeductionAmount);
+  }
+
+  const deductionBase =
+    employee.baseSalary +
+    employee.allowanceAmount +
+    employee.transportAllowance +
+    employee.briefingBonus +
+    employee.attendanceBonusAmount +
+    employee.bookingBonus +
+    employee.officeJobAmount;
+
+  return roundMoney((deductionBase / calendarDays) * record.noPayDays);
 }
 
 function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, lateDays = 0): EmployeeMonthlyBonusState {
@@ -3896,11 +3906,11 @@ ${tablePreview}`;
                                 </label>
                               </div>
                               ) : null}
-                              {(row.officeJobDefaultAmount > 0 || monthlyBonus.officeJobApplied || Number(monthlyBonus.officeJobAmount) > 0) ? (
+                              {(row.officeJobDefaultAmount > 0 || row.officeJobAmount > 0 || monthlyBonus.officeJobApplied || Number(monthlyBonus.officeJobAmount) > 0) ? (
                               <div className="grid gap-2 border-t border-slate-100 py-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-center">
                                 <div>
                                   <div className="text-sm font-medium text-slate-700">{t.commInput.officeJob}</div>
-                                  <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(row.officeJobDefaultAmount)}</div>
+                                  <div className="text-xs text-slate-500">{t.commInput.defaultAmount}: {fmt(row.officeJobAmount)}</div>
                                 </div>
                                 <label className={`${toggleRowClasses} justify-start md:justify-end`}>
                                   <input
