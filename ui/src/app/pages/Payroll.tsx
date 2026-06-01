@@ -2,7 +2,6 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type KeyboardEvent, type WheelEvent } from 'react';
 import { Calculator, CalendarDays, ChevronDown, ChevronUp, CreditCard, Download, Search, TrendingUp, X } from 'lucide-react';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import YearMonthPicker from '../components/YearMonthPicker';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -2197,6 +2196,11 @@ ${tablePreview}`;
     window.location.assign(`${basePath}/app/payroll/${query ? `?${query}` : ''}`);
   };
 
+  const navigateEmployeeProfile = (employeeCode: string) => {
+    const basePath = window.location.pathname.startsWith('/medimagic') ? '/medimagic' : '';
+    window.location.assign(`${basePath}/app/people?id=${encodeURIComponent(employeeCode)}`);
+  };
+
   const handleImportMonthChange = (value: string) => {
     setImportMonth(value);
     handleMonthChange(value);
@@ -3689,7 +3693,7 @@ ${tablePreview}`;
                         </button>
                       </td>
                       <td className="px-3 py-3">
-                        <Link href={`/app/people?id=${row.employeeCode}`} className="font-medium text-[#D4AF37] hover:underline">{row.employeeCode}</Link>
+                        <button type="button" onClick={() => navigateEmployeeProfile(row.employeeCode)} className="font-medium text-[#D4AF37] hover:underline">{row.employeeCode}</button>
                       </td>
                       <td className="px-3 py-3 font-medium text-slate-900">{row.alias || row.nameZh}</td>
                       <td className="px-3 py-3 text-slate-600">{row.branchName ?? '—'}</td>
