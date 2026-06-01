@@ -65,7 +65,7 @@ export function calculateStreetPromoterCommission(headcount: number): number {
     return 7000;
   }
 
-  if (headcount >= 51 && headcount <= 60) {
+  if (headcount >= 51) {
     return 9000;
   }
 
