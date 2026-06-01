@@ -578,6 +578,7 @@ const translations = {
       applyThisMonth: '當月發放',
       defaultAmount: '預設金額',
       attendanceLateDisabledNote: '因為本月有遲到、病假或無薪假',
+      attendanceLateConfirm: '本月有遲到、病假或無薪假，系統預設不發放出勤獎金。是否確認仍然發放？',
       briefingBonus: 'Briefing 獎金',
       attendanceBonus: '出勤獎金',
       bookingBonus: 'Booking 獎金',
@@ -735,6 +736,7 @@ const translations = {
       applyThisMonth: '当月发放',
       defaultAmount: '预设金额',
       attendanceLateDisabledNote: '因为本月有迟到、病假或无薪假',
+      attendanceLateConfirm: '本月有迟到、病假或无薪假，系统预设不发放出勤奖金。是否确认仍然发放？',
       briefingBonus: 'Briefing 奖金',
       attendanceBonus: '出勤奖金',
       bookingBonus: 'Booking 奖金',
@@ -892,6 +894,7 @@ const translations = {
       applyThisMonth: 'Apply This Month',
       defaultAmount: 'Default Amount',
       attendanceLateDisabledNote: 'Disabled because this month has late minutes, sick leave, or no-pay leave',
+      attendanceLateConfirm: 'This month has late minutes, sick leave, or no-pay leave, so attendance bonus is off by default. Confirm paying it anyway?',
       briefingBonus: 'Briefing Bonus',
       attendanceBonus: 'Attendance Bonus',
       bookingBonus: 'Booking Bonus',
@@ -2366,7 +2369,7 @@ ${tablePreview}`;
     const packageCommissionAmount = isPackageEmployee ? emp.packageCommissionAmount : 0;
     const rawBriefingBonus = monthlyBonus.briefingApplied ? Number(monthlyBonus.briefingAmount) || 0 : 0;
     const displayAttendanceBonus = Number(monthlyBonus.attendanceAmount) || 0;
-    const attendanceBonusApplied = hasAttendanceBonusDeduction ? false : monthlyBonus.attendanceApplied;
+    const attendanceBonusApplied = monthlyBonus.attendanceApplied;
     const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
     const officeJobDefaultAmount = Number(monthlyBonus.officeJobAmount) || emp.officeJobAmount || 0;
@@ -4088,19 +4091,17 @@ ${tablePreview}`;
                                 <label className={`${toggleRowClasses} justify-start md:justify-end`}>
                                   <input
                                     type="checkbox"
-                                    checked={row.hasLateDays ? false : monthlyBonus.attendanceApplied}
+                                    checked={monthlyBonus.attendanceApplied}
                                     onChange={(e) => {
-                                      if (row.hasLateDays) {
-                                        setMonthlyBonus(row.employeeCode, row, 'attendanceApplied', false);
+                                      const nextApplied = e.target.checked;
+                                      if (nextApplied && row.hasLateDays && !window.confirm(t.commInput.attendanceLateConfirm)) {
                                         return;
                                       }
-                                      const nextApplied = e.target.checked;
                                       setMonthlyBonus(row.employeeCode, row, 'attendanceApplied', nextApplied);
                                       if (nextApplied && !monthlyBonus.attendanceAmount) {
                                         setMonthlyBonus(row.employeeCode, row, 'attendanceAmount', row.rawAttendanceBonus > 0 ? String(row.rawAttendanceBonus) : '0');
                                       }
                                     }}
-                                    disabled={row.hasLateDays}
                                     className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]"
                                   />
                                   <span>{t.commInput.applyThisMonth}</span>
