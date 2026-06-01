@@ -18,6 +18,13 @@ function isMissingColumnError(message: string | null | undefined) {
   );
 }
 
+function normalizeSingleRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+  return value ?? null;
+}
+
 function getCalendarDaysForYearMonth(yearMonth: string) {
   const [year, month] = yearMonth.split('-').map(Number);
   if (!year || !month) return 30;
@@ -81,6 +88,44 @@ type LatestPayrollEmployeeDefaults = Partial<PayrollEmployeeSummary> & {
   employeeCode: string;
   streetPromoterEnabled?: boolean;
   telesalesEnabled?: boolean;
+};
+
+type PayrollSalaryProfileRow = {
+  salary_type: PayrollEmployeeSummary['salaryType'];
+  base_salary: number | string | null;
+  package_commission_amount: number | string | null;
+  allowance_amount: number | string | null;
+  attendance_bonus_amount: number | string | null;
+  transport_allowance: number | string | null;
+  briefing_bonus: number | string | null;
+  booking_bonus: number | string | null;
+  office_job_amount: number | string | null;
+  mpf_enabled: boolean | null;
+  pay_day_primary: number | null;
+  pay_day_secondary: number | null;
+  commission_method: string | null;
+  commission_custom_name: string | null;
+  commission_custom_tiers: unknown | null;
+  commission_rules: unknown | null;
+  commission_redeem_rate: number | string | null;
+  commission_sales_rate: number | string | null;
+  commission_sgm_rate: number | string | null;
+  sales_amount_rate_percent: number | string | null;
+  sales_bonus_enabled: boolean | null;
+  sales_bonus_rate: number | string | null;
+  sales_bonus_custom_name: string | null;
+  sales_bonus_custom_tiers: unknown | null;
+  redeem_bonus_enabled: boolean | null;
+  redeem_bonus_custom_name: string | null;
+  redeem_bonus_custom_tiers: unknown | null;
+  payroll_bonus_enabled: boolean | null;
+  payroll_bonus_scheme: PayrollBonusScheme | null;
+  street_promoter_enabled: boolean | null;
+  telesales_enabled: boolean | null;
+  shop_bonus_enabled: boolean | null;
+  shop_bonus_custom_name: string | null;
+  shop_bonus_custom_tiers: unknown | null;
+  shop_bonus_scheme: ShopBonusScheme | null;
 };
 
 export type PayrollReviewEntry = {
@@ -184,46 +229,10 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
     date_of_birth: string | null;
     position: { code: string | null; name_zh: string | null } | { code: string | null; name_zh: string | null }[] | null;
     branch: { name_zh: string | null } | { name_zh: string | null }[] | null;
-    employee_salary_profiles: {
-      salary_type: PayrollEmployeeSummary['salaryType'];
-      base_salary: number | string | null;
-      package_commission_amount: number | string | null;
-      allowance_amount: number | string | null;
-      attendance_bonus_amount: number | string | null;
-      transport_allowance: number | string | null;
-      briefing_bonus: number | string | null;
-      booking_bonus: number | string | null;
-      office_job_amount: number | string | null;
-      mpf_enabled: boolean | null;
-      pay_day_primary: number | null;
-      pay_day_secondary: number | null;
-      commission_method: string | null;
-      commission_custom_name: string | null;
-      commission_custom_tiers: unknown | null;
-      commission_rules: unknown | null;
-      commission_redeem_rate: number | string | null;
-      commission_sales_rate: number | string | null;
-      commission_sgm_rate: number | string | null;
-      sales_amount_rate_percent: number | string | null;
-      sales_bonus_enabled: boolean | null;
-      sales_bonus_rate: number | string | null;
-      sales_bonus_custom_name: string | null;
-      sales_bonus_custom_tiers: unknown | null;
-      redeem_bonus_enabled: boolean | null;
-      redeem_bonus_custom_name: string | null;
-      redeem_bonus_custom_tiers: unknown | null;
-      payroll_bonus_enabled: boolean | null;
-      payroll_bonus_scheme: PayrollBonusScheme | null;
-      street_promoter_enabled: boolean | null;
-      telesales_enabled: boolean | null;
-      shop_bonus_enabled: boolean | null;
-      shop_bonus_custom_name: string | null;
-      shop_bonus_custom_tiers: unknown | null;
-      shop_bonus_scheme: ShopBonusScheme | null;
-    } | null;
+    employee_salary_profiles: PayrollSalaryProfileRow | PayrollSalaryProfileRow[] | null;
   };
 
-  const profile = row.employee_salary_profiles;
+  const profile = normalizeSingleRelation(row.employee_salary_profiles);
   const commissionRedeemRate = profile?.commission_redeem_rate ? Number(profile.commission_redeem_rate) : null;
   const commissionSalesRate = profile?.commission_sales_rate ? Number(profile.commission_sales_rate) : null;
   const commissionSgmRate = profile?.commission_sgm_rate ? Number(profile.commission_sgm_rate) : null;
