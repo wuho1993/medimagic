@@ -1456,9 +1456,10 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   }, [payrollBonusConfig]);
 
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
-  const salaryMonth = selectedMonth;
+  const salaryMonth = initialMonth;
   const isHistoricalPayrollMonth = salaryMonth < '2026-04';
   const [isPending, startTransition] = useTransition();
+  const isSwitchingMonth = selectedMonth !== initialMonth || isPending;
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [mpfExportStatus, setMpfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
@@ -1800,7 +1801,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
       return;
     }
 
-    if (isPending) {
+    if (isSwitchingMonth) {
       const message = lang === 'zh-CN' ? '正在切换月份，请稍后再匯入。' : lang === 'en' ? 'Changing month. Please import after the month finishes loading.' : '正在切換月份，請等載入完成後再匯入。';
       setImportStatus('error');
       setImportMessage(message);
@@ -2249,7 +2250,7 @@ ${tablePreview}`;
   const displayedMonth = salaryMonth;
 
   const openAverageWagesPage = () => {
-    router.push(`/app/payroll/average-wages?month=${encodeURIComponent(selectedMonth)}`);
+    router.push(`/app/payroll/average-wages?month=${encodeURIComponent(salaryMonth)}`);
   };
 
   const rows = useMemo(() => employees.map((sourceEmployee) => {
@@ -3493,15 +3494,20 @@ ${tablePreview}`;
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 auto-rows-fr md:grid-cols-4">
-          <YearMonthPicker
-            value={displayedMonth}
-            onChange={handleMonthChange}
-            label={t.month}
-            lang={lang}
-            className="h-full"
-          />
+            <YearMonthPicker
+              value={displayedMonth}
+              onChange={handleMonthChange}
+              label={t.month}
+              lang={lang}
+              className="h-full"
+            />
+            {isSwitchingMonth ? (
+              <div className="md:col-span-4 -mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
+                正在切換到 {selectedMonth}，目前仍顯示 {salaryMonth}。新月份資料載入完成後會自動更新，系統不會用舊月份資料計新月份 Payroll。
+              </div>
+            ) : null}
 
-          <div className={metricCardClasses}>
+            <div className={metricCardClasses}>
             <div className="flex h-full flex-col justify-center gap-1">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.employees}</div>
               <div className="text-3xl font-bold tracking-tight text-slate-900">{rows.length}</div>
