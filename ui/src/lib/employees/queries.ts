@@ -1629,17 +1629,11 @@ export async function fetchCommissionAverageAuditRecords(user: AppShellUser, sel
 }
 
 export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMonth: string, supabaseClient?: QuerySupabaseClient): Promise<Record<string, PayrollAttendanceRecord>> {
-  const employees = (await fetchPayrollSummary(user, supabaseClient)).map((employee) => employee.employeeCode);
-  if (employees.length === 0) {
-    return {};
-  }
-
   const supabase = supabaseClient ?? await createServerSupabaseClient();
   const { data, error } = await supabase
     .from('payroll_attendance_records')
     .select('employee_code, year_month, calendar_days, worked_days, off_days, statutory_holiday_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, attendance_deduction_amount, remaining_deduction_amount, prorated_package_commission, actual_commission_amount, effective_commission_amount, package_no_pay_handling, package_no_pay_selection_required')
-    .eq('year_month', yearMonth)
-    .in('employee_code', employees);
+    .eq('year_month', yearMonth);
 
   if (error) {
     if (!isMissingColumnError(error.message)) {
@@ -1652,8 +1646,7 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
   const attendanceHoursResult = await supabase
     .from('monthly_attendance_records')
     .select('worked_hours, employees!inner(employee_code)')
-    .eq('year_month', yearMonth)
-    .in('employees.employee_code', employees);
+    .eq('year_month', yearMonth);
 
   if (!attendanceHoursResult.error) {
     workedHoursByCode = Object.fromEntries(((attendanceHoursResult.data ?? []) as Array<{
