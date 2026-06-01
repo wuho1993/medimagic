@@ -133,7 +133,9 @@ const translations = {
     save: '儲存',
     saving: '儲存中...',
     saved: '已儲存',
-    totalMismatch: '總日數必須等於計薪日數',
+    totalMismatch: '提醒：總日數與計薪日數不一致',
+    totalMismatchConfirm: '總日數與計薪日數不一致。系統不會阻止儲存；如 AL / SH 等有多出日數，Payroll 會照按平均日數工資另外加上。是否確認儲存？',
+    totalMismatchBulkConfirm: '有 {count} 位員工總日數與計薪日數不一致。系統不會阻止儲存；如 AL / SH 等有多出日數，Payroll 會照按平均日數工資另外加上。是否確認全部儲存？',
     salaryTypeLabel: '計薪方式',
     salaryTypeNames: {
       monthly: '月薪',
@@ -214,7 +216,9 @@ const translations = {
     save: '保存',
     saving: '保存中...',
     saved: '已保存',
-    totalMismatch: '总日数必须等于计薪日数',
+    totalMismatch: '提醒：总日数与计薪日数不一致',
+    totalMismatchConfirm: '总日数与计薪日数不一致。系统不会阻止保存；如 AL / SH 等有多出日数，Payroll 会照按平均日数工资另外加上。是否确认保存？',
+    totalMismatchBulkConfirm: '有 {count} 位员工总日数与计薪日数不一致。系统不会阻止保存；如 AL / SH 等有多出日数，Payroll 会照按平均日数工资另外加上。是否确认全部保存？',
     salaryTypeLabel: '计薪方式',
     salaryTypeNames: {
       monthly: '月薪',
@@ -295,7 +299,9 @@ const translations = {
     save: 'Save',
     saving: 'Saving...',
     saved: 'Saved',
-    totalMismatch: 'Total days must match calendar days',
+    totalMismatch: 'Warning: total days do not match calendar days',
+    totalMismatchConfirm: 'Total days do not match calendar days. Saving is still allowed; extra AL / SH days will still be added in Payroll using average daily wages. Confirm save?',
+    totalMismatchBulkConfirm: '{count} employees have total days that do not match calendar days. Saving is still allowed; extra AL / SH days will still be added in Payroll using average daily wages. Confirm saving all?',
     salaryTypeLabel: 'Salary Type',
     salaryTypeNames: {
       monthly: 'Monthly',
@@ -547,6 +553,13 @@ function calculateDraftTotal(draft: AttendanceDraftRow) {
 function getEffectiveCalendarDays(row: CombinedAttendanceRow, draft: AttendanceDraftRow) {
   if (row.salaryType === 'hourly') return 0;
   return draft.calendarDays;
+}
+
+function hasAttendanceTotalMismatch(row: CombinedAttendanceRow, draft: AttendanceDraftRow) {
+  if (row.salaryType === 'hourly') return false;
+  const totalDays = Number(calculateDraftTotal(draft).toFixed(2));
+  const effectiveCalendarDays = getEffectiveCalendarDays(row, draft);
+  return Math.abs(totalDays - effectiveCalendarDays) > 0.001;
 }
 
 function formatCurrency(value: number, locale: string) {
@@ -860,8 +873,11 @@ export default function AttendanceManagement({ overview, focusMode = false, init
     window.open(`/medimagic/app/attendance/focus?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
 
-  const handleSaveRow = async (row: CombinedAttendanceRow) => {
+  const handleSaveRow = async (row: CombinedAttendanceRow, options: { skipMismatchConfirm?: boolean } = {}) => {
     const draft = drafts[row.employee.id] ?? createDraftRow(row, selectedMonthDays, selectedMonth, historyMap);
+    if (!options.skipMismatchConfirm && hasAttendanceTotalMismatch(row, draft) && !window.confirm(t.totalMismatchConfirm)) {
+      return false;
+    }
     const prevMonthRemainingHours = parseSignedDraftNumber(draft.prevMonthRemainingHours);
     const makeupHours = normalizeMakeupHours(parseSignedDraftNumber(draft.makeupHours));
     const overtimeHours = parseSignedDraftNumber(draft.overtimeHours);
@@ -1048,9 +1064,16 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   const handleSaveAll = async () => {
     const rowsToSave = allRows.filter(row => dirtyRows.has(row.employee.id));
     if (rowsToSave.length === 0) return;
+    const mismatchCount = rowsToSave.filter((row) => {
+      const draft = drafts[row.employee.id] ?? createDraftRow(row, selectedMonthDays, selectedMonth, historyMap);
+      return hasAttendanceTotalMismatch(row, draft);
+    }).length;
+    if (mismatchCount > 0 && !window.confirm(t.totalMismatchBulkConfirm.replace('{count}', String(mismatchCount)))) {
+      return;
+    }
 
     setSaveAllStatus('saving');
-    const results = await Promise.all(rowsToSave.map(row => handleSaveRow(row)));
+    const results = await Promise.all(rowsToSave.map(row => handleSaveRow(row, { skipMismatchConfirm: true })));
     setSaveAllStatus(results.every(Boolean) ? 'saved' : 'error');
     setTimeout(() => setSaveAllStatus('idle'), 3000);
   };
