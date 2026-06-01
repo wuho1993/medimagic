@@ -2170,7 +2170,6 @@ ${tablePreview}`;
   };
 
   const handleMonthChange = (value: string) => {
-    setSelectedMonth(value);
     startTransition(() => {
       const params = new URLSearchParams(searchParams?.toString() ?? '');
       if (value) {
@@ -2185,7 +2184,6 @@ ${tablePreview}`;
   };
 
   const handleImportMonthChange = (value: string) => {
-    setImportMonth(value);
     handleMonthChange(value);
   };
 

@@ -26,9 +26,12 @@ export default function PeoplePage() {
   // Load employee list
   useEffect(() => {
     if (!user || employeeId) return;
+    let cancelled = false;
+    setListData(null);
     Promise.all([fetchEmployeeDirectory(user), fetchEmployeeDirectoryOptions(user)])
-      .then(([e, o]) => setListData({ employees: e, ...o }))
-      .catch(console.error);
+      .then(([e, o]) => { if (!cancelled) setListData({ employees: e, ...o }); })
+      .catch((error) => { if (!cancelled) console.error(error); });
+    return () => { cancelled = true; };
   }, [user, employeeId]);
 
   // Load single employee profile when ?id= is present
@@ -37,6 +40,7 @@ export default function PeoplePage() {
     let cancelled = false;
     setProfileData(null);
     setNotFound(false);
+    setListData(null);
     Promise.all([
       fetchEmployeeDetailByCode(employeeId, user),
       fetchEmployeeDirectoryOptions(user),

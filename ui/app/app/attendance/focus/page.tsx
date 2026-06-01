@@ -15,9 +15,13 @@ export default function AttendanceFocusPage() {
   const scale = Number(searchParams.get('scale'));
 
   useEffect(() => {
-    if (user) {
-      fetchAttendanceManagementOverview(user).then(setOverview).catch(console.error);
-    }
+    if (!user) return;
+    let active = true;
+    setOverview(null);
+    fetchAttendanceManagementOverview(user)
+      .then((nextOverview) => { if (active) setOverview(nextOverview); })
+      .catch((error) => { if (active) console.error(error); });
+    return () => { active = false; };
   }, [user]);
 
   if (!user || !overview) {

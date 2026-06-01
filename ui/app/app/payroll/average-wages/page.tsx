@@ -42,6 +42,7 @@ export default function AverageWagesPage() {
   const requestedMonth = searchParams?.get('month') ?? undefined;
   const selectedMonth = requestedMonth && /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : currentYearMonth();
   const [records, setRecords] = useState<CommissionAverageAuditRecord[]>([]);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -53,6 +54,8 @@ export default function AverageWagesPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setRecords([]);
+    setLoadedMonth(null);
     createBrowserSupabaseClient().auth.getSession()
       .then(({ data }) => fetch(`/medimagic/api/payroll/average-wages?month=${encodeURIComponent(selectedMonth)}`, {
         headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : undefined,
@@ -63,7 +66,10 @@ export default function AverageWagesPage() {
         return payload?.records ?? [];
       })
       .then((rows) => {
-        if (!cancelled) setRecords(rows);
+        if (!cancelled) {
+          setRecords(rows);
+          setLoadedMonth(selectedMonth);
+        }
       })
       .catch((err) => {
         console.error(err);
@@ -75,9 +81,11 @@ export default function AverageWagesPage() {
     return () => { cancelled = true; };
   }, [selectedMonth, user]);
 
+  const activeRecords = loadedMonth === selectedMonth ? records : [];
+
   const filteredRecords = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return records.filter((record) => {
+    return activeRecords.filter((record) => {
       if (sourceFilter !== 'all' && record.source !== sourceFilter) return false;
       if (onlyWithAlSh && record.alShDays <= 0) return false;
       if (!normalizedQuery) return true;
@@ -85,14 +93,14 @@ export default function AverageWagesPage() {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalizedQuery));
     });
-  }, [onlyWithAlSh, query, records, sourceFilter]);
+  }, [activeRecords, onlyWithAlSh, query, sourceFilter]);
 
-  const totals = useMemo(() => records.reduce((acc, record) => ({
+  const totals = useMemo(() => activeRecords.reduce((acc, record) => ({
     totalEmployees: acc.totalEmployees + 1,
     sourcedEmployees: acc.sourcedEmployees + (record.source === 'none' ? 0 : 1),
     alShEmployees: acc.alShEmployees + (record.alShDays > 0 ? 1 : 0),
     alShPay: acc.alShPay + record.finalAlShAverageCommissionPay,
-  }), { totalEmployees: 0, sourcedEmployees: 0, alShEmployees: 0, alShPay: 0 }), [records]);
+  }), { totalEmployees: 0, sourcedEmployees: 0, alShEmployees: 0, alShPay: 0 }), [activeRecords]);
 
   const handleMonthChange = (value: string) => {
     const params = new URLSearchParams(searchParams?.toString());
