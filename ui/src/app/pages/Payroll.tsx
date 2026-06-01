@@ -2171,17 +2171,16 @@ ${tablePreview}`;
   };
 
   const handleMonthChange = (value: string) => {
-    startTransition(() => {
-      const params = new URLSearchParams(searchParams?.toString() ?? '');
-      if (value) {
-        params.set('month', value);
-      } else {
-        params.delete('month');
-      }
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    if (value) {
+      params.set('month', value);
+    } else {
+      params.delete('month');
+    }
 
-      const href = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-      router.replace(href, { scroll: false });
-    });
+    const query = params.toString();
+    const basePath = window.location.pathname.startsWith('/medimagic') ? '/medimagic' : '';
+    window.location.assign(`${basePath}/app/payroll/${query ? `?${query}` : ''}`);
   };
 
   const handleImportMonthChange = (value: string) => {
@@ -3507,17 +3506,17 @@ ${tablePreview}`;
               {t.aiImportTitle}
             </button>
 
-            <Link href={`/app/payroll/average-wages?month=${encodeURIComponent(salaryMonth)}`} className={`${toolbarButtonClasses} whitespace-nowrap bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800`}>
+            <a href={`/medimagic/app/payroll/average-wages?month=${encodeURIComponent(salaryMonth)}`} className={`${toolbarButtonClasses} whitespace-nowrap bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800`}>
               <Calculator className="h-4 w-4" />
               {t.avg365}
-            </Link>
+            </a>
 
-            <button type="button" onClick={openPayslipModal} disabled={exportStatus === 'exporting' || isPayrollActionBlocked} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${exportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
+            <button type="button" onClick={openPayslipModal} disabled={exportStatus === 'exporting'} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${exportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
               <Download className="h-4 w-4" />
               {exportStatus === 'exporting' ? t.exportingPayslip : exportStatus === 'error' ? t.exportPayslipFail : t.exportPayslip}
             </button>
 
-            <button type="button" onClick={handleExportMpfBatch} disabled={mpfExportStatus === 'exporting' || isPayrollActionBlocked} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : mpfExportStatus === 'error' ? t.exportMpfNoData : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${mpfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
+            <button type="button" onClick={handleExportMpfBatch} disabled={mpfExportStatus === 'exporting'} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : mpfExportStatus === 'error' ? t.exportMpfNoData : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${mpfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
               <Download className="h-4 w-4" />
               {mpfExportStatus === 'exporting' ? t.exportingPayslip : mpfExportStatus === 'error' ? t.exportMpfNoData : t.exportMpf}
             </button>

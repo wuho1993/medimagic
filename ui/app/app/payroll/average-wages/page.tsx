@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, CalendarDays, Search, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/src/lib/hooks/useAuth';
 import { createBrowserSupabaseClient } from '@/src/lib/supabase/client';
-import type { CommissionAverageAuditRecord } from '@/src/lib/employees/queries';
+import { fetchCommissionAverageAuditRecords, type CommissionAverageAuditRecord } from '@/src/lib/employees/queries';
 
 function currentYearMonth() {
   const now = new Date();
@@ -56,15 +56,7 @@ export default function AverageWagesPage() {
     setError(null);
     setRecords([]);
     setLoadedMonth(null);
-    createBrowserSupabaseClient().auth.getSession()
-      .then(({ data }) => fetch(`/medimagic/api/payroll/average-wages?month=${encodeURIComponent(selectedMonth)}`, {
-        headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : undefined,
-      }))
-      .then(async (response) => {
-        const payload = await response.json().catch(() => null) as { records?: CommissionAverageAuditRecord[]; error?: string } | null;
-        if (!response.ok) throw new Error(payload?.error ?? 'Failed to load average wages.');
-        return payload?.records ?? [];
-      })
+    fetchCommissionAverageAuditRecords(user, selectedMonth, createBrowserSupabaseClient())
       .then((rows) => {
         if (!cancelled) {
           setRecords(rows);
