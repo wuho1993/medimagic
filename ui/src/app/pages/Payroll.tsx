@@ -462,6 +462,9 @@ type PayslipPdfEntry = {
   statutoryHolidayAverageCommissionPay: number;
   rawAnnualLeaveAverageCommissionPay: number;
   rawStatutoryHolidayAverageCommissionPay: number;
+  attendanceExtraBasePayDays: number;
+  attendanceExtraBasePay: number;
+  attendanceExtraBaseDailyRate: number;
   fixedDailyWage: number;
   legalDailyAverageWage: number;
   legalMinimumAlShTopUp: number;
@@ -583,6 +586,7 @@ const translations = {
       attendanceBonus: '出勤獎金',
       bookingBonus: 'Booking 獎金',
       officeJob: 'Job (Office)',
+      attendanceExtraBasePay: '超額有薪日底薪',
       manualBonus: '手動增加金額',
       manualDeduction: '手動扣減金額',
       manualRemarks: '備注',
@@ -741,6 +745,7 @@ const translations = {
       attendanceBonus: '出勤奖金',
       bookingBonus: 'Booking 奖金',
       officeJob: 'Job (Office)',
+      attendanceExtraBasePay: '超额有薪日底薪',
       manualBonus: '手动增加金额',
       manualDeduction: '手动扣减金额',
       manualRemarks: '备注',
@@ -899,6 +904,7 @@ const translations = {
       attendanceBonus: 'Attendance Bonus',
       bookingBonus: 'Booking Bonus',
       officeJob: 'Job (Office)',
+      attendanceExtraBasePay: 'Extra paid-days base pay',
       manualBonus: 'Manual Addition',
       manualDeduction: 'Manual Deduction',
       manualRemarks: 'Remarks',
@@ -1075,6 +1081,21 @@ function getAttendanceAccruedPaidDays(record?: PayrollAttendanceRecord) {
     record.maternityLeaveDays,
     record.rewardLeaveDays,
     record.annualLeaveDays,
+    record.compassionateLeaveDays,
+  ].reduce((sum, value) => sum + Math.max(Number(value) || 0, 0), 0);
+}
+
+function getAttendanceNonAlShPaidDays(record?: PayrollAttendanceRecord, fallbackWorkedDays = 0) {
+  if (!record) return Math.max(Number(fallbackWorkedDays) || 0, 0);
+
+  return [
+    record.workedDays,
+    record.offDays,
+    record.birthdayLeaveDays,
+    record.tb8Days,
+    record.sickLeaveDays,
+    record.maternityLeaveDays,
+    record.rewardLeaveDays,
     record.compassionateLeaveDays,
   ].reduce((sum, value) => sum + Math.max(Number(value) || 0, 0), 0);
 }
@@ -2374,7 +2395,18 @@ ${tablePreview}`;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
     const officeJobDefaultAmount = Number(monthlyBonus.officeJobAmount) || emp.officeJobAmount || 0;
     const rawOfficeJobAmount = monthlyBonus.officeJobApplied ? officeJobDefaultAmount : 0;
-    const attendanceRatioDeductionDays = attendanceNoPayDays + attendanceAccruedExcessDays;
+    const payrollCalendarDays = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0
+      ? attendanceRecord.calendarDays
+      : getCalendarDaysForMonth(salaryMonth);
+    const baseDailyWage = !isDailyEmployee && !isHourlyEmployee && payrollCalendarDays > 0
+      ? roundMoney(rawCalculatedBaseSalary / payrollCalendarDays)
+      : 0;
+    const nonAlShPaidDays = getAttendanceNonAlShPaidDays(attendanceRecord, workedDays);
+    const attendanceExtraBasePayDays = !isDailyEmployee && !isHourlyEmployee
+      ? roundMoney(Math.max(0, nonAlShPaidDays - payrollCalendarDays))
+      : 0;
+    const attendanceExtraBasePay = roundMoney(attendanceExtraBasePayDays * baseDailyWage);
+    const attendanceRatioDeductionDays = attendanceNoPayDays;
     const attendanceDeductionRatio = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0 && attendanceRatioDeductionDays > 0
       ? attendanceRatioDeductionDays / attendanceRecord.calendarDays
       : 0;
@@ -2398,9 +2430,6 @@ ${tablePreview}`;
     const attendanceBonus = scaledBasisCompensation.attendanceBonus;
     const bookingBonus = scaledBasisCompensation.bookingBonus;
     const officeJobAmount = scaledBasisCompensation.officeJobAmount;
-    const payrollCalendarDays = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0
-      ? attendanceRecord.calendarDays
-      : getCalendarDaysForMonth(salaryMonth);
     const fixedDailyWage = payrollCalendarDays > 0
       ? roundMoney((calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + briefingBonus + attendanceBonus + bookingBonus + officeJobAmount) / payrollCalendarDays)
       : 0;
@@ -2521,14 +2550,14 @@ ${tablePreview}`;
     const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + officeJobAmount + primaryManualBonus + primaryShopBonus + primaryAlShAverageCommissionPay - attendanceDeductionRemainder - primaryManualDeduction;
     const displayedBonus = fixedBonus + primarySalesBonus;
     const bonus = Math.round(displayedBonus * 100) / 100;
-    const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus;
+    const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus + attendanceExtraBasePay;
     const mpfApplicable = emp.mpfEnabled;
     const primaryPayoutGross = hasSecondaryPayout ? grossBase : grossBase + displayedCommission;
     const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonus - monthEndManualDeduction : 0;
     const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + officeJobAmount + primaryManualBonusMpfRelevant + primaryShopBonus + primaryAlShAverageCommissionPay - primaryManualDeductionMpfRelevant;
     const mpfRelevantDisplayedBonus = mpfRelevantFixedBonus + primarySalesBonus;
     const mpfRelevantBonus = Math.round(mpfRelevantDisplayedBonus * 100) / 100;
-    const mpfRelevantGrossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + mpfRelevantBonus;
+    const mpfRelevantGrossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + attendanceExtraBasePay + mpfRelevantBonus;
     const mpfRelevantPrimaryGross = hasSecondaryPayout ? mpfRelevantGrossBase : mpfRelevantGrossBase + displayedCommission;
     const mpfRelevantSecondaryGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonusMpfRelevant - monthEndManualDeductionMpfRelevant : 0;
     const autoPrimaryMpfBasis = mpfApplicable ? roundMoney(mpfRelevantPrimaryGross * MPF_RATE) : 0;
@@ -2580,6 +2609,9 @@ ${tablePreview}`;
       alShAverageCommissionPay: alShAverageCommissionPayAfterPackage,
       annualLeaveAverageCommissionPay: annualLeaveAverageCommissionPayAfterPackage,
       statutoryHolidayAverageCommissionPay: statutoryHolidayAverageCommissionPayAfterPackage,
+      attendanceExtraBasePayDays,
+      attendanceExtraBasePay,
+      attendanceExtraBaseDailyRate: baseDailyWage,
       fixedDailyWage,
       legalDailyAverageWage,
       legalMinimumAlShTopUp,
@@ -2871,6 +2903,9 @@ ${tablePreview}`;
       statutoryHolidayAverageCommissionPay: row.statutoryHolidayAverageCommissionPay,
       rawAnnualLeaveAverageCommissionPay: row.rawAnnualLeaveAverageCommissionPay,
       rawStatutoryHolidayAverageCommissionPay: row.rawStatutoryHolidayAverageCommissionPay,
+      attendanceExtraBasePayDays: row.attendanceExtraBasePayDays,
+      attendanceExtraBasePay: row.attendanceExtraBasePay,
+      attendanceExtraBaseDailyRate: row.attendanceExtraBaseDailyRate,
       fixedDailyWage: row.fixedDailyWage,
       legalDailyAverageWage: row.legalDailyAverageWage,
       legalMinimumAlShTopUp: row.legalMinimumAlShTopUp,
@@ -4635,6 +4670,12 @@ ${tablePreview}`;
                                       <span className="font-semibold tabular-nums text-slate-900">{fmtDec(row.officeJobAmount)}</span>
                                     </div>
                                   )}
+                                  {row.attendanceExtraBasePay > 0 && (
+                                    <div className="flex items-center justify-between rounded-lg bg-blue-50 px-2.5 py-1.5">
+                                      <span className="text-blue-600 text-xs">{t.commInput.attendanceExtraBasePay} ({fmtDec(row.attendanceExtraBasePay / row.attendanceExtraBasePayDays)} × {row.attendanceExtraBasePayDays}日)</span>
+                                      <span className="font-semibold tabular-nums text-blue-800">{fmtDec(row.attendanceExtraBasePay)}</span>
+                                    </div>
+                                  )}
                                   {(row.annualLeaveAverageCommissionPay > 0 || row.alShComplianceWarning) && (
                                     <div className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 ${row.alShComplianceWarning ? 'bg-amber-50' : 'bg-emerald-50'}`}>
                                       <span className={`text-xs ${row.alShComplianceWarning ? 'text-amber-700' : 'text-emerald-600'}`}>AL 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.annualLeaveDays}日；月底發放)</span>
@@ -5258,6 +5299,12 @@ ${tablePreview}`;
                 ['Briefing Bonus 早會獎金', activePayslipPdfEntry.rawBriefingBonus],
                 ['Booking Bonus 預約獎金', activePayslipPdfEntry.rawBookingBonus],
                 ['Job (Office)  辦公室 Job', activePayslipPdfEntry.rawOfficeJobAmount],
+                [
+                  activePayslipPdfEntry.attendanceExtraBasePayDays > 0
+                    ? `Extra Paid Days - Basic Salary  超額有薪日底薪：${fmtPayslipAmount(activePayslipPdfEntry.attendanceExtraBaseDailyRate)} x ${activePayslipPdfEntry.attendanceExtraBasePayDays} day(s)`
+                    : 'Extra Paid Days - Basic Salary  超額有薪日底薪',
+                  activePayslipPdfEntry.attendanceExtraBasePay,
+                ],
               ];
               const commissionIncomeRows: Array<[string, number | null]> = showPackageCommission
                 ? [
