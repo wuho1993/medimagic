@@ -1571,6 +1571,56 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
     () => new Map(savedRecords.map((record) => [record.employeeCode, record])),
     [savedRecords],
   );
+  const payrollStateResetKey = useMemo(() => JSON.stringify({
+    salaryMonth,
+    defaultPackageNoPayHandling,
+    employees: employees.map((employee) => ({
+      code: employee.employeeCode,
+      hireDate: employee.hireDate,
+      dateOfBirth: employee.dateOfBirth,
+      salaryType: employee.salaryType,
+      baseSalary: employee.baseSalary,
+      allowanceAmount: employee.allowanceAmount,
+      attendanceBonusAmount: employee.attendanceBonusAmount,
+      transportAllowance: employee.transportAllowance,
+      briefingBonus: employee.briefingBonus,
+      bookingBonus: employee.bookingBonus,
+      officeJobAmount: employee.officeJobAmount,
+      mpfEnabled: employee.mpfEnabled,
+    })),
+    savedRecords: savedRecords.map((record) => ({
+      employeeCode: record.employeeCode,
+      mpfEeApplied: record.mpfEeApplied,
+      mpfEeDeductionMode: record.mpfEeDeductionMode,
+      mpfEeAmount: record.mpfEeAmount,
+      mpfEeManualOverride: record.mpfEeManualOverride,
+      mpfErApplied: record.mpfErApplied,
+      mpfErAmount: record.mpfErAmount,
+      mpfErManualOverride: record.mpfErManualOverride,
+      briefingBonusApplied: record.briefingBonusApplied,
+      briefingBonusAmount: record.briefingBonusAmount,
+      attendanceBonusApplied: record.attendanceBonusApplied,
+      attendanceBonusAmount: record.attendanceBonusAmount,
+      bookingBonusApplied: record.bookingBonusApplied,
+      bookingBonusAmount: record.bookingBonusAmount,
+      officeJobApplied: record.officeJobApplied,
+      officeJobAmount: record.officeJobAmount,
+      manualBonusApplied: record.manualBonusApplied,
+      manualBonusAmount: record.manualBonusAmount,
+      manualBonusMpfIncluded: record.manualBonusMpfIncluded,
+      manualBonusPayout: record.manualBonusPayout,
+      manualBonusRemarks: record.manualBonusRemarks,
+      manualDeductionApplied: record.manualDeductionApplied,
+      manualDeductionAmount: record.manualDeductionAmount,
+      manualDeductionMpfIncluded: record.manualDeductionMpfIncluded,
+      manualDeductionPayout: record.manualDeductionPayout,
+      manualDeductionRemarks: record.manualDeductionRemarks,
+      packageNoPayHandling: record.packageNoPayHandling,
+    })),
+    attendanceRecords,
+    initialPayrollReviewAnswers,
+    previousMpfDeductionModes,
+  }), [attendanceRecords, defaultPackageNoPayHandling, employees, initialPayrollReviewAnswers, previousMpfDeductionModes, salaryMonth, savedRecords]);
 
   useEffect(() => {
     setExpandedRows(new Set());
@@ -1599,7 +1649,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
     latestEditVersionRef.current = 0;
     setSaveStatus('idle');
     setPayrollReviewAnswers({});
-  }, [attendanceRecords, defaultPackageNoPayHandling, employees, initialPayrollReviewAnswers, payrollReferenceDate, previousMpfDeductionModes, savedRecords]);
+  }, [payrollStateResetKey]);
 
   useEffect(() => {
     return () => {
