@@ -636,8 +636,8 @@ const translations = {
       autoAmount: '系統計算',
       notApplicable: '本月毋須供款。',
       profileDisabled: '員工 Profile 已設定不用 MPF。',
-      under60Days: '入職首60日毋須供款，第61日起 Payroll 會自動按 MPF 計算。',
-      age65OrAbove: '65歲或以上毋須供款。',
+      under60Days: '入職首60日系統預設不供款；如本月需要供款，可手動勾選。',
+      age65OrAbove: '65歲或以上系統預設不供款；如本月需要供款，可手動勾選。',
     },
     booleanLabels: {
       yes: '是',
@@ -793,8 +793,8 @@ const translations = {
       autoAmount: '系统计算',
       notApplicable: '本月毋须供款。',
       profileDisabled: '员工 Profile 已设定不用 MPF。',
-      under60Days: '入职首60日毋须供款，第61日起 Payroll 会自动按 MPF 计算。',
-      age65OrAbove: '65岁或以上毋须供款。',
+      under60Days: '入职首60日系统预设不供款；如本月需要供款，可手动勾选。',
+      age65OrAbove: '65岁或以上系统预设不供款；如本月需要供款，可手动勾选。',
     },
     booleanLabels: {
       yes: '是',
@@ -950,8 +950,8 @@ const translations = {
       autoAmount: 'System calculated',
       notApplicable: 'MPF is not required this month.',
       profileDisabled: 'MPF is disabled in the employee profile.',
-      under60Days: 'No MPF for the first 60 days. Payroll resumes MPF automatically from day 61.',
-      age65OrAbove: 'No MPF for employees aged 65 or above.',
+      under60Days: 'MPF is off by default in the first 60 days; tick manually if contribution is needed this month.',
+      age65OrAbove: 'MPF is off by default for employees aged 65 or above; tick manually if contribution is needed this month.',
     },
     booleanLabels: {
       yes: 'Yes',
@@ -1293,15 +1293,16 @@ function buildInitialMonthlyMpfStates(
   return Object.fromEntries(employees.map((employee) => {
     const saved = savedByCode.get(employee.employeeCode);
     const defaultApplicable = employee.mpfEnabled && isMpfStatutorilyEligible(employee.dateOfBirth, employee.hireDate, payrollReferenceDate);
+    const canApplyMpf = employee.mpfEnabled;
 
     return [employee.employeeCode, {
-      mpfEeApplied: defaultApplicable ? (saved?.mpfEeApplied ?? true) : false,
+      mpfEeApplied: canApplyMpf ? (saved?.mpfEeApplied ?? defaultApplicable) : false,
       mpfEeDeductionMode: saved?.mpfEeDeductionMode ?? previousMpfDeductionModes[employee.employeeCode] ?? 'split',
-      mpfEeManualOverride: defaultApplicable ? (saved?.mpfEeManualOverride ?? false) : false,
-      mpfEeAmount: defaultApplicable && saved?.mpfEeManualOverride ? String(saved.mpfEeAmount) : '',
-      mpfErApplied: defaultApplicable ? (saved?.mpfErApplied ?? true) : false,
-      mpfErManualOverride: defaultApplicable ? (saved?.mpfErManualOverride ?? false) : false,
-      mpfErAmount: defaultApplicable && saved?.mpfErManualOverride ? String(saved.mpfErAmount) : '',
+      mpfEeManualOverride: canApplyMpf ? (saved?.mpfEeManualOverride ?? false) : false,
+      mpfEeAmount: canApplyMpf && saved?.mpfEeManualOverride ? String(saved.mpfEeAmount) : '',
+      mpfErApplied: canApplyMpf ? (saved?.mpfErApplied ?? defaultApplicable) : false,
+      mpfErManualOverride: canApplyMpf ? (saved?.mpfErManualOverride ?? false) : false,
+      mpfErAmount: canApplyMpf && saved?.mpfErManualOverride ? String(saved.mpfErAmount) : '',
     }];
   }));
 }
@@ -2080,7 +2081,7 @@ ${tablePreview}`;
     return monthlyMpfStates[code] ?? createDefaultMonthlyMpfState(employee, payrollReferenceDate, previousMpfDeductionModes);
   };
   const setMonthlyMpfState = (code: string, employee: PayrollEmployeeSummary, patch: Partial<EmployeeMonthlyMpfState>) => {
-    const canApplyMpf = employee.mpfEnabled && isMpfStatutorilyEligible(employee.dateOfBirth, employee.hireDate, payrollReferenceDate);
+    const canApplyMpf = employee.mpfEnabled;
     const guardedPatch = canApplyMpf
       ? patch
       : {
@@ -2451,7 +2452,7 @@ ${tablePreview}`;
     const displayedBonus = fixedBonus + primarySalesBonus;
     const bonus = Math.round(displayedBonus * 100) / 100;
     const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus;
-    const mpfApplicable = emp.mpfEnabled && isMpfStatutorilyEligible(emp.dateOfBirth, emp.hireDate, payrollReferenceDate);
+    const mpfApplicable = emp.mpfEnabled;
     const primaryPayoutGross = hasSecondaryPayout ? grossBase : grossBase + displayedCommission;
     const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonus - monthEndManualDeduction : 0;
     const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + officeJobAmount + primaryManualBonusMpfRelevant + primaryShopBonus + primaryAlShAverageCommissionPay - primaryManualDeductionMpfRelevant;
@@ -4319,7 +4320,7 @@ ${tablePreview}`;
 
                           <div className={`mt-3 ${sectionCardClasses}`}>
                             <div className="mb-3 text-sm font-semibold text-slate-700">{t.mpfSectionTitle}</div>
-                            {!row.mpfApplicable ? (
+                            {mpfIneligibilityReasonKey ? (
                               <div className="mb-3 text-xs font-medium text-slate-500">{mpfIneligibilityReasonKey ? t.mpf[mpfIneligibilityReasonKey] : t.mpf.notApplicable}</div>
                             ) : null}
                             <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
