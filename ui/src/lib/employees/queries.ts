@@ -2191,14 +2191,14 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
     updated_at: row.updated_at,
   }));
 
-  const months = Array.from(new Set(records.map((record) => record.yearMonth))).sort((left, right) => right.localeCompare(left));
+  const months = Array.from(new Set([currentMonth, ...records.map((record) => record.yearMonth)])).sort((left, right) => right.localeCompare(left));
 
   return {
     employees,
     records,
     deductionBasisByEmployeeCode,
-    months: months.length > 0 ? months : [currentMonth],
-    defaultMonth: months[0] ?? currentMonth,
+    months,
+    defaultMonth: currentMonth,
     relationshipStrategy: {
       primary: 'employee_code',
       secondary: ['name_zh', 'name_en', 'alias'],
