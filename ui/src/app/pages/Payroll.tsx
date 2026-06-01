@@ -4064,7 +4064,7 @@ ${tablePreview}`;
                                     ) : null}
                                     {row.rawAnnualLeaveAverageCommissionPay > 0 ? (
                                       <div className="rounded-lg bg-white px-3 py-2">
-                                        <div className="text-xs text-slate-500">AL 平均佣金{row.isPackageEmployee ? '（包佣後出數）' : ''}</div>
+                                        <div className="text-xs text-slate-500">AL 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.annualLeaveDays}日){row.isPackageEmployee ? '（包佣後出數）' : ''}</div>
                                         <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.annualLeaveAverageCommissionPay)}</div>
                                         {row.isPackageEmployee && row.rawAnnualLeaveAverageCommissionPay !== row.annualLeaveAverageCommissionPay ? (
                                           <div className="mt-1 text-[11px] text-slate-500">原本 {fmtDec(row.rawAnnualLeaveAverageCommissionPay)}，包佣已吸收 {fmtDec(Math.max(0, row.rawAnnualLeaveAverageCommissionPay - row.annualLeaveAverageCommissionPay))}</div>
@@ -4073,7 +4073,7 @@ ${tablePreview}`;
                                     ) : null}
                                     {row.rawStatutoryHolidayAverageCommissionPay > 0 ? (
                                       <div className="rounded-lg bg-white px-3 py-2">
-                                        <div className="text-xs text-slate-500">SH 平均佣金{row.isPackageEmployee ? '（包佣後出數）' : ''}</div>
+                                        <div className="text-xs text-slate-500">SH 平均佣金 ({fmtDec(row.rollingAverageCommission)} × {row.statutoryHolidayDays}日){row.isPackageEmployee ? '（包佣後出數）' : ''}</div>
                                         <div className="mt-1 font-semibold text-slate-900">{fmtDec(row.statutoryHolidayAverageCommissionPay)}</div>
                                         {row.isPackageEmployee && row.rawStatutoryHolidayAverageCommissionPay !== row.statutoryHolidayAverageCommissionPay ? (
                                           <div className="mt-1 text-[11px] text-slate-500">原本 {fmtDec(row.rawStatutoryHolidayAverageCommissionPay)}，包佣已吸收 {fmtDec(Math.max(0, row.rawStatutoryHolidayAverageCommissionPay - row.statutoryHolidayAverageCommissionPay))}</div>
