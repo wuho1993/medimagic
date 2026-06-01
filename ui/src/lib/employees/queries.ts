@@ -2046,6 +2046,7 @@ export type LeaveOverview = {
 export async function fetchAttendanceManagementOverview(user: AppShellUser): Promise<AttendanceManagementOverview> {
   const employees = (await fetchEmployeeDirectory(user)).filter((employee) => employee.employmentStatus === 'active');
   const currentMonth = new Date().toISOString().slice(0, 7);
+  const defaultAttendanceMonth = getPreviousYearMonth(currentMonth);
   const payrollSummary = await fetchPayrollSummary(user);
   const deductionBasisByEmployeeCode = Object.fromEntries(
     payrollSummary.map((employee) => [
@@ -2068,8 +2069,8 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
       employees: [],
       records: [],
       deductionBasisByEmployeeCode: {},
-      months: [currentMonth],
-      defaultMonth: currentMonth,
+      months: [defaultAttendanceMonth, currentMonth],
+      defaultMonth: defaultAttendanceMonth,
       relationshipStrategy: {
         primary: 'employee_code',
         secondary: ['name_zh', 'name_en', 'alias'],
@@ -2095,8 +2096,8 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
       employees,
       records: [],
       deductionBasisByEmployeeCode,
-      months: [currentMonth],
-      defaultMonth: currentMonth,
+      months: [defaultAttendanceMonth, currentMonth],
+      defaultMonth: defaultAttendanceMonth,
       relationshipStrategy: {
         primary: 'employee_code',
         secondary: ['name_zh', 'name_en', 'alias'],
@@ -2192,14 +2193,14 @@ export async function fetchAttendanceManagementOverview(user: AppShellUser): Pro
   }));
 
   const recordMonths = Array.from(new Set(records.map((record) => record.yearMonth))).sort((left, right) => right.localeCompare(left));
-  const months = Array.from(new Set([...recordMonths, currentMonth])).sort((left, right) => right.localeCompare(left));
+  const months = Array.from(new Set([...recordMonths, defaultAttendanceMonth, currentMonth])).sort((left, right) => right.localeCompare(left));
 
   return {
     employees,
     records,
     deductionBasisByEmployeeCode,
     months,
-    defaultMonth: recordMonths[0] ?? currentMonth,
+    defaultMonth: defaultAttendanceMonth,
     relationshipStrategy: {
       primary: 'employee_code',
       secondary: ['name_zh', 'name_en', 'alias'],
