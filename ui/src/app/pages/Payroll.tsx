@@ -2421,9 +2421,10 @@ ${tablePreview}`;
       deductionAmount: attendanceNoPayDeduction,
       deductionRatio: attendanceDeductionRatio,
     });
-    const calculatedBaseSalary = isDailyEmployee || isHourlyEmployee
+    const baseSalaryBeforeExtraAttendancePay = isDailyEmployee || isHourlyEmployee
       ? rawCalculatedBaseSalary
       : scaledBasisCompensation.baseSalary;
+    const calculatedBaseSalary = roundMoney(baseSalaryBeforeExtraAttendancePay + attendanceExtraBasePay);
     const scaledAllowanceAmount = scaledBasisCompensation.allowanceAmount;
     const scaledTransportAllowance = scaledBasisCompensation.transportAllowance;
     const briefingBonus = scaledBasisCompensation.briefingBonus;
@@ -2431,7 +2432,7 @@ ${tablePreview}`;
     const bookingBonus = scaledBasisCompensation.bookingBonus;
     const officeJobAmount = scaledBasisCompensation.officeJobAmount;
     const fixedDailyWage = payrollCalendarDays > 0
-      ? roundMoney((calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + briefingBonus + attendanceBonus + bookingBonus + officeJobAmount) / payrollCalendarDays)
+      ? roundMoney((baseSalaryBeforeExtraAttendancePay + scaledAllowanceAmount + scaledTransportAllowance + briefingBonus + attendanceBonus + bookingBonus + officeJobAmount) / payrollCalendarDays)
       : 0;
     const legalDailyAverageWage = roundMoney(fixedDailyWage + rollingAverageCommission);
     const legalMinimumAlShTopUp = roundMoney(Math.max(0, (legalDailyAverageWage - fixedDailyWage) * alShDays));
@@ -2550,14 +2551,14 @@ ${tablePreview}`;
     const fixedBonus = briefingBonus + attendanceBonus + bookingBonus + officeJobAmount + primaryManualBonus + primaryShopBonus + primaryAlShAverageCommissionPay - attendanceDeductionRemainder - primaryManualDeduction;
     const displayedBonus = fixedBonus + primarySalesBonus;
     const bonus = Math.round(displayedBonus * 100) / 100;
-    const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus + attendanceExtraBasePay;
+    const grossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + bonus;
     const mpfApplicable = emp.mpfEnabled;
     const primaryPayoutGross = hasSecondaryPayout ? grossBase : grossBase + displayedCommission;
     const secondaryPayoutGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonus - monthEndManualDeduction : 0;
     const mpfRelevantFixedBonus = briefingBonus + attendanceBonus + bookingBonus + officeJobAmount + primaryManualBonusMpfRelevant + primaryShopBonus + primaryAlShAverageCommissionPay - primaryManualDeductionMpfRelevant;
     const mpfRelevantDisplayedBonus = mpfRelevantFixedBonus + primarySalesBonus;
     const mpfRelevantBonus = Math.round(mpfRelevantDisplayedBonus * 100) / 100;
-    const mpfRelevantGrossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + attendanceExtraBasePay + mpfRelevantBonus;
+    const mpfRelevantGrossBase = calculatedBaseSalary + scaledAllowanceAmount + scaledTransportAllowance + mpfRelevantBonus;
     const mpfRelevantPrimaryGross = hasSecondaryPayout ? mpfRelevantGrossBase : mpfRelevantGrossBase + displayedCommission;
     const mpfRelevantSecondaryGross = hasSecondaryPayout ? displayedCommission + monthEndAlShAverageCommissionPay + monthEndShopBonus + monthEndSalesBonus + monthEndManualBonusMpfRelevant - monthEndManualDeductionMpfRelevant : 0;
     const autoPrimaryMpfBasis = mpfApplicable ? roundMoney(mpfRelevantPrimaryGross * MPF_RATE) : 0;
