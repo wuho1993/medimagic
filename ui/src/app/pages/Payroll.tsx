@@ -54,7 +54,6 @@ type PendingImportMapping = {
 
 const MPF_RATE = 0.05;
 const MPF_CAP = 1500; // Both employee and employer cap at HK$1,500
-const LATE_ATTENDANCE_BONUS_THRESHOLD_MINUTES = 30;
 const ALL_FILTER_VALUE = '__all__';
 const INITIAL_PAYROLL_RENDER_LIMIT = 40;
 const PAYROLL_RENDER_BATCH_SIZE = 40;
@@ -66,7 +65,15 @@ function calcMpf(relevantIncome: number) {
 }
 
 function shouldDeductAttendanceBonusForLate(lateMinutes: number | null | undefined) {
-  return (lateMinutes ?? 0) > LATE_ATTENDANCE_BONUS_THRESHOLD_MINUTES;
+  return (lateMinutes ?? 0) > 0;
+}
+
+function shouldDeductAttendanceBonusForRecord(record?: PayrollAttendanceRecord) {
+  if (!record) return false;
+  return shouldDeductAttendanceBonusForLate(record.lateDays)
+    || record.noPayDays > 0
+    || record.sickLeaveDays > 0
+    || record.sickNoPayDays > 0;
 }
 
 function roundMoney(value: number) {
@@ -384,6 +391,8 @@ type PayslipPdfEntry = {
   employeeTitle: string | null;
   hkid: string | null;
   lateDays: number;
+  sickLeaveDays: number;
+  sickNoPayDays: number;
   noPayDays: number;
   branchName: string | null;
   selectedMonth: string;
@@ -568,7 +577,7 @@ const translations = {
       monthlyBonusTitle: '當月獎金選擇',
       applyThisMonth: '當月發放',
       defaultAmount: '預設金額',
-      attendanceLateDisabledNote: '因為本月遲到累積超過30分鐘',
+      attendanceLateDisabledNote: '因為本月有遲到、病假或無薪假',
       briefingBonus: 'Briefing 獎金',
       attendanceBonus: '出勤獎金',
       bookingBonus: 'Booking 獎金',
@@ -725,7 +734,7 @@ const translations = {
       monthlyBonusTitle: '当月奖金选择',
       applyThisMonth: '当月发放',
       defaultAmount: '预设金额',
-      attendanceLateDisabledNote: '因为本月迟到累计超过30分钟',
+      attendanceLateDisabledNote: '因为本月有迟到、病假或无薪假',
       briefingBonus: 'Briefing 奖金',
       attendanceBonus: '出勤奖金',
       bookingBonus: 'Booking 奖金',
@@ -882,7 +891,7 @@ const translations = {
       monthlyBonusTitle: 'Monthly Bonus Selection',
       applyThisMonth: 'Apply This Month',
       defaultAmount: 'Default Amount',
-      attendanceLateDisabledNote: 'Disabled because monthly late minutes exceed 30 minutes',
+      attendanceLateDisabledNote: 'Disabled because this month has late minutes, sick leave, or no-pay leave',
       briefingBonus: 'Briefing Bonus',
       attendanceBonus: 'Attendance Bonus',
       bookingBonus: 'Booking Bonus',
@@ -977,7 +986,7 @@ function buildInitialMonthlyBonuses(
   return Object.fromEntries(employees.map((employee) => {
     const saved = savedByCode.get(employee.employeeCode);
     const attendanceRecord = attendanceRecords[employee.employeeCode];
-    const hasLateDays = shouldDeductAttendanceBonusForLate(attendanceRecord?.lateDays ?? 0);
+    const hasAttendanceBonusDeduction = shouldDeductAttendanceBonusForRecord(attendanceRecord);
     const legacyAutoAttendanceRemainder = Boolean(
       saved?.manualDeductionApplied
       && attendanceRecord
@@ -992,7 +1001,7 @@ function buildInitialMonthlyBonuses(
         : employee.briefingBonus > 0
           ? String(employee.briefingBonus)
           : '',
-      attendanceApplied: hasLateDays ? false : (saved?.attendanceBonusApplied ?? employee.attendanceBonusAmount > 0),
+      attendanceApplied: hasAttendanceBonusDeduction ? false : (saved?.attendanceBonusApplied ?? employee.attendanceBonusAmount > 0),
       attendanceAmount: saved?.attendanceBonusApplied
         ? String(saved.attendanceBonusAmount)
         : employee.attendanceBonusAmount > 0
@@ -1198,11 +1207,11 @@ function calculateAttendanceNoPayDeduction(employee: PayrollEmployeeSummary, rec
   return roundMoney((deductionBase / calendarDays) * record.noPayDays);
 }
 
-function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, lateDays = 0): EmployeeMonthlyBonusState {
+function createDefaultMonthlyBonusState(employee: PayrollEmployeeSummary, attendanceRecord?: PayrollAttendanceRecord): EmployeeMonthlyBonusState {
   return {
     briefingApplied: employee.briefingBonus > 0,
     briefingAmount: employee.briefingBonus > 0 ? String(employee.briefingBonus) : '',
-    attendanceApplied: shouldDeductAttendanceBonusForLate(lateDays) ? false : employee.attendanceBonusAmount > 0,
+    attendanceApplied: shouldDeductAttendanceBonusForRecord(attendanceRecord) ? false : employee.attendanceBonusAmount > 0,
     attendanceAmount: employee.attendanceBonusAmount > 0 ? String(employee.attendanceBonusAmount) : '',
     bookingApplied: employee.bookingBonus > 0,
     bookingAmount: employee.bookingBonus > 0 ? String(employee.bookingBonus) : '',
@@ -2049,12 +2058,12 @@ ${tablePreview}`;
     setWorkUnits((prev) => ({ ...prev, [code]: { ...getWorkUnits(code), [field]: value } }));
     markDirty();
   };
-  const getMonthlyBonus = (code: string, employee: PayrollEmployeeSummary): EmployeeMonthlyBonusState => monthlyBonuses[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code]?.lateDays ?? 0);
+  const getMonthlyBonus = (code: string, employee: PayrollEmployeeSummary): EmployeeMonthlyBonusState => monthlyBonuses[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code]);
   const setMonthlyBonus = (code: string, employee: PayrollEmployeeSummary, key: keyof EmployeeMonthlyBonusState, value: string | boolean) => {
     setMonthlyBonuses((prev) => ({
       ...prev,
       [code]: {
-        ...(prev[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code]?.lateDays ?? 0)),
+        ...(prev[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code])),
         [key]: value,
       },
     }));
@@ -2064,7 +2073,7 @@ ${tablePreview}`;
     setMonthlyBonuses((prev) => ({
       ...prev,
       [code]: {
-        ...(prev[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code]?.lateDays ?? 0)),
+        ...(prev[code] ?? createDefaultMonthlyBonusState(employee, attendanceRecords[code])),
         ...patch,
       },
     }));
@@ -2124,7 +2133,7 @@ ${tablePreview}`;
     }));
     setMonthlyBonuses((prev) => ({
       ...prev,
-      [employee.employeeCode]: createDefaultMonthlyBonusState(employee, attendanceRecords[employee.employeeCode]?.lateDays ?? 0),
+      [employee.employeeCode]: createDefaultMonthlyBonusState(employee, attendanceRecords[employee.employeeCode]),
     }));
     setMonthlyMpfStates((prev) => ({
       ...prev,
@@ -2247,7 +2256,7 @@ ${tablePreview}`;
     const emp = liveEmployeeDefaults[sourceEmployee.employeeCode] ?? sourceEmployee;
     const savedRecord = savedRecordByCode.get(emp.employeeCode);
     const attendanceRecord = attendanceRecords[emp.employeeCode];
-    const hasLateDays = shouldDeductAttendanceBonusForLate(attendanceRecord?.lateDays ?? 0);
+    const hasAttendanceBonusDeduction = shouldDeductAttendanceBonusForRecord(attendanceRecord);
     const vol = getVolumes(emp.employeeCode);
     const unitInput = getWorkUnits(emp.employeeCode);
     const monthlyBonus = getMonthlyBonus(emp.employeeCode, emp);
@@ -2287,7 +2296,7 @@ ${tablePreview}`;
     const packageCommissionAmount = isPackageEmployee ? emp.packageCommissionAmount : 0;
     const rawBriefingBonus = monthlyBonus.briefingApplied ? Number(monthlyBonus.briefingAmount) || 0 : 0;
     const displayAttendanceBonus = Number(monthlyBonus.attendanceAmount) || 0;
-    const attendanceBonusApplied = hasLateDays ? false : monthlyBonus.attendanceApplied;
+    const attendanceBonusApplied = hasAttendanceBonusDeduction ? false : monthlyBonus.attendanceApplied;
     const rawAttendanceBonus = attendanceBonusApplied ? Number(monthlyBonus.attendanceAmount) || 0 : 0;
     const rawBookingBonus = monthlyBonus.bookingApplied ? Number(monthlyBonus.bookingAmount) || 0 : 0;
     const officeJobDefaultAmount = Number(monthlyBonus.officeJobAmount) || emp.officeJobAmount || 0;
@@ -2482,8 +2491,10 @@ ${tablePreview}`;
       hasWorkedHours,
       attendanceDrivenWorkedDays,
       attendanceDrivenWorkedHours,
-      hasLateDays,
+      hasLateDays: hasAttendanceBonusDeduction,
       lateDays: attendanceRecord?.lateDays ?? 0,
+      sickLeaveDays: attendanceRecord?.sickLeaveDays ?? 0,
+      sickNoPayDays: attendanceRecord?.sickNoPayDays ?? 0,
       attendanceNoPayDays,
       attendanceAccruedExcessDays,
       annualLeaveDays: attendanceRecord?.annualLeaveDays ?? 0,
@@ -2716,6 +2727,8 @@ ${tablePreview}`;
       employeeTitle: row.positionNameZh ?? null,
       hkid: row.identityNumber ?? null,
       lateDays: row.lateDays,
+      sickLeaveDays: row.sickLeaveDays,
+      sickNoPayDays: row.sickNoPayDays,
       noPayDays: row.attendanceNoPayDays,
       branchName: row.branchName ?? null,
       selectedMonth: salaryMonth,
@@ -5106,11 +5119,15 @@ ${tablePreview}`;
                 ? `Package result  包佣結果：包佣內項目合計為 ${fmtPayslipAmount(packageComparisonTotal)}，已超過包佣門檻 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommissionAmount)}，超出 ${fmtPayslipAmount(packageVariance)}；因此本月按包佣內應付總額 ${fmtPayslipAmount(packageCoveredPayableTotal)} 發放。`
                 : `Package result  包佣結果：包佣內項目合計為 ${fmtPayslipAmount(packageComparisonTotal)}，未達包佣門檻 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommissionAmount)}，差額 ${fmtPayslipAmount(packageVariance)}；因此本月按包佣金額 ${fmtPayslipAmount(activePayslipPdfEntry.packageCommissionAmount)} 發放。`;
               const hasLateAttendanceDeduction = shouldDeductAttendanceBonusForLate(activePayslipPdfEntry.lateDays) && attendanceDeduction > 0;
+              const hasSickAttendanceDeduction = (activePayslipPdfEntry.sickLeaveDays > 0 || activePayslipPdfEntry.sickNoPayDays > 0) && attendanceDeduction > 0;
               const lateLabel = hasLateAttendanceDeduction
                 ? `Late - Diligent  遲到扣勤工獎 (${activePayslipPdfEntry.lateDays}分鐘)`
                 : activePayslipPdfEntry.lateDays > 0
-                  ? `Late  遲到 (${activePayslipPdfEntry.lateDays}分鐘，未超過30分鐘)`
+                  ? `Late  遲到 (${activePayslipPdfEntry.lateDays}分鐘)`
                   : 'Late  遲到';
+              const sickLeaveDeductionSuffix = activePayslipPdfEntry.sickLeaveDays + activePayslipPdfEntry.sickNoPayDays > 0
+                ? ` (${activePayslipPdfEntry.sickLeaveDays + activePayslipPdfEntry.sickNoPayDays}日)`
+                : '';
               const noPayDeductionSuffix = activePayslipPdfEntry.noPayDays > 0
                 ? ` (${activePayslipPdfEntry.noPayDays}日)`
                 : '';
@@ -5123,7 +5140,9 @@ ${tablePreview}`;
               ].filter(([, value]) => value > 0);
               if (attendanceDeduction > 0 && !hasLateAttendanceDeduction) {
                 attendanceDeductionRows.push([
-                  `No Pay Leave - Diligent  無薪假扣勤工獎${noPayDeductionSuffix}`,
+                  hasSickAttendanceDeduction
+                    ? `Sick Leave - Diligent  病假扣勤工獎${sickLeaveDeductionSuffix}`
+                    : `No Pay Leave - Diligent  無薪假扣勤工獎${noPayDeductionSuffix}`,
                   attendanceDeduction,
                 ]);
               }
