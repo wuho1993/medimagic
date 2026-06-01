@@ -1457,7 +1457,6 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
 
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const salaryMonth = selectedMonth;
-  const isLoadedMonth = selectedMonth === initialMonth;
   const isHistoricalPayrollMonth = salaryMonth < '2026-04';
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -3456,14 +3455,6 @@ ${tablePreview}`;
       </div>
     );
   };
-
-  if (!isLoadedMonth) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-slate-500">
-        <p>載入中…</p>
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
