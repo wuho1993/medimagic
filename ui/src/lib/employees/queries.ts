@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/src/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/src/lib/supabase/admin';
+import { getSupabaseEnv } from '@/src/lib/supabase/config';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { hasBranchAccess, hasCompanyAccess } from '@/src/lib/auth/access';
 import type { AppShellUser } from '@/src/lib/auth/session';
@@ -21,6 +22,27 @@ import { EMPLOYEE_DOCUMENT_BUCKET, type EmployeeDocumentType } from './document-
 import type { EmployeeEmploymentType } from './employment';
 
 type QuerySupabaseClient = SupabaseClient<any, any, any>;
+
+async function fetchPublicRestRows<T>(table: string, params: Record<string, string>): Promise<T[] | null> {
+  try {
+    const { url, anonKey } = getSupabaseEnv();
+    const searchParams = new URLSearchParams(params);
+    const response = await fetch(`${url}/rest/v1/${table}?${searchParams.toString()}`, {
+      headers: {
+        apikey: anonKey,
+      },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      console.warn(`Failed to load public ${table} rows:`, await response.text());
+      return null;
+    }
+    return await response.json() as T[];
+  } catch (error) {
+    console.warn(`Failed to load public ${table} rows:`, error);
+    return null;
+  }
+}
 
 export type EmployeeDirectoryRecord = {
   id: string;
@@ -1639,20 +1661,6 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
     console.warn(`Failed to load payroll attendance records for ${yearMonth}:`, payrollResult.error.message);
   }
 
-  const attendanceResult = await supabase
-    .from('attendance_management_records')
-    .select('employee_code, year_month, calendar_days, worked_days, off_days, statutory_holiday_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, deduction_amount')
-    .eq('year_month', yearMonth);
-
-  if (attendanceResult.error) {
-    if (!isMissingColumnError(attendanceResult.error.message)) {
-      console.warn(`Failed to load attendance management records for payroll ${yearMonth}:`, attendanceResult.error.message);
-    }
-    if (payrollResult.error) {
-      return {};
-    }
-  }
-
   let workedHoursByCode: Record<string, number> = {};
   const attendanceHoursResult = await supabase
     .from('monthly_attendance_records')
@@ -1702,10 +1710,18 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
     deduction_amount: number | string | null;
   };
 
+  const attendanceRows = await fetchPublicRestRows<AttendanceManagementRow>('attendance_management_records', {
+    select: 'employee_code, year_month, calendar_days, worked_days, off_days, statutory_holiday_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, deduction_amount',
+    year_month: `eq.${yearMonth}`,
+  }) ?? [];
+
+  if (attendanceRows.length === 0 && payrollResult.error) {
+    return {};
+  }
+
   const payrollByCode = new Map(
     ((payrollResult.data ?? []) as PayrollAttendanceRow[]).map((row) => [row.employee_code, row]),
   );
-  const attendanceRows = (attendanceResult.data ?? []) as AttendanceManagementRow[];
   const rows = attendanceRows.length > 0
     ? attendanceRows.map((attendanceRow) => ({
       ...payrollByCode.get(attendanceRow.employee_code),
