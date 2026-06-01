@@ -1460,7 +1460,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const isHistoricalPayrollMonth = salaryMonth < '2026-04';
   const [isPending, startTransition] = useTransition();
   const isSwitchingMonth = isPending;
-  const isPayrollActionBlocked = !isDataReady || isSwitchingMonth;
+  const isPayrollActionBlocked = !isDataReady;
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [mpfExportStatus, setMpfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
@@ -1802,14 +1802,6 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
     }
 
     if (askForMissingImportInputs()) {
-      return;
-    }
-
-    if (isSwitchingMonth) {
-      const message = lang === 'zh-CN' ? '正在切换月份，请稍后再匯入。' : lang === 'en' ? 'Changing month. Please import after the month finishes loading.' : '正在切換月份，請等載入完成後再匯入。';
-      setImportStatus('error');
-      setImportMessage(message);
-      setChatMessages((prev) => [...prev, { role: 'ai', text: message }]);
       return;
     }
 
@@ -3507,7 +3499,7 @@ ${tablePreview}`;
           <div className="flex flex-wrap items-center justify-end gap-3">
             <button type="button" onClick={handleAutoSaveNow} disabled={isHistoricalPayrollMonth || isPayrollActionBlocked} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : undefined} className={`${toolbarButtonClasses} whitespace-nowrap bg-slate-50 text-slate-700 hover:border-slate-300 hover:text-slate-900`}>
               <CalendarDays className="h-4 w-4" />
-              {(isPending || saveStatus === 'saving') ? t.saving : saveStatus === 'saved' ? t.saved : saveStatus === 'error' ? t.saveFail : t.autoSave}
+              {saveStatus === 'saving' ? t.saving : saveStatus === 'saved' ? t.saved : saveStatus === 'error' ? t.saveFail : t.autoSave}
             </button>
 
             <button type="button" onClick={() => setIsAiChatbotOpen(true)} disabled={isPayrollActionBlocked} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : undefined} className={`${primaryButtonClasses} whitespace-nowrap px-4 disabled:cursor-not-allowed disabled:opacity-50`}>

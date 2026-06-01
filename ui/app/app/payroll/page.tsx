@@ -9,6 +9,7 @@ import { fetchPayrollSystemSettings } from '@/src/lib/system-management/queries'
 import { fetchPayrollReviewAnswers } from './actions';
 
 type PayrollLoadStatus = 'loading' | 'ready' | 'error';
+const PAYROLL_FETCH_TIMEOUT_MS = 15000;
 
 export default function PayrollPage() {
   const { user } = useAuth();
@@ -34,10 +35,23 @@ export default function PayrollPage() {
     let active = true;
     const withOptionalFallback = async <T,>(label: string, promise: Promise<T>, fallback: T): Promise<T> => {
       try {
-        return await promise;
+        return await withTimeout(label, promise);
       } catch (error) {
         console.warn(`Optional payroll ${label} failed; using fallback:`, error);
         return fallback;
+      }
+    };
+    const withTimeout = async <T,>(label: string, promise: Promise<T>): Promise<T> => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      try {
+        return await Promise.race([
+          promise,
+          new Promise<T>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(`${label} request timed out`)), PAYROLL_FETCH_TIMEOUT_MS);
+          }),
+        ]);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
       }
     };
 
@@ -46,9 +60,9 @@ export default function PayrollPage() {
     setData(null);
 
     Promise.all([
-      fetchPayrollSummary(user),
-      fetchMonthlyCommissionRecords(payrollMonth),
-      fetchPayrollAttendanceRecords(user, payrollMonth),
+      withTimeout('employee summary', fetchPayrollSummary(user)),
+      withTimeout('saved records', fetchMonthlyCommissionRecords(payrollMonth)),
+      withTimeout('attendance records', fetchPayrollAttendanceRecords(user, payrollMonth)),
       withOptionalFallback('commission tiers', fetchCommissionRateTiers(), []),
       withOptionalFallback('365 average', fetchCommissionAverage365(), {}),
       withOptionalFallback('bonus config', fetchPayrollBonusConfigCatalog(), createLegacyPayrollBonusConfigCatalog()),
