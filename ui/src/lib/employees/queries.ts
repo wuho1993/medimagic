@@ -1630,16 +1630,27 @@ export async function fetchCommissionAverageAuditRecords(user: AppShellUser, sel
 
 export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMonth: string, supabaseClient?: QuerySupabaseClient): Promise<Record<string, PayrollAttendanceRecord>> {
   const supabase = supabaseClient ?? await createServerSupabaseClient();
-  const { data, error } = await supabase
+  const payrollResult = await supabase
     .from('payroll_attendance_records')
     .select('employee_code, year_month, calendar_days, worked_days, off_days, statutory_holiday_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, attendance_deduction_amount, remaining_deduction_amount, prorated_package_commission, actual_commission_amount, effective_commission_amount, package_no_pay_handling, package_no_pay_selection_required')
     .eq('year_month', yearMonth);
 
-  if (error) {
-    if (!isMissingColumnError(error.message)) {
-      console.warn(`Failed to load payroll attendance records for ${yearMonth}:`, error.message);
+  if (payrollResult.error && !isMissingColumnError(payrollResult.error.message)) {
+    console.warn(`Failed to load payroll attendance records for ${yearMonth}:`, payrollResult.error.message);
+  }
+
+  const attendanceResult = await supabase
+    .from('attendance_management_records')
+    .select('employee_code, year_month, calendar_days, worked_days, off_days, statutory_holiday_days, birthday_leave_days, tb8_days, sick_leave_days, maternity_leave_days, reward_leave_days, annual_leave_days, compassionate_leave_days, sick_no_pay_days, no_pay_leave_days, no_pay_statutory_holiday_days, no_pay_days, late_days, deduction_amount')
+    .eq('year_month', yearMonth);
+
+  if (attendanceResult.error) {
+    if (!isMissingColumnError(attendanceResult.error.message)) {
+      console.warn(`Failed to load attendance management records for payroll ${yearMonth}:`, attendanceResult.error.message);
     }
-    return {};
+    if (payrollResult.error) {
+      return {};
+    }
   }
 
   let workedHoursByCode: Record<string, number> = {};
@@ -1660,8 +1671,7 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
     console.warn(`Failed to load attendance worked hours for ${yearMonth}:`, attendanceHoursResult.error.message);
   }
 
-  return Object.fromEntries(
-    ((data ?? []) as Array<{
+  type PayrollAttendanceRow = {
       employee_code: string;
       year_month: string;
       calendar_days: number | string | null;
@@ -1687,7 +1697,25 @@ export async function fetchPayrollAttendanceRecords(user: AppShellUser, yearMont
       effective_commission_amount: number | string | null;
       package_no_pay_handling: string | null;
       package_no_pay_selection_required: boolean | null;
-    }>).map((row) => [
+  };
+  type AttendanceManagementRow = Omit<PayrollAttendanceRow, 'attendance_deduction_amount' | 'remaining_deduction_amount' | 'prorated_package_commission' | 'actual_commission_amount' | 'effective_commission_amount' | 'package_no_pay_handling' | 'package_no_pay_selection_required'> & {
+    deduction_amount: number | string | null;
+  };
+
+  const payrollByCode = new Map(
+    ((payrollResult.data ?? []) as PayrollAttendanceRow[]).map((row) => [row.employee_code, row]),
+  );
+  const attendanceRows = (attendanceResult.data ?? []) as AttendanceManagementRow[];
+  const rows = attendanceRows.length > 0
+    ? attendanceRows.map((attendanceRow) => ({
+      ...payrollByCode.get(attendanceRow.employee_code),
+      ...attendanceRow,
+      attendance_deduction_amount: attendanceRow.deduction_amount,
+    }))
+    : ((payrollResult.data ?? []) as PayrollAttendanceRow[]);
+
+  return Object.fromEntries(
+    rows.map((row) => [
       row.employee_code,
       {
         employeeCode: row.employee_code,
