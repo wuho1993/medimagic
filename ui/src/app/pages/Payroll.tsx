@@ -1455,11 +1455,10 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
     } satisfies PayrollBonusConfigCatalog;
   }, [payrollBonusConfig]);
 
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const salaryMonth = initialMonth;
   const isHistoricalPayrollMonth = salaryMonth < '2026-04';
   const [isPending, startTransition] = useTransition();
-  const isSwitchingMonth = selectedMonth !== initialMonth || isPending;
+  const isSwitchingMonth = isPending;
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [mpfExportStatus, setMpfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
@@ -1473,7 +1472,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const [employeeSearchDrafts, setEmployeeSearchDrafts] = useState<Record<string, string>>({});
   const [employeeSearchQueries, setEmployeeSearchQueries] = useState<Record<string, string>>({});
   const [importMappingSectionsOpen, setImportMappingSectionsOpen] = useState({ matched: false, unmatched: true, skipped: false });
-  const [importMonth, setImportMonth] = useState(selectedMonth);
+  const [importMonth, setImportMonth] = useState(salaryMonth);
   const [isAiChatbotOpen, setIsAiChatbotOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string }>>([
     { role: 'ai', text: lang === 'zh-CN' ? '你好！我是 AI 薪资助手。请选择导入类型并上传文件，我会自动为您提取对应的数据。' : (lang === 'en' ? 'Hello! I am your AI Payroll Assistant. Select the import type and upload your file to begin.' : '你好！我是 AI 薪資助手。請選擇匯入類別並上載檔案，我會為您自動分析及提取數據。') }
@@ -1563,16 +1562,12 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   }, [salaryMonth]);
 
   useEffect(() => {
-    setSelectedMonth(initialMonth);
-  }, [initialMonth]);
-
-  useEffect(() => {
     setPayrollRenderLimit(INITIAL_PAYROLL_RENDER_LIMIT);
   }, [payrollSearch, companyFilter, branchFilter, typeFilter, statusFilter, salaryMonth]);
 
   useEffect(() => {
-    setImportMonth(selectedMonth);
-  }, [selectedMonth]);
+    setImportMonth(salaryMonth);
+  }, [salaryMonth]);
 
   useEffect(() => {
     setEmpVolumes(buildInitialVolumes(savedRecords));
@@ -2171,7 +2166,6 @@ ${tablePreview}`;
   };
 
   const handleMonthChange = (value: string) => {
-    setSelectedMonth(value);
     startTransition(() => {
       const params = new URLSearchParams(searchParams?.toString() ?? '');
       if (value) {
@@ -2248,10 +2242,6 @@ ${tablePreview}`;
   };
 
   const displayedMonth = salaryMonth;
-
-  const openAverageWagesPage = () => {
-    router.push(`/app/payroll/average-wages?month=${encodeURIComponent(salaryMonth)}`);
-  };
 
   const rows = useMemo(() => employees.map((sourceEmployee) => {
     const emp = liveEmployeeDefaults[sourceEmployee.employeeCode] ?? sourceEmployee;
@@ -3031,6 +3021,12 @@ ${tablePreview}`;
   };
 
   const openPayslipModal = () => {
+    if (payslipExportEntries.length === 0) {
+      window.alert('今個月份未有可匯出的出糧單資料。請先確認月份資料已載入，或先儲存 Payroll。');
+      setExportStatus('error');
+      queueExportStatusReset();
+      return;
+    }
     if (!requestPayrollReview('payslip')) {
       return;
     }
@@ -3224,6 +3220,7 @@ ${tablePreview}`;
 
     if (mpfRows.length === 0) {
       setMpfExportStatus('error');
+      window.alert('今個月份未有可提交 MPF 的員工資料。請確認員工 MPF 已啟用、月份正確，以及 Payroll 金額已載入。');
       window.setTimeout(() => setMpfExportStatus('idle'), 3000);
       return;
     }
@@ -3320,6 +3317,12 @@ ${tablePreview}`;
   };
 
   const handleExportMpfBatch = () => {
+    if (rows.length === 0) {
+      setMpfExportStatus('error');
+      window.alert('今個月份未有 Payroll 員工資料，暫時不能批量提交 MPF。');
+      window.setTimeout(() => setMpfExportStatus('idle'), 3000);
+      return;
+    }
     if (!requestPayrollReview('mpf')) {
       return;
     }
@@ -3476,10 +3479,10 @@ ${tablePreview}`;
               {t.aiImportTitle}
             </button>
 
-            <button type="button" onClick={openAverageWagesPage} className={`${toolbarButtonClasses} whitespace-nowrap bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800`}>
+            <Link href={`/app/payroll/average-wages?month=${encodeURIComponent(salaryMonth)}`} className={`${toolbarButtonClasses} whitespace-nowrap bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800`}>
               <Calculator className="h-4 w-4" />
               {t.avg365}
-            </button>
+            </Link>
 
             <button type="button" onClick={openPayslipModal} disabled={exportStatus === 'exporting'} className={`${toolbarButtonClasses} whitespace-nowrap ${exportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
               <Download className="h-4 w-4" />
@@ -3501,12 +3504,6 @@ ${tablePreview}`;
               lang={lang}
               className="h-full"
             />
-            {isSwitchingMonth ? (
-              <div className="md:col-span-4 -mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
-                正在切換到 {selectedMonth}，目前仍顯示 {salaryMonth}。新月份資料載入完成後會自動更新，系統不會用舊月份資料計新月份 Payroll。
-              </div>
-            ) : null}
-
             <div className={metricCardClasses}>
             <div className="flex h-full flex-col justify-center gap-1">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.employees}</div>
