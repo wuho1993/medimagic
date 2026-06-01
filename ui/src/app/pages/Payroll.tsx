@@ -1251,6 +1251,19 @@ function createDefaultMonthlyMpfState(
   };
 }
 
+function resolveInitialMpfApplied(
+  canApplyMpf: boolean,
+  defaultApplicable: boolean,
+  savedApplied: boolean | undefined,
+  savedAmount: number | undefined,
+  savedManualOverride: boolean | undefined,
+) {
+  if (!canApplyMpf) return false;
+  if (savedApplied) return true;
+  if (defaultApplicable && !savedManualOverride && !(savedAmount && savedAmount > 0)) return true;
+  return savedApplied ?? defaultApplicable;
+}
+
 function buildInitialWorkUnits(
   savedRecords: MonthlyCommissionRecord[],
   attendanceRecords: Record<string, PayrollAttendanceRecord>,
@@ -1296,11 +1309,11 @@ function buildInitialMonthlyMpfStates(
     const canApplyMpf = employee.mpfEnabled;
 
     return [employee.employeeCode, {
-      mpfEeApplied: canApplyMpf ? (saved?.mpfEeApplied ?? defaultApplicable) : false,
+      mpfEeApplied: resolveInitialMpfApplied(canApplyMpf, defaultApplicable, saved?.mpfEeApplied, saved?.mpfEeAmount, saved?.mpfEeManualOverride),
       mpfEeDeductionMode: saved?.mpfEeDeductionMode ?? previousMpfDeductionModes[employee.employeeCode] ?? 'split',
       mpfEeManualOverride: canApplyMpf ? (saved?.mpfEeManualOverride ?? false) : false,
       mpfEeAmount: canApplyMpf && saved?.mpfEeManualOverride ? String(saved.mpfEeAmount) : '',
-      mpfErApplied: canApplyMpf ? (saved?.mpfErApplied ?? defaultApplicable) : false,
+      mpfErApplied: resolveInitialMpfApplied(canApplyMpf, defaultApplicable, saved?.mpfErApplied, saved?.mpfErAmount, saved?.mpfErManualOverride),
       mpfErManualOverride: canApplyMpf ? (saved?.mpfErManualOverride ?? false) : false,
       mpfErAmount: canApplyMpf && saved?.mpfErManualOverride ? String(saved.mpfErAmount) : '',
     }];
