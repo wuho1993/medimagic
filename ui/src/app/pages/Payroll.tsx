@@ -27,6 +27,7 @@ type PayrollProps = {
   initialPayrollReviewAnswers?: Record<string, PayrollReviewReason>;
   previousMpfDeductionModes?: Record<string, 'split' | 'month_end'>;
   rollingCommissionAverages?: Record<string, RollingCommissionAverageRecord>;
+  isDataReady?: boolean;
 };
 
 type PayrollImportRow = {
@@ -1433,7 +1434,7 @@ function getPayrollBonusDisplayName(
   return labels.bonus1;
 }
 
-export default function Payroll({ employees = [], commissionTiers = [], savedRecords = [], attendanceRecords = {}, defaultPackageNoPayHandling, commissionAvg = {}, selectedMonth: initialMonth, payrollBonusConfig = createLegacyPayrollBonusConfigCatalog(), initialPayrollReviewAnswers = {}, previousMpfDeductionModes = {}, rollingCommissionAverages = {} }: PayrollProps) {
+export default function Payroll({ employees = [], commissionTiers = [], savedRecords = [], attendanceRecords = {}, defaultPackageNoPayHandling, commissionAvg = {}, selectedMonth: initialMonth, payrollBonusConfig = createLegacyPayrollBonusConfigCatalog(), initialPayrollReviewAnswers = {}, previousMpfDeductionModes = {}, rollingCommissionAverages = {}, isDataReady = true }: PayrollProps) {
   const { lang } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
@@ -1459,6 +1460,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const isHistoricalPayrollMonth = salaryMonth < '2026-04';
   const [isPending, startTransition] = useTransition();
   const isSwitchingMonth = isPending;
+  const isPayrollActionBlocked = !isDataReady || isSwitchingMonth;
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [mpfExportStatus, setMpfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
@@ -1776,6 +1778,13 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   };
 
   const handlePayrollImport = async (file: File | null) => {
+    if (isPayrollActionBlocked) {
+      const message = 'Payroll 資料仍在載入，請等月份資料完成後再匯入。';
+      setImportStatus('error');
+      setImportMessage(message);
+      setChatMessages((prev) => [...prev, { role: 'ai', text: message }]);
+      return;
+    }
     if (importStatus === 'importing') {
       return;
     }
@@ -2143,6 +2152,10 @@ ${tablePreview}`;
   };
 
   const resyncEmployeeMonthFromDefaults = async (employeeCode: string) => {
+    if (isPayrollActionBlocked) {
+      window.alert('Payroll 資料仍在載入，請等月份資料完成後再同步員工設定。');
+      return;
+    }
     setResyncingCodes((prev) => ({ ...prev, [employeeCode]: true }));
     const result = await fetchLatestPayrollEmployeeDefaults(employeeCode);
     setResyncingCodes((prev) => ({ ...prev, [employeeCode]: false }));
@@ -2231,6 +2244,13 @@ ${tablePreview}`;
   };
 
   const confirmPendingPayrollImportFile = () => {
+    if (isPayrollActionBlocked) {
+      const message = 'Payroll 資料仍在載入，請等月份資料完成後再分析檔案。';
+      setImportStatus('error');
+      setImportMessage(message);
+      setChatMessages((prev) => [...prev, { role: 'ai', text: message }]);
+      return;
+    }
     if (!pendingImportFile) {
       const message = lang === 'zh-CN' ? '请先选择或拖拽文件。' : lang === 'en' ? 'Choose or drag a file first.' : '請先選擇或拖拽檔案。';
       setImportMessage(message);
@@ -3021,6 +3041,10 @@ ${tablePreview}`;
   };
 
   const openPayslipModal = () => {
+    if (isPayrollActionBlocked) {
+      window.alert('Payroll 資料仍在載入，請等月份資料完成後再匯出出糧單。');
+      return;
+    }
     if (payslipExportEntries.length === 0) {
       window.alert('今個月份未有可匯出的出糧單資料。請先確認月份資料已載入，或先儲存 Payroll。');
       setExportStatus('error');
@@ -3148,6 +3172,14 @@ ${tablePreview}`;
   };
 
   const persistEntries = (version: number, trigger: 'manual' | 'auto') => {
+    if (isPayrollActionBlocked) {
+      if (trigger === 'manual') {
+        setSaveStatus('error');
+        queueSaveStatusReset();
+        window.alert('Payroll 資料仍在載入，請等月份資料完成後再儲存。');
+      }
+      return;
+    }
     if (isHistoricalPayrollMonth) {
       if (trigger === 'manual') {
         setSaveStatus('error');
@@ -3317,6 +3349,10 @@ ${tablePreview}`;
   };
 
   const handleExportMpfBatch = () => {
+    if (isPayrollActionBlocked) {
+      window.alert('Payroll 資料仍在載入，請等月份資料完成後再批量提交 MPF。');
+      return;
+    }
     if (rows.length === 0) {
       setMpfExportStatus('error');
       window.alert('今個月份未有 Payroll 員工資料，暫時不能批量提交 MPF。');
@@ -3469,12 +3505,12 @@ ${tablePreview}`;
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-3">
-            <button type="button" onClick={handleAutoSaveNow} disabled={isHistoricalPayrollMonth} className={`${toolbarButtonClasses} whitespace-nowrap bg-slate-50 text-slate-700 hover:border-slate-300 hover:text-slate-900`}>
+            <button type="button" onClick={handleAutoSaveNow} disabled={isHistoricalPayrollMonth || isPayrollActionBlocked} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : undefined} className={`${toolbarButtonClasses} whitespace-nowrap bg-slate-50 text-slate-700 hover:border-slate-300 hover:text-slate-900`}>
               <CalendarDays className="h-4 w-4" />
               {(isPending || saveStatus === 'saving') ? t.saving : saveStatus === 'saved' ? t.saved : saveStatus === 'error' ? t.saveFail : t.autoSave}
             </button>
 
-            <button type="button" onClick={() => setIsAiChatbotOpen(true)} className={`${primaryButtonClasses} whitespace-nowrap px-4`}>
+            <button type="button" onClick={() => setIsAiChatbotOpen(true)} disabled={isPayrollActionBlocked} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : undefined} className={`${primaryButtonClasses} whitespace-nowrap px-4 disabled:cursor-not-allowed disabled:opacity-50`}>
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">✨</span>
               {t.aiImportTitle}
             </button>
@@ -3484,12 +3520,12 @@ ${tablePreview}`;
               {t.avg365}
             </Link>
 
-            <button type="button" onClick={openPayslipModal} disabled={exportStatus === 'exporting'} className={`${toolbarButtonClasses} whitespace-nowrap ${exportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
+            <button type="button" onClick={openPayslipModal} disabled={exportStatus === 'exporting' || isPayrollActionBlocked} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${exportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
               <Download className="h-4 w-4" />
               {exportStatus === 'exporting' ? t.exportingPayslip : exportStatus === 'error' ? t.exportPayslipFail : t.exportPayslip}
             </button>
 
-            <button type="button" onClick={handleExportMpfBatch} disabled={mpfExportStatus === 'exporting'} title={mpfExportStatus === 'error' ? t.exportMpfNoData : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${mpfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
+            <button type="button" onClick={handleExportMpfBatch} disabled={mpfExportStatus === 'exporting' || isPayrollActionBlocked} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : mpfExportStatus === 'error' ? t.exportMpfNoData : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${mpfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
               <Download className="h-4 w-4" />
               {mpfExportStatus === 'exporting' ? t.exportingPayslip : mpfExportStatus === 'error' ? t.exportMpfNoData : t.exportMpf}
             </button>
@@ -3683,7 +3719,7 @@ ${tablePreview}`;
                             <button
                               type="button"
                               onClick={() => void resyncEmployeeMonthFromDefaults(row.employeeCode)}
-                              disabled={Boolean(resyncingCodes[row.employeeCode])}
+                              disabled={Boolean(resyncingCodes[row.employeeCode]) || isPayrollActionBlocked}
                               className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-[#D4AF37] hover:text-[#B38E18]"
                             >
                               {resyncingCodes[row.employeeCode] ? t.saving : t.resyncMonthlySettings}
@@ -4961,7 +4997,7 @@ ${tablePreview}`;
                     <button
                       type="button"
                       onClick={() => applyResolvedImportMappings(pendingImportMappings)}
-                      disabled={pendingImportMappings.some((mapping) => !mapping.selectedEmployeeCode && !mapping.skipped)}
+                      disabled={pendingImportMappings.some((mapping) => !mapping.selectedEmployeeCode && !mapping.skipped) || isPayrollActionBlocked}
                       className="mt-3 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       確認所有對應並匯入
@@ -5000,7 +5036,7 @@ ${tablePreview}`;
                     <select
                       value={importType}
                       onChange={(e) => setImportType(e.target.value as PayrollImportType | '')}
-                      disabled={importStatus === 'importing' || isPending}
+                      disabled={importStatus === 'importing' || isPayrollActionBlocked}
                       className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-[#D4AF37] focus:bg-white focus:ring-4 focus:ring-[#D4AF37]/10 disabled:opacity-60"
                     >
                       <option value="">{lang === 'zh-CN' ? '请先选择类别' : lang === 'en' ? 'Choose import type' : '請先選擇類別'}</option>
@@ -5020,13 +5056,13 @@ ${tablePreview}`;
                         event.preventDefault();
                         stagePayrollImportFile(event.dataTransfer.files?.[0] ?? null);
                       }}
-                      className={`relative flex h-11 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed px-4 text-sm font-medium transition ${importStatus === 'importing' || isPending ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400' : 'border-[#D4AF37]/35 bg-amber-50/30 text-slate-700 hover:border-[#D4AF37] hover:bg-amber-50/70'}`}
+                      className={`relative flex h-11 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed px-4 text-sm font-medium transition ${importStatus === 'importing' || isPayrollActionBlocked ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400' : 'border-[#D4AF37]/35 bg-amber-50/30 text-slate-700 hover:border-[#D4AF37] hover:bg-amber-50/70'}`}
                     >
                       <input
                         key={importKey}
                         type="file"
                         accept=".xlsx,.xls,.csv"
-                        disabled={importStatus === 'importing' || isPending}
+                        disabled={importStatus === 'importing' || isPayrollActionBlocked}
                         onChange={(event) => stagePayrollImportFile(event.target.files?.[0] ?? null)}
                         className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                       />
@@ -5044,7 +5080,7 @@ ${tablePreview}`;
                     <button
                       type="button"
                       onClick={confirmPendingPayrollImportFile}
-                      disabled={importStatus === 'importing' || isPending}
+                      disabled={importStatus === 'importing' || isPayrollActionBlocked}
                       className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-[#D4AF37] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {lang === 'zh-CN' ? '确认分析文件' : lang === 'en' ? 'Confirm Analyze File' : '確認分析檔案'}
@@ -5058,7 +5094,7 @@ ${tablePreview}`;
                   <textarea
                     value={manualImportText}
                     onChange={(event) => setManualImportText(event.target.value)}
-                    disabled={importStatus === 'importing' || isPending}
+                    disabled={importStatus === 'importing' || isPayrollActionBlocked}
                     rows={3}
                     placeholder={lang === 'zh-CN' ? '例如：员工编号 redeem sales job...' : lang === 'en' ? 'Example: employee code redeem sales job...' : '例如：員工編號 redeem sales job...'}
                     className="min-h-[88px] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#D4AF37] focus:bg-white focus:ring-4 focus:ring-[#D4AF37]/10 disabled:opacity-60"
@@ -5070,7 +5106,7 @@ ${tablePreview}`;
                   <button
                     type="button"
                     onClick={handleManualPayrollImport}
-                    disabled={importStatus === 'importing' || isPending || manualImportText.trim().length === 0}
+                    disabled={importStatus === 'importing' || isPayrollActionBlocked || manualImportText.trim().length === 0}
                     className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#D4AF37] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C5A028] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {lang === 'zh-CN' ? '分析输入内容' : lang === 'en' ? 'Analyze Text' : '分析輸入內容'}
