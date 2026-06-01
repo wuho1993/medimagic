@@ -1,7 +1,7 @@
 {
   "name": "medi-magic-hrms-ui",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.10.0",
   "engines": {
     "node": ">=18.18.0"
   },

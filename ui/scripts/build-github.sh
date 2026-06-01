@@ -110,10 +110,11 @@ fi
 
 # 8c. Fix metadata icon paths — prefix basePath BEFORE build so RSC payload is correct
 BASE_PATH="/medimagic"
-BUILD_VERSION="${GITHUB_SHA:-$(git rev-parse --short HEAD 2>/dev/null || date +%s)}"
+APP_VERSION="1.10"
+BUILD_VERSION="${APP_VERSION}"
 export NEXT_PUBLIC_BUILD_VERSION="$BUILD_VERSION"
 mkdir -p "$UI_DIR/public"
-printf '{"version":"%s"}\n' "$BUILD_VERSION" > "$UI_DIR/public/build-version.json"
+printf '{"version":"%s","commit":"%s"}\n' "$BUILD_VERSION" "${GITHUB_SHA:-$(git rev-parse --short HEAD 2>/dev/null || date +%s)}" > "$UI_DIR/public/build-version.json"
 
 LAYOUT_FILE="$UI_DIR/app/layout.tsx"
 if [ -f "$LAYOUT_FILE" ]; then
