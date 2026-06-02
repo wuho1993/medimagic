@@ -4853,7 +4853,7 @@ ${tablePreview}`;
                       >
                         <option value="">請選擇原因</option>
                         <option value="confirmed">確認無問題，繼續處理</option>
-                        {issue.type === 'commission_no_data' ? <option value="not_commission_employee">不屬於佣金同事，以後忽略</option> : null}
+                        <option value="not_commission_employee">不屬於佣金同事，以後忽略</option>
                         <option value="no_pay_this_month">今月不用出糧/不提交 MPF</option>
                         <option value="resigned">已離職，今月不處理</option>
                         <option value="final_pay_resigned">已離職，但今月是最後一期出糧/供款</option>

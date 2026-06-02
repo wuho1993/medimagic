@@ -570,7 +570,7 @@ export async function savePayrollReviewAnswers(yearMonth: string, entries: Payro
   await rememberNonCommissionEmployees(
     supabase,
     filteredEntries
-      .filter((entry) => entry.issueType === 'commission_no_data' && entry.reason === 'not_commission_employee')
+      .filter((entry) => entry.reason === 'not_commission_employee')
       .map((entry) => entry.employeeCode),
   );
 
