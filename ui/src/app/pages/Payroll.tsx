@@ -39,6 +39,99 @@ type PayrollImportRow = {
   sgm?: number;
 };
 
+const AI_IMPORT_DEFAULT_BASE_URL = 'https://128api.cn/v1';
+const AI_IMPORT_DEFAULT_MODELS = ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.2'];
+
+function normalizeAiBaseUrl(value: string) {
+  const baseUrl = value.replace(/\/$/, '');
+  return baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
+}
+
+function getAiImportModelCandidates() {
+  const configuredModels = (process.env.NEXT_PUBLIC_AI_MODEL || '')
+    .split(',')
+    .map((model) => model.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set([...configuredModels, ...AI_IMPORT_DEFAULT_MODELS]));
+}
+
+async function requestBrowserAiImport(prompt: string) {
+  const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GitHub Pages static deploy cannot use /api/payroll/ai-import. Please set NEXT_PUBLIC_AI_API_KEY in GitHub Actions secrets, or run the app locally for AI import.');
+  }
+
+  const baseUrl = normalizeAiBaseUrl(process.env.NEXT_PUBLIC_AI_BASE_URL || AI_IMPORT_DEFAULT_BASE_URL);
+  const errors: string[] = [];
+
+  for (const model of getAiImportModelCandidates()) {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a payroll import assistant. Return only valid JSON array output and nothing else.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 800,
+      }),
+    });
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      errors.push(`${model}: ${response.status} ${responseText.slice(0, 300)}`);
+      if ([400, 401, 403, 405].includes(response.status)) break;
+      continue;
+    }
+
+    const payload = JSON.parse(responseText) as { choices?: Array<{ message?: { content?: string | null } }> };
+    const text = payload.choices?.[0]?.message?.content ?? '';
+    if (text) return text;
+
+    errors.push(`${model}: empty AI response`);
+  }
+
+  throw new Error(`No available AI model channel. Tried: ${errors.join(' | ')}`);
+}
+
+async function requestAiImport(prompt: string) {
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('github.io')) {
+    return requestBrowserAiImport(prompt);
+  }
+
+  const aiResponse = await fetch('/medimagic/api/payroll/ai-import', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ prompt }),
+  });
+
+  if (!aiResponse.ok) {
+    const errorPayload = await aiResponse.json().catch(() => null) as { error?: string } | null;
+    throw new Error(errorPayload?.error ?? `AI API request failed (${aiResponse.status})`);
+  }
+
+  const aiData = await aiResponse.json().catch(() => null) as { text?: string; error?: string } | null;
+  if (!aiData) {
+    throw new Error('AI proxy returned invalid JSON.');
+  }
+  if (aiData.error) {
+    throw new Error(aiData.error);
+  }
+
+  return aiData.text ?? '';
+}
+
 type PayrollImportType = 'all' | 'redeem' | 'sales' | 'job' | 'sgm';
 
 type PendingImportMapping = {
@@ -1983,28 +2076,8 @@ ${header}
 Table rows:
 ${tablePreview}`;
 
-      // 3. Call server-side AI proxy
-      const aiResponse = await fetch('/medimagic/api/payroll/ai-import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: `Import month: ${importMonth}\nImport type: ${importType}\n${prompt}` }),
-      });
-
-      if (!aiResponse.ok) {
-        const errorPayload = await aiResponse.json().catch(() => null) as { error?: string } | null;
-        throw new Error(errorPayload?.error ?? `AI API request failed (${aiResponse.status})`);
-      }
-
-      const aiData = await aiResponse.json().catch(() => null) as { text?: string; error?: string } | null;
-      if (!aiData) {
-        throw new Error('AI proxy returned invalid JSON.');
-      }
-      if (aiData.error) {
-        throw new Error(aiData.error);
-      }
-      const aiText = aiData.text ?? '';
+      // 3. Call AI. GitHub Pages is static, so it cannot run Next API routes.
+      const aiText = await requestAiImport(`Import month: ${importMonth}\nImport type: ${importType}\n${prompt}`);
 
       const jsonMatch = aiText.match(/\[\s*[\s\S]*\]/m) || aiText.match(/\{[\s\S]*\}/m);
       if (!jsonMatch) {
