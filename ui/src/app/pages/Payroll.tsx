@@ -57,9 +57,16 @@ function getAiImportModelCandidates() {
 }
 
 async function requestBrowserAiImport(prompt: string) {
-  const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
+  let apiKey = process.env.NEXT_PUBLIC_AI_API_KEY || window.localStorage.getItem('medimagic_ai_api_key') || '';
   if (!apiKey) {
-    throw new Error('GitHub Pages static deploy cannot use /api/payroll/ai-import. Please set NEXT_PUBLIC_AI_API_KEY in GitHub Actions secrets, or run the app locally for AI import.');
+    apiKey = window.prompt('AI 匯入需要 AI API key。請輸入一次，系統會儲存在此瀏覽器。')?.trim() || '';
+    if (apiKey) {
+      window.localStorage.setItem('medimagic_ai_api_key', apiKey);
+    }
+  }
+
+  if (!apiKey) {
+    throw new Error('AI import needs an AI API key. Add AI_API_KEY in GitHub Secrets, or enter the key when prompted in this browser.');
   }
 
   const baseUrl = normalizeAiBaseUrl(process.env.NEXT_PUBLIC_AI_BASE_URL || AI_IMPORT_DEFAULT_BASE_URL);
