@@ -524,6 +524,7 @@ export async function updateEmployee(formData: FormData) {
   const streetPromoterEnabled = getValue(formData, 'streetPromoterEnabled') === 'true';
   const telesalesEnabled = getValue(formData, 'telesalesEnabled') === 'true';
   const shopBonusEnabled = getValue(formData, 'shopBonusEnabled') === 'true';
+  const payrollIgnoreCommissionReview = getValue(formData, 'payrollIgnoreCommissionReview') === 'true';
   const commissionRules = rawCommissionRules.filter((rule) => {
     if (rule.metric === 'shop') {
       return shopBonusEnabled;
@@ -583,6 +584,7 @@ export async function updateEmployee(formData: FormData) {
     shopBonusCustomName,
     shopBonusCustomTiers,
     shopBonusScheme,
+    payrollIgnoreCommissionReview,
   ].some((value) => value !== null);
 
   if (hasSalaryData) {
@@ -626,6 +628,7 @@ export async function updateEmployee(formData: FormData) {
       pay_day_primary: payDayPrimary,
       pay_day_secondary: payDaySecondary,
       commission_notes: commissionNotes,
+      payroll_ignore_commission_review: payrollIgnoreCommissionReview,
     };
 
     const currentResult = await supabase
@@ -637,7 +640,7 @@ export async function updateEmployee(formData: FormData) {
         await supabase
           .from('employee_salary_profiles')
           .upsert(
-            (({ package_commission_amount, office_job_amount, street_promoter_enabled, telesales_enabled, sales_amount_rate_percent, commission_rules, ...legacyPayload }) => legacyPayload)(salaryProfilePayload),
+            (({ package_commission_amount, office_job_amount, street_promoter_enabled, telesales_enabled, sales_amount_rate_percent, commission_rules, payroll_ignore_commission_review, ...legacyPayload }) => legacyPayload)(salaryProfilePayload),
             { onConflict: 'employee_id' },
           )
       ).error)

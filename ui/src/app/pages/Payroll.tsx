@@ -476,7 +476,7 @@ type PayslipPdfEntry = {
 };
 
 type PayrollReviewIssueType = 'commission_no_data' | 'new_hire' | 'zero_pay' | 'mpf_expected_missing' | 'mpf_unexpected_applied' | 'average_wage_needs_review';
-type PayrollReviewReason = 'confirmed' | 'no_pay_this_month' | 'resigned' | 'final_pay_resigned' | 'not_ready';
+type PayrollReviewReason = 'confirmed' | 'not_commission_employee' | 'no_pay_this_month' | 'resigned' | 'final_pay_resigned' | 'not_ready';
 type PayrollReviewAction = 'payslip' | 'mpf';
 type PayrollReviewIssue = {
   key: string;
@@ -2963,7 +2963,7 @@ ${tablePreview}`;
         String(row.shopActualSalesAmount || ''),
       ].some((value) => (Number(value) || 0) > 0);
 
-      if (hasPerformanceCommissionProfile && !hasPerformanceData) {
+      if (hasPerformanceCommissionProfile && !hasPerformanceData && !row.payrollIgnoreCommissionReview) {
         addIssue(
           'commission_no_data',
           '佣金員工今月沒有業績資料',
@@ -4853,6 +4853,7 @@ ${tablePreview}`;
                       >
                         <option value="">請選擇原因</option>
                         <option value="confirmed">確認無問題，繼續處理</option>
+                        {issue.type === 'commission_no_data' ? <option value="not_commission_employee">不屬於佣金同事，以後忽略</option> : null}
                         <option value="no_pay_this_month">今月不用出糧/不提交 MPF</option>
                         <option value="resigned">已離職，今月不處理</option>
                         <option value="final_pay_resigned">已離職，但今月是最後一期出糧/供款</option>

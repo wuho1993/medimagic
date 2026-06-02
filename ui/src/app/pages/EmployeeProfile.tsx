@@ -97,6 +97,7 @@ type FormState = {
   shopBonusCustomName: string;
   shopBonusCustomTiers: string;
   shopBonusScheme: string;
+  payrollIgnoreCommissionReview: string;
   payDayPrimary: string;
   payDaySecondary: string;
   commissionNotes: string;
@@ -221,6 +222,7 @@ const translations = {
       payrollBonusScheme: 'Bonus 類型',
       streetPromoterEnabled: '街霸佣金',
       telesalesEnabled: '電話銷售員佣金',
+      payrollIgnoreCommissionReview: 'Payroll 無業績檢查忽略',
       shopBonusEnabled: '鋪數',
       shopBonusCustomName: '自訂鋪數名稱',
       shopBonusScheme: '鋪數類型',
@@ -490,6 +492,7 @@ const translations = {
       payrollBonusScheme: 'Bonus 类型',
       streetPromoterEnabled: '街霸佣金',
       telesalesEnabled: '电话销售员佣金',
+      payrollIgnoreCommissionReview: 'Payroll 无业绩检查忽略',
       shopBonusEnabled: '铺数',
       shopBonusCustomName: '自定义铺数名称',
       shopBonusScheme: '铺数类型',
@@ -759,6 +762,7 @@ const translations = {
       payrollBonusScheme: 'Bonus Type',
       streetPromoterEnabled: 'Street Promoter Commission',
       telesalesEnabled: 'Telesales Commission',
+      payrollIgnoreCommissionReview: 'Ignore Payroll No Performance Check',
       shopBonusEnabled: 'Shop Bonus',
       shopBonusCustomName: 'Custom Shop Bonus Name',
       shopBonusScheme: 'Shop Bonus Type',
@@ -1421,6 +1425,7 @@ function createInitialState(employee: EmployeeDetailRecord): FormState {
       : (employee.payrollBonusScheme ?? (employee.salesBonusEnabled && employee.salesBonusRate !== null ? 'custom' : '')),
     streetPromoterEnabled: employee.streetPromoterEnabled ? 'true' : 'false',
     telesalesEnabled: employee.telesalesEnabled ? 'true' : 'false',
+    payrollIgnoreCommissionReview: employee.payrollIgnoreCommissionReview ? 'true' : 'false',
     shopBonusEnabled: employee.shopBonusEnabled ? 'true' : 'false',
     shopBonusCustomName: employee.shopBonusCustomName ?? '',
     shopBonusCustomTiers: serializeShopBonusTiers(employee.shopBonusCustomTiers ?? []),
@@ -2946,6 +2951,7 @@ export default function EmployeeProfile({
         shopBonusCustomTiers: employee.shopBonusCustomTiers,
         streetPromoterEnabled: employee.streetPromoterEnabled,
         telesalesEnabled: employee.telesalesEnabled,
+        payrollIgnoreCommissionReview: employee.payrollIgnoreCommissionReview,
         commissionNotes: employee.commissionNotes,
       },
       leave: {
@@ -3432,6 +3438,15 @@ export default function EmployeeProfile({
                           </label>
                         </div>
                       </div>
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input type="checkbox" name="payrollIgnoreCommissionReview" checked={formState.payrollIgnoreCommissionReview === 'true'} onChange={(e) => setFormState((prev) => ({ ...prev, payrollIgnoreCommissionReview: e.target.checked ? 'true' : 'false' }))} className="mt-1 h-4 w-4 rounded border-amber-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
+                          <span>
+                            <span className="block text-sm font-semibold text-slate-800">{t.fields.payrollIgnoreCommissionReview}</span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-600">此員工暫不屬於佣金同事，Payroll 匯出檢查不再提示「有佣金設定但今月無業績」。如轉返佣金同事，取消勾選即可恢復提示。</span>
+                          </span>
+                        </label>
+                      </div>
                       {(formState.streetPromoterEnabled === 'true' || formState.telesalesEnabled === 'true') ? specialCommissionRulesCard : null}
                       <div className="rounded-xl border border-slate-200 bg-white p-4">
                         <FieldShell label={t.fields.salesAmountRatePercent}>
@@ -3612,6 +3627,7 @@ export default function EmployeeProfile({
                     <InfoRow label={t.fields.commissionMethod} value={appliedCommissionDisplayName} />
                     <InfoRow label={t.fields.streetPromoterEnabled} value={employee.streetPromoterEnabled ? t.booleanLabels.yes : t.booleanLabels.no} />
                     <InfoRow label={t.fields.telesalesEnabled} value={employee.telesalesEnabled ? t.booleanLabels.yes : t.booleanLabels.no} />
+                    <InfoRow label={t.fields.payrollIgnoreCommissionReview} value={employee.payrollIgnoreCommissionReview ? t.booleanLabels.yes : t.booleanLabels.no} />
                     {(employee.streetPromoterEnabled || employee.telesalesEnabled) ? specialCommissionRulesCard : null}
                     {employee.salesAmountRatePercent !== null && Number.isFinite(employee.salesAmountRatePercent) ? <InfoRow label={t.fields.salesAmountRatePercent} value={`${employee.salesAmountRatePercent}%`} /> : null}
                     {employee.commissionMethod === 'standard' ? (

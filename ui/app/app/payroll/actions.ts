@@ -137,6 +137,39 @@ export type PayrollReviewEntry = {
   detail?: Record<string, unknown>;
 };
 
+async function rememberNonCommissionEmployees(supabase: ReturnType<typeof createSupabaseAdminClient>, employeeCodes: string[]) {
+  const uniqueCodes = Array.from(new Set(employeeCodes.map((code) => code.trim()).filter(Boolean)));
+  if (uniqueCodes.length === 0) return;
+
+  const { data: employees, error: employeeError } = await supabase
+    .from('employees')
+    .select('id, employee_code')
+    .in('employee_code', uniqueCodes);
+
+  if (employeeError || !employees?.length) {
+    if (employeeError) console.warn('Failed to load employees for commission review memory:', employeeError.message);
+    return;
+  }
+
+  const payload = employees.map((employee) => ({
+    employee_id: employee.id,
+    payroll_ignore_commission_review: true,
+  }));
+
+  const { error } = await supabase
+    .from('employee_salary_profiles')
+    .upsert(payload, { onConflict: 'employee_id' });
+
+  if (error) {
+    if (isMissingColumnError(error.message) || error.message.includes('payroll_ignore_commission_review')) {
+      console.warn('Payroll commission review memory column is not available yet:', error.message);
+      return;
+    }
+
+    console.warn('Failed to save commission review memory:', error.message);
+  }
+}
+
 export async function updatePayrollImportEmployeeCode(currentEmployeeCode: string, newEmployeeCode: string): Promise<{ success: true } | { error: string }> {
   const user = await getCurrentUser();
   if (!user || !canAccessRoute(user.role, 'payroll')) {
@@ -534,6 +567,13 @@ export async function savePayrollReviewAnswers(yearMonth: string, entries: Payro
   }
 
   const supabase = createSupabaseAdminClient();
+  await rememberNonCommissionEmployees(
+    supabase,
+    filteredEntries
+      .filter((entry) => entry.issueType === 'commission_no_data' && entry.reason === 'not_commission_employee')
+      .map((entry) => entry.employeeCode),
+  );
+
   const payload = filteredEntries.map((entry) => ({
     year_month: yearMonth,
     employee_code: entry.employeeCode,
