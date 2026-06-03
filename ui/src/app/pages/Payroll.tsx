@@ -2449,7 +2449,7 @@ ${tablePreview}`;
       ? (attendanceRecord?.workedHours ?? 0)
       : Number(unitInput.workedHours) || 0;
     const hasWorkedDays = attendanceDrivenWorkedDays || unitInput.workedDays !== '';
-    const hasWorkedHours = unitInput.workedHours !== '';
+    const hasWorkedHours = attendanceDrivenWorkedHours || unitInput.workedHours !== '';
     const attendanceNoPayDays = getAttendanceNoPayDays(attendanceRecord);
     const attendanceAccruedExcessDays = getAttendanceAccruedExcessDays(attendanceRecord);
     const attendanceNoPayDeduction = calculateAttendanceNoPayDeduction(emp, attendanceRecord);
