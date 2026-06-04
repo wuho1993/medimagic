@@ -191,6 +191,10 @@ function payrollStatusLabel(status: PayrollEmployeeSummary['employmentStatus']) 
   return map[status] ?? status;
 }
 
+function isInactivePayrollStatus(status: PayrollEmployeeSummary['employmentStatus']) {
+  return status === 'resigned' || status === 'terminated';
+}
+
 function formatEnglishPayslipMonth(yearMonth: string) {
   const [year, month] = yearMonth.split('-').map(Number);
   if (!year || !month) {
@@ -3070,7 +3074,7 @@ ${tablePreview}`;
         }
       }
 
-      if (roundMoney(row.net) <= 0 && row.mpfRelevantIncome <= 0) {
+      if (roundMoney(row.net) <= 0 && row.mpfRelevantIncome <= 0 && !isInactivePayrollStatus(row.employmentStatus)) {
         addIssue(
           'zero_pay',
           '今月實發為 0 或沒有應課薪金',
