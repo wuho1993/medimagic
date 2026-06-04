@@ -3078,7 +3078,7 @@ ${tablePreview}`;
         );
       }
 
-      if (row.alShComplianceWarning) {
+      if (row.alShComplianceWarning && !row.payrollIgnoreCommissionReview) {
         addIssue(
           'average_wage_needs_review',
           'AL/SH 平均工資需要確認',
