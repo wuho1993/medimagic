@@ -7,7 +7,6 @@ import { saveAttendanceManagementRecord } from '@/app/app/leaves/actions';
 import YearMonthPicker from '../components/YearMonthPicker';
 import { useLanguage } from '../i18n/LanguageContext';
 import { saveRowsAsExcel } from '../utils/excelExport';
-import { saveElementAsPdf } from '../utils/pdfExport';
 import type {
   AttendanceDeductionBasis,
   AttendanceManagementOverview,
@@ -135,9 +134,7 @@ const translations = {
     save: '儲存',
     saving: '儲存中...',
     saved: '已儲存',
-    exportPdf: '匯出 PDF',
     exportingPdf: '匯出中...',
-    exportPdfFail: '匯出失敗',
     exportExcel: '匯出 Excel',
     exportExcelFail: 'Excel 匯出失敗',
     totalMismatch: '提醒：總日數與計薪日數不一致',
@@ -223,9 +220,7 @@ const translations = {
     save: '保存',
     saving: '保存中...',
     saved: '已保存',
-    exportPdf: '导出 PDF',
     exportingPdf: '导出中...',
-    exportPdfFail: '导出失败',
     exportExcel: '导出 Excel',
     exportExcelFail: 'Excel 导出失败',
     totalMismatch: '提醒：总日数与计薪日数不一致',
@@ -311,9 +306,7 @@ const translations = {
     save: 'Save',
     saving: 'Saving...',
     saved: 'Saved',
-    exportPdf: 'Export PDF',
     exportingPdf: 'Exporting...',
-    exportPdfFail: 'Export Failed',
     exportExcel: 'Export Excel',
     exportExcelFail: 'Excel Export Failed',
     totalMismatch: 'Warning: total days do not match calendar days',
@@ -688,10 +681,8 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   const [rowFeedback, setRowFeedback] = useState<Record<string, RowFeedback>>({});
   const [dirtyRows, setDirtyRows] = useState<Set<string>>(new Set());
   const [saveAllStatus, setSaveAllStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [exportPdfStatus, setExportPdfStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [exportExcelStatus, setExportExcelStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const scaledTableRefs = useRef<Record<string, HTMLDivElement>>({});
-  const exportPdfRef = useRef<HTMLDivElement>(null);
   const [tableHeights, setTableHeights] = useState<Record<string, number>>({});
   const [supportsCssZoom, setSupportsCssZoom] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -1136,21 +1127,6 @@ export default function AttendanceManagement({ overview, focusMode = false, init
     return formatValue(row.record?.[column.key] ?? null);
   };
 
-  const handleExportPdf = async () => {
-    const target = exportPdfRef.current;
-    if (!target || rows.length === 0) return;
-
-    setExportPdfStatus('exporting');
-    try {
-      await saveElementAsPdf(target, `attendance-records-${selectedMonth}.pdf`, 'landscape');
-      setExportPdfStatus('idle');
-    } catch (error) {
-      console.error('[attendance pdf export] unhandled:', error);
-      setExportPdfStatus('error');
-      window.setTimeout(() => setExportPdfStatus('idle'), 3000);
-    }
-  };
-
   const handleExportExcel = async () => {
     if (rows.length === 0) return;
 
@@ -1183,11 +1159,6 @@ export default function AttendanceManagement({ overview, focusMode = false, init
               <button type="button" onClick={() => void handleSaveAll()} disabled={dirtyRows.size === 0 || saveAllStatus === 'saving'} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#B8871A] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#9f7312] disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap">
                 <SaveAll className="h-4 w-4" />
                 {saveAllStatus === 'saving' ? t.saving : saveAllStatus === 'saved' ? t.saved : saveAllStatus === 'error' ? t.saveError : t.save} {dirtyRows.size > 0 && saveAllStatus !== 'saved' ? `(${dirtyRows.size})` : ''}
-              </button>
-
-              <button type="button" onClick={() => void handleExportPdf()} disabled={rows.length === 0 || exportPdfStatus === 'exporting'} className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap ${exportPdfStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
-                <Download className="h-4 w-4" />
-                {exportPdfStatus === 'exporting' ? t.exportingPdf : exportPdfStatus === 'error' ? t.exportPdfFail : t.exportPdf}
               </button>
 
               <button type="button" onClick={() => void handleExportExcel()} disabled={rows.length === 0 || exportExcelStatus === 'exporting'} className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap ${exportExcelStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
@@ -1662,37 +1633,6 @@ export default function AttendanceManagement({ overview, focusMode = false, init
         );
         })
       )}
-      </div>
-      <div className="pointer-events-none fixed left-[-10000px] top-0 bg-white" aria-hidden="true">
-        <div ref={exportPdfRef} className="w-[2200px] bg-white p-8 text-slate-900">
-          <div className="mb-5 flex items-end justify-between border-b border-slate-200 pb-3">
-            <div>
-              <div className="text-2xl font-bold">{t.title}</div>
-              <div className="mt-1 text-sm text-slate-500">{t.month}: {selectedMonth}</div>
-            </div>
-            <div className="text-sm text-slate-500">{t.showing} {rows.length} / {allRows.length}</div>
-          </div>
-          <table className="w-full border-collapse text-[10px]">
-            <thead>
-              <tr className="bg-slate-100 text-left">
-                {columns.map((column) => (
-                  <th key={column.key} className="border border-slate-300 px-2 py-2 font-semibold text-slate-700">{column.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.employee.id}>
-                  {columns.map((column) => (
-                    <td key={column.key} className="border border-slate-200 px-2 py-1.5 align-top text-slate-800">
-                      {getExportCellValue(row, column)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </>
   );
