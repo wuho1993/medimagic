@@ -5675,6 +5675,17 @@ ${tablePreview}`;
             </div>
             <div className="text-sm text-slate-500">{filteredRows.length} / {rows.length}</div>
           </div>
+          <div className="mb-8 grid grid-cols-2 gap-5 text-[20px]">
+            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-6">
+              <div className="text-base font-semibold uppercase tracking-wide text-slate-500">7號應出總數</div>
+              <div className="mt-3 text-4xl font-bold text-slate-900">{fmt(filteredRows.reduce((sum, row) => sum + row.primaryPayoutNet, 0))}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-6">
+              <div className="text-base font-semibold uppercase tracking-wide text-slate-500">20號應出總數</div>
+              <div className="mt-3 text-4xl font-bold text-slate-900">{fmt(filteredRows.reduce((sum, row) => sum + row.secondaryPayoutNet, 0))}</div>
+            </div>
+          </div>
+          <div className="mb-3 text-lg font-bold text-slate-900">員工明細</div>
           <table className="w-full border-collapse text-[15px]">
             <thead>
               <tr className="bg-slate-100 text-left">
@@ -5695,16 +5706,6 @@ ${tablePreview}`;
               ))}
             </tbody>
           </table>
-          <div className="mt-8 grid grid-cols-2 gap-5 text-[20px]">
-            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-5">
-              <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">7號應出總數</div>
-              <div className="mt-2 text-3xl font-bold text-slate-900">{fmt(filteredRows.reduce((sum, row) => sum + row.primaryPayoutNet, 0))}</div>
-            </div>
-            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-5">
-              <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">20號應出總數</div>
-              <div className="mt-2 text-3xl font-bold text-slate-900">{fmt(filteredRows.reduce((sum, row) => sum + row.secondaryPayoutNet, 0))}</div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
