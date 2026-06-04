@@ -943,9 +943,61 @@ export type DashboardData = {
   totalEmployees: number;
   activeEmployees: number;
   branchBreakdown: { branch: string; count: number }[];
-  recentHires: { employeeCode: string; nameZh: string; alias: string | null; hireDate: string; branchName: string | null }[];
   payDayReminders: { label: string; day: number; count: number }[];
+  payrollPayoutSummary: {
+    yearMonth: string;
+    primaryAmount: number;
+    secondaryAmount: number;
+  };
 };
+
+function getCurrentYearMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function calculateDashboardPayrollPayouts(employees: PayrollEmployeeSummary[], records: MonthlyCommissionRecord[]) {
+  const employeesByCode = new Map(employees.map((employee) => [employee.employeeCode, employee]));
+  const summary = { primaryAmount: 0, secondaryAmount: 0 };
+
+  for (const record of records) {
+    const employee = employeesByCode.get(record.employeeCode);
+    if (!employee || employee.employmentStatus !== 'active') continue;
+
+    const baseAmount = employee.salaryType === 'daily'
+      ? employee.baseSalary * record.workedDays
+      : employee.salaryType === 'hourly'
+        ? employee.baseSalary * record.workedHours
+        : employee.baseSalary;
+    const fixedGross = baseAmount
+      + employee.allowanceAmount
+      + employee.transportAllowance
+      + (record.briefingBonusApplied ? record.briefingBonusAmount : 0)
+      + (record.attendanceBonusApplied ? record.attendanceBonusAmount : 0)
+      + (record.bookingBonusApplied ? record.bookingBonusAmount : 0)
+      + (record.officeJobApplied ? record.officeJobAmount : 0)
+      + (record.manualBonusApplied && record.manualBonusPayout === 'primary' ? record.manualBonusAmount : 0)
+      - (record.manualDeductionApplied && record.manualDeductionPayout === 'primary' ? record.manualDeductionAmount : 0);
+    const secondaryGross = record.totalCommission
+      + record.shopBonusAmount
+      + record.salesBonus
+      + record.payrollBonus
+      + record.redeemBonus
+      + (record.manualBonusApplied && record.manualBonusPayout === 'month_end' ? record.manualBonusAmount : 0)
+      - (record.manualDeductionApplied && record.manualDeductionPayout === 'month_end' ? record.manualDeductionAmount : 0);
+    const primaryMpf = record.mpfEeDeductionMode === 'split'
+      ? Math.min(record.mpfEeAmount, Math.max(0, fixedGross) * 0.05)
+      : 0;
+    const secondaryMpf = Math.max(0, record.mpfEeAmount - primaryMpf);
+
+    summary.primaryAmount += Math.max(0, fixedGross - primaryMpf);
+    summary.secondaryAmount += Math.max(0, secondaryGross - secondaryMpf);
+  }
+
+  return {
+    primaryAmount: Number(summary.primaryAmount.toFixed(2)),
+    secondaryAmount: Number(summary.secondaryAmount.toFixed(2)),
+  };
+}
 
 export async function fetchDashboardData(user: AppShellUser): Promise<DashboardData> {
   const supabase = await createServerSupabaseClient();
@@ -972,14 +1024,6 @@ export async function fetchDashboardData(user: AppShellUser): Promise<DashboardD
     .map(([branch, count]) => ({ branch, count }))
     .sort((a, b) => b.count - a.count);
 
-  const recentHires = rows.slice(0, 5).map((r) => ({
-    employeeCode: r.employee_code,
-    nameZh: r.name_zh,
-    alias: r.alias,
-    hireDate: r.hire_date,
-    branchName: normalizeLookupValue(r.branch).nameZh,
-  }));
-
   const { data: salaryRows } = await supabase
     .from('employee_salary_profiles')
     .select('pay_day_primary, pay_day_secondary');
@@ -996,7 +1040,17 @@ export async function fetchDashboardData(user: AppShellUser): Promise<DashboardD
     .map(([day, count]) => ({ label: `${day}號`, day, count }))
     .sort((a, b) => a.day - b.day);
 
-  return { totalEmployees, activeEmployees, branchBreakdown, recentHires, payDayReminders };
+  const currentMonth = getCurrentYearMonth();
+  const [payrollSummary, monthlyCommissionRecords] = await Promise.all([
+    fetchPayrollSummary(user, supabase),
+    fetchMonthlyCommissionRecords(currentMonth),
+  ]);
+  const payrollPayoutSummary = {
+    yearMonth: currentMonth,
+    ...calculateDashboardPayrollPayouts(payrollSummary, monthlyCommissionRecords),
+  };
+
+  return { totalEmployees, activeEmployees, branchBreakdown, payDayReminders, payrollPayoutSummary };
 }
 
 export type InboxReminder = {

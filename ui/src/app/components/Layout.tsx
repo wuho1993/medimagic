@@ -9,8 +9,6 @@ import {
   FileText,
   Settings,
   LogOut,
-  Bell,
-  Search,
   Menu,
   Globe,
   ChevronDown,
@@ -37,9 +35,6 @@ const layoutTranslations = {
       role: '人力資源總監',
       signOut: '登出',
     },
-    header: {
-      search: '搜尋...',
-    },
     language: '繁體中文',
   },
   'zh-CN': {
@@ -56,9 +51,6 @@ const layoutTranslations = {
       role: '人力资源总监',
       signOut: '退出登录',
     },
-    header: {
-      search: '搜索...',
-    },
     language: '简体中文',
   },
   en: {
@@ -74,9 +66,6 @@ const layoutTranslations = {
     profile: {
       role: 'HR Director',
       signOut: 'Sign Out',
-    },
-    header: {
-      search: 'Search...',
     },
     language: 'English',
   },
@@ -200,15 +189,6 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
           <h1 className="hidden text-xl font-semibold tracking-tight text-slate-800 md:block">{pageTitle}</h1>
 
           <div className="flex items-center gap-3 md:gap-5">
-            <div className="relative hidden sm:block">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder={t.header.search}
-                className="w-48 rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm placeholder:text-slate-400 focus:border-[#D4AF37] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20 lg:w-64"
-              />
-            </div>
-
             <div className="relative" ref={langRef}>
               <button onClick={() => setLangDropdownOpen(!langDropdownOpen)} className="flex items-center gap-2 rounded-full border border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900 focus:outline-none">
                 <Globe className="h-4 w-4 text-slate-400" />
@@ -241,11 +221,6 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
                 )}
               </AnimatePresence>
             </div>
-
-            <button className="relative rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
-            </button>
           </div>
         </header>
 
