@@ -5667,7 +5667,7 @@ ${tablePreview}`;
         ) : null}
       </div>
       <div className="pointer-events-none fixed left-[-10000px] top-0 bg-white" aria-hidden="true">
-        <div ref={payrollRecordsPdfRef} className="w-[1600px] bg-white p-8 text-slate-900">
+        <div ref={payrollRecordsPdfRef} className="w-[1200px] bg-white p-8 text-slate-900">
           <div className="mb-5 flex items-end justify-between border-b border-slate-200 pb-3">
             <div>
               <div className="text-2xl font-bold">{t.title}</div>
@@ -5675,53 +5675,36 @@ ${tablePreview}`;
             </div>
             <div className="text-sm text-slate-500">{filteredRows.length} / {rows.length}</div>
           </div>
-          <table className="w-full border-collapse text-[11px]">
+          <table className="w-full border-collapse text-[15px]">
             <thead>
               <tr className="bg-slate-100 text-left">
-                <th className="border border-slate-300 px-2 py-2 font-semibold text-slate-700">{t.cols.code}</th>
-                <th className="border border-slate-300 px-2 py-2 font-semibold text-slate-700">{t.cols.name}</th>
-                <th className="border border-slate-300 px-2 py-2 font-semibold text-slate-700">{t.cols.branch}</th>
-                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.base}</th>
-                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.allowance}</th>
-                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.bonus}</th>
-                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.commission}</th>
-                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.mpfEe}</th>
-                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.mpfEr}</th>
-                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.net}</th>
-                <th className="border border-slate-300 px-2 py-2 text-center font-semibold text-slate-700">{t.cols.payDay}</th>
+                <th className="border border-slate-300 px-4 py-3 font-semibold text-slate-700">{t.cols.code}</th>
+                <th className="border border-slate-300 px-4 py-3 font-semibold text-slate-700">{t.cols.name}</th>
+                <th className="border border-slate-300 px-4 py-3 font-semibold text-slate-700">公司</th>
+                <th className="border border-slate-300 px-4 py-3 font-semibold text-slate-700">{t.cols.branch}</th>
               </tr>
             </thead>
             <tbody>
               {filteredRows.map((row) => (
                 <tr key={`${row.employeeCode}-payroll-pdf`}>
-                  <td className="border border-slate-200 px-2 py-1.5 align-top">{row.employeeCode}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 align-top">{row.alias || row.nameZh || row.nameEn || '-'}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 align-top">{row.branchName || '-'}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.calculatedBaseSalary)}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.allowanceAmount + row.transportAllowance)}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.briefingBonus + row.attendanceBonus + row.bookingBonus + row.officeJobAmount + row.shopBonus + row.commResult.totalBonus + row.manualBonus - row.manualDeduction)}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.displayedCommission)}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.mpfEe)}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.mpfEr)}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top font-semibold">{fmt(row.net)}</td>
-                  <td className="border border-slate-200 px-2 py-1.5 text-center align-top">{row.payDayPrimary}{row.hasSecondaryPayout ? ` / ${row.payDaySecondary}` : ''}</td>
+                  <td className="border border-slate-200 px-4 py-2.5 align-top">{row.employeeCode}</td>
+                  <td className="border border-slate-200 px-4 py-2.5 align-top">{row.alias || row.nameZh || row.nameEn || '-'}</td>
+                  <td className="border border-slate-200 px-4 py-2.5 align-top">{row.companyNameZh || row.companyType || '-'}</td>
+                  <td className="border border-slate-200 px-4 py-2.5 align-top">{row.branchName || '-'}</td>
                 </tr>
               ))}
             </tbody>
-            <tfoot>
-              <tr className="bg-slate-100 font-semibold">
-                <td className="border border-slate-300 px-2 py-2" colSpan={3}>{t.totals}</td>
-                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.calculatedBaseSalary, 0))}</td>
-                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.allowanceAmount + row.transportAllowance, 0))}</td>
-                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.briefingBonus + row.attendanceBonus + row.bookingBonus + row.officeJobAmount + row.shopBonus + row.commResult.totalBonus + row.manualBonus - row.manualDeduction, 0))}</td>
-                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.displayedCommission, 0))}</td>
-                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.mpfEe, 0))}</td>
-                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.mpfEr, 0))}</td>
-                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.net, 0))}</td>
-                <td className="border border-slate-300 px-2 py-2"></td>
-              </tr>
-            </tfoot>
           </table>
+          <div className="mt-8 grid grid-cols-2 gap-5 text-[20px]">
+            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-5">
+              <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">7號應出總數</div>
+              <div className="mt-2 text-3xl font-bold text-slate-900">{fmt(filteredRows.reduce((sum, row) => sum + row.primaryPayoutNet, 0))}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-300 bg-slate-100 p-5">
+              <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">20號應出總數</div>
+              <div className="mt-2 text-3xl font-bold text-slate-900">{fmt(filteredRows.reduce((sum, row) => sum + row.secondaryPayoutNet, 0))}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
