@@ -5,6 +5,7 @@ import { Calculator, CalendarDays, ChevronDown, ChevronUp, CreditCard, Download,
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import YearMonthPicker from '../components/YearMonthPicker';
 import { useLanguage } from '../i18n/LanguageContext';
+import { saveElementAsPdf } from '../utils/pdfExport';
 import type { PayrollEmployeeSummary, CommissionRateTier, MonthlyCommissionRecord, PackageNoPayHandling, PayrollAttendanceRecord, RollingCommissionAverageRecord } from '@/src/lib/employees/queries';
 import { calculateStreetPromoterCommission, calculateTelesalesCommission, calculateTotalCommission } from '@/src/lib/employees/commission';
 import { calculateCustomCommission, normalizeCustomCommissionName } from '@/src/lib/employees/custom-commission';
@@ -608,6 +609,8 @@ const translations = {
     exportPayslipFail: '匯出失敗',
     exportMpf: '批量提交 MPF',
     exportMpfNoData: '今期沒有需要提交 MPF 的員工。',
+    exportPayrollPdf: '匯出薪酬紀錄 PDF',
+    exportPayrollPdfFail: '薪酬 PDF 匯出失敗',
     exportPayslipSelectTitle: '選擇要匯出的員工',
     exportPayslipSelectDescription: '可剔選一位或多位員工；如選擇多位，系統會分開下載 PDF。',
     exportPayslipCancel: '取消',
@@ -767,6 +770,8 @@ const translations = {
     exportPayslipFail: '导出失败',
     exportMpf: '批量提交 MPF',
     exportMpfNoData: '本期没有需要提交 MPF 的员工。',
+    exportPayrollPdf: '导出薪酬记录 PDF',
+    exportPayrollPdfFail: '薪酬 PDF 导出失败',
     exportPayslipSelectTitle: '选择要导出的员工',
     exportPayslipSelectDescription: '可勾选一位或多位员工；如果选择多位，系统会分别下载 PDF。',
     exportPayslipCancel: '取消',
@@ -926,6 +931,8 @@ const translations = {
     exportPayslipFail: 'Export Failed',
     exportMpf: 'Bulk MPF Upload',
     exportMpfNoData: 'No employees need MPF submission this month.',
+    exportPayrollPdf: 'Export Payroll Records PDF',
+    exportPayrollPdfFail: 'Payroll PDF Export Failed',
     exportPayslipSelectTitle: 'Choose Employees To Export',
     exportPayslipSelectDescription: 'Tick one or more employees. If you choose multiple employees, separate PDF files will be downloaded.',
     exportPayslipCancel: 'Cancel',
@@ -1601,6 +1608,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const isPayrollActionBlocked = !isDataReady;
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
+  const [payrollPdfExportStatus, setPayrollPdfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [mpfExportStatus, setMpfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [importType, setImportType] = useState<PayrollImportType | ''>('');
   const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'error'>('idle');
@@ -1676,6 +1684,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const saveStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exportStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const payslipPdfCardRef = useRef<HTMLDivElement | null>(null);
+  const payrollRecordsPdfRef = useRef<HTMLDivElement | null>(null);
 
   const [empVolumes, setEmpVolumes] = useState<Record<string, EmployeeVolumes>>(() => buildInitialVolumes(savedRecords));
   const [workUnits, setWorkUnits] = useState<Record<string, EmployeeWorkUnits>>(() => buildInitialWorkUnits(savedRecords, attendanceRecords));
@@ -3426,6 +3435,21 @@ ${tablePreview}`;
     queueExportStatusReset();
   };
 
+  const handleExportPayrollPdf = async () => {
+    const target = payrollRecordsPdfRef.current;
+    if (!target || filteredRows.length === 0) return;
+
+    setPayrollPdfExportStatus('exporting');
+    try {
+      await saveElementAsPdf(target, `payroll-records-${salaryMonth}.pdf`, 'landscape');
+      setPayrollPdfExportStatus('idle');
+    } catch (error) {
+      console.error('[payroll records pdf export] unhandled:', error);
+      setPayrollPdfExportStatus('error');
+      window.setTimeout(() => setPayrollPdfExportStatus('idle'), 3000);
+    }
+  };
+
   const exportMpfBatchAfterReview = () => {
     const { from, to } = getContributionPeriod(salaryMonth);
     const mpfRows = rows.filter((row) => !isExcludedByPayrollReview(row.employeeCode) && row.mpfEnabled && (row.mpfEe > 0 || row.mpfEr > 0));
@@ -3703,6 +3727,11 @@ ${tablePreview}`;
             <button type="button" onClick={openPayslipModal} disabled={exportStatus === 'exporting'} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${exportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
               <Download className="h-4 w-4" />
               {exportStatus === 'exporting' ? t.exportingPayslip : exportStatus === 'error' ? t.exportPayslipFail : t.exportPayslip}
+            </button>
+
+            <button type="button" onClick={() => void handleExportPayrollPdf()} disabled={filteredRows.length === 0 || payrollPdfExportStatus === 'exporting'} title={payrollPdfExportStatus === 'error' ? t.exportPayrollPdfFail : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${payrollPdfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
+              <Download className="h-4 w-4" />
+              {payrollPdfExportStatus === 'exporting' ? t.exportingPayslip : payrollPdfExportStatus === 'error' ? t.exportPayrollPdfFail : t.exportPayrollPdf}
             </button>
 
             <button type="button" onClick={handleExportMpfBatch} disabled={mpfExportStatus === 'exporting'} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : mpfExportStatus === 'error' ? t.exportMpfNoData : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${mpfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
@@ -5636,6 +5665,64 @@ ${tablePreview}`;
             })()}
           </div>
         ) : null}
+      </div>
+      <div className="pointer-events-none fixed left-[-10000px] top-0 bg-white" aria-hidden="true">
+        <div ref={payrollRecordsPdfRef} className="w-[1600px] bg-white p-8 text-slate-900">
+          <div className="mb-5 flex items-end justify-between border-b border-slate-200 pb-3">
+            <div>
+              <div className="text-2xl font-bold">{t.title}</div>
+              <div className="mt-1 text-sm text-slate-500">{t.month}: {salaryMonth}</div>
+            </div>
+            <div className="text-sm text-slate-500">{filteredRows.length} / {rows.length}</div>
+          </div>
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="bg-slate-100 text-left">
+                <th className="border border-slate-300 px-2 py-2 font-semibold text-slate-700">{t.cols.code}</th>
+                <th className="border border-slate-300 px-2 py-2 font-semibold text-slate-700">{t.cols.name}</th>
+                <th className="border border-slate-300 px-2 py-2 font-semibold text-slate-700">{t.cols.branch}</th>
+                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.base}</th>
+                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.allowance}</th>
+                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.bonus}</th>
+                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.commission}</th>
+                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.mpfEe}</th>
+                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.mpfEr}</th>
+                <th className="border border-slate-300 px-2 py-2 text-right font-semibold text-slate-700">{t.cols.net}</th>
+                <th className="border border-slate-300 px-2 py-2 text-center font-semibold text-slate-700">{t.cols.payDay}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.map((row) => (
+                <tr key={`${row.employeeCode}-payroll-pdf`}>
+                  <td className="border border-slate-200 px-2 py-1.5 align-top">{row.employeeCode}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 align-top">{row.alias || row.nameZh || row.nameEn || '-'}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 align-top">{row.branchName || '-'}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.calculatedBaseSalary)}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.allowanceAmount + row.transportAllowance)}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.briefingBonus + row.attendanceBonus + row.bookingBonus + row.officeJobAmount + row.shopBonus + row.commResult.totalBonus + row.manualBonus - row.manualDeduction)}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.displayedCommission)}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.mpfEe)}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top">{fmt(row.mpfEr)}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 text-right align-top font-semibold">{fmt(row.net)}</td>
+                  <td className="border border-slate-200 px-2 py-1.5 text-center align-top">{row.payDayPrimary}{row.hasSecondaryPayout ? ` / ${row.payDaySecondary}` : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-slate-100 font-semibold">
+                <td className="border border-slate-300 px-2 py-2" colSpan={3}>{t.totals}</td>
+                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.calculatedBaseSalary, 0))}</td>
+                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.allowanceAmount + row.transportAllowance, 0))}</td>
+                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.briefingBonus + row.attendanceBonus + row.bookingBonus + row.officeJobAmount + row.shopBonus + row.commResult.totalBonus + row.manualBonus - row.manualDeduction, 0))}</td>
+                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.displayedCommission, 0))}</td>
+                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.mpfEe, 0))}</td>
+                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.mpfEr, 0))}</td>
+                <td className="border border-slate-300 px-2 py-2 text-right">{fmt(filteredRows.reduce((sum, row) => sum + row.net, 0))}</td>
+                <td className="border border-slate-300 px-2 py-2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
     </div>
   );
