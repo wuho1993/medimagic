@@ -3215,6 +3215,25 @@ ${tablePreview}`;
     setIsPayslipModalOpen(true);
   };
 
+  const applyNonCommissionReviewMemory = (entries: Array<{ employeeCode: string; reason: PayrollReviewReason }>) => {
+    const rememberedCodes = entries
+      .filter((entry) => entry.reason === 'not_commission_employee')
+      .map((entry) => entry.employeeCode);
+
+    if (rememberedCodes.length === 0) return;
+
+    setLiveEmployeeDefaults((current) => {
+      const next = { ...current };
+      for (const employeeCode of rememberedCodes) {
+        const employee = next[employeeCode] ?? employees.find((entry) => entry.employeeCode === employeeCode);
+        if (employee) {
+          next[employeeCode] = { ...employee, payrollIgnoreCommissionReview: true };
+        }
+      }
+      return next;
+    });
+  };
+
   const requestPayrollReview = (action: PayrollReviewAction) => {
     const hasUnansweredIssues = payrollReviewIssues.some((issue) => {
       const answer = payrollReviewAnswers[issue.key];
@@ -3251,7 +3270,7 @@ ${tablePreview}`;
     }
 
     const action = payrollReviewAction;
-    await savePayrollReviewAnswers(salaryMonth, payrollReviewIssues.map((issue) => ({
+    const reviewEntries = payrollReviewIssues.map((issue) => ({
       issueKey: issue.key,
       employeeCode: issue.employeeCode,
       issueType: issue.type,
@@ -3261,9 +3280,11 @@ ${tablePreview}`;
         employeeName: issue.employeeName,
         branchName: issue.branchName,
         title: issue.title,
-        detail: issue.detail,
-      },
-    })));
+          detail: issue.detail,
+        },
+    }));
+    await savePayrollReviewAnswers(salaryMonth, reviewEntries);
+    applyNonCommissionReviewMemory(reviewEntries);
     setIsPayrollReviewOpen(false);
     setPayrollReviewAction(null);
     if (action === 'payslip') {
@@ -3279,6 +3300,7 @@ ${tablePreview}`;
     }
 
     await savePayrollReviewAnswers(salaryMonth, payrollReviewIgnorePayload);
+    applyNonCommissionReviewMemory(payrollReviewIgnorePayload);
     setIsPayrollReviewOpen(false);
     const action = payrollReviewAction;
     setPayrollReviewAction(null);

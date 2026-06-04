@@ -126,6 +126,7 @@ type PayrollSalaryProfileRow = {
   shop_bonus_custom_name: string | null;
   shop_bonus_custom_tiers: unknown | null;
   shop_bonus_scheme: ShopBonusScheme | null;
+  payroll_ignore_commission_review?: boolean | null;
 };
 
 export type PayrollReviewEntry = {
@@ -235,7 +236,7 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
 
   const supabase = createSupabaseAdminClient();
   const legacyProfileSelect = 'salary_type, base_salary, allowance_amount, attendance_bonus_amount, transport_allowance, briefing_bonus, booking_bonus, mpf_enabled, pay_day_primary, pay_day_secondary, commission_method, commission_custom_name, commission_custom_tiers, commission_redeem_rate, commission_sales_rate, commission_sgm_rate, sales_bonus_enabled, sales_bonus_rate, sales_bonus_custom_name, sales_bonus_custom_tiers, payroll_bonus_enabled, payroll_bonus_scheme, street_promoter_enabled, telesales_enabled, shop_bonus_enabled, shop_bonus_custom_name, shop_bonus_custom_tiers, shop_bonus_scheme';
-  const currentProfileSelect = `${legacyProfileSelect}, package_commission_amount, office_job_amount, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers`;
+  const currentProfileSelect = `${legacyProfileSelect}, package_commission_amount, office_job_amount, sales_amount_rate_percent, commission_rules, redeem_bonus_enabled, redeem_bonus_custom_name, redeem_bonus_custom_tiers, payroll_ignore_commission_review`;
   const buildQuery = (profileSelect: string) => supabase
     .from('employees')
     .select(`employee_code, name_zh, alias, hire_date, date_of_birth, position:positions(code, name_zh), branch:branches(name_zh), employee_salary_profiles(${profileSelect})`)
@@ -323,6 +324,7 @@ export async function fetchLatestPayrollEmployeeDefaults(employeeCode: string): 
       shopBonusCustomName: profile?.shop_bonus_custom_name ?? null,
       shopBonusCustomTiers: normalizeShopBonusTiers(profile?.shop_bonus_custom_tiers ?? null),
       shopBonusScheme: profile?.shop_bonus_scheme ?? null,
+      payrollIgnoreCommissionReview: profile?.payroll_ignore_commission_review ?? false,
     },
   };
 }
