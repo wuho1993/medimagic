@@ -3055,7 +3055,7 @@ ${tablePreview}`;
         String(row.shopActualSalesAmount || ''),
       ].some((value) => (Number(value) || 0) > 0);
 
-      if (hasPerformanceCommissionProfile && !hasPerformanceData && !row.payrollIgnoreCommissionReview) {
+      if (hasPerformanceCommissionProfile && !hasPerformanceData && !row.payrollIgnoreCommissionReview && !isInactivePayrollStatus(row.employmentStatus)) {
         addIssue(
           'commission_no_data',
           '佣金員工今月沒有業績資料',
