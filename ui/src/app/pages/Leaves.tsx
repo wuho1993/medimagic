@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { saveAttendanceManagementRecord } from '@/app/app/leaves/actions';
 import YearMonthPicker from '../components/YearMonthPicker';
 import { useLanguage } from '../i18n/LanguageContext';
+import { saveRowsAsExcel } from '../utils/excelExport';
 import { saveElementAsPdf } from '../utils/pdfExport';
 import type {
   AttendanceDeductionBasis,
@@ -137,6 +138,8 @@ const translations = {
     exportPdf: '匯出 PDF',
     exportingPdf: '匯出中...',
     exportPdfFail: '匯出失敗',
+    exportExcel: '匯出 Excel',
+    exportExcelFail: 'Excel 匯出失敗',
     totalMismatch: '提醒：總日數與計薪日數不一致',
     totalMismatchConfirm: '總日數與計薪日數不一致。系統不會阻止儲存；如 AL / SH 等有多出日數，Payroll 會照按平均日數工資另外加上。是否確認儲存？',
     totalMismatchBulkConfirm: '有 {count} 位員工總日數與計薪日數不一致。系統不會阻止儲存；如 AL / SH 等有多出日數，Payroll 會照按平均日數工資另外加上。是否確認全部儲存？',
@@ -223,6 +226,8 @@ const translations = {
     exportPdf: '导出 PDF',
     exportingPdf: '导出中...',
     exportPdfFail: '导出失败',
+    exportExcel: '导出 Excel',
+    exportExcelFail: 'Excel 导出失败',
     totalMismatch: '提醒：总日数与计薪日数不一致',
     totalMismatchConfirm: '总日数与计薪日数不一致。系统不会阻止保存；如 AL / SH 等有多出日数，Payroll 会照按平均日数工资另外加上。是否确认保存？',
     totalMismatchBulkConfirm: '有 {count} 位员工总日数与计薪日数不一致。系统不会阻止保存；如 AL / SH 等有多出日数，Payroll 会照按平均日数工资另外加上。是否确认全部保存？',
@@ -309,6 +314,8 @@ const translations = {
     exportPdf: 'Export PDF',
     exportingPdf: 'Exporting...',
     exportPdfFail: 'Export Failed',
+    exportExcel: 'Export Excel',
+    exportExcelFail: 'Excel Export Failed',
     totalMismatch: 'Warning: total days do not match calendar days',
     totalMismatchConfirm: 'Total days do not match calendar days. Saving is still allowed; extra AL / SH days will still be added in Payroll using average daily wages. Confirm save?',
     totalMismatchBulkConfirm: '{count} employees have total days that do not match calendar days. Saving is still allowed; extra AL / SH days will still be added in Payroll using average daily wages. Confirm saving all?',
@@ -682,6 +689,7 @@ export default function AttendanceManagement({ overview, focusMode = false, init
   const [dirtyRows, setDirtyRows] = useState<Set<string>>(new Set());
   const [saveAllStatus, setSaveAllStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportPdfStatus, setExportPdfStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
+  const [exportExcelStatus, setExportExcelStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const scaledTableRefs = useRef<Record<string, HTMLDivElement>>({});
   const exportPdfRef = useRef<HTMLDivElement>(null);
   const [tableHeights, setTableHeights] = useState<Record<string, number>>({});
@@ -1143,6 +1151,25 @@ export default function AttendanceManagement({ overview, focusMode = false, init
     }
   };
 
+  const handleExportExcel = async () => {
+    if (rows.length === 0) return;
+
+    setExportExcelStatus('exporting');
+    try {
+      await saveRowsAsExcel(
+        `attendance-records-${selectedMonth}.xlsx`,
+        selectedMonth,
+        columns.map((column) => ({ key: String(column.key), header: column.label, width: column.key === 'displayName' ? 28 : column.key === 'remarks' ? 24 : 14 })),
+        rows.map((row) => Object.fromEntries(columns.map((column) => [String(column.key), getExportCellValue(row, column)]))),
+      );
+      setExportExcelStatus('idle');
+    } catch (error) {
+      console.error('[attendance excel export] unhandled:', error);
+      setExportExcelStatus('error');
+      window.setTimeout(() => setExportExcelStatus('idle'), 3000);
+    }
+  };
+
   return (
     <>
       <div className={panelClassName}>
@@ -1161,6 +1188,11 @@ export default function AttendanceManagement({ overview, focusMode = false, init
               <button type="button" onClick={() => void handleExportPdf()} disabled={rows.length === 0 || exportPdfStatus === 'exporting'} className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap ${exportPdfStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
                 <Download className="h-4 w-4" />
                 {exportPdfStatus === 'exporting' ? t.exportingPdf : exportPdfStatus === 'error' ? t.exportPdfFail : t.exportPdf}
+              </button>
+
+              <button type="button" onClick={() => void handleExportExcel()} disabled={rows.length === 0 || exportExcelStatus === 'exporting'} className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap ${exportExcelStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
+                <Download className="h-4 w-4" />
+                {exportExcelStatus === 'exporting' ? t.exportingPdf : exportExcelStatus === 'error' ? t.exportExcelFail : t.exportExcel}
               </button>
 
               {focusMode ? (

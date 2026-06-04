@@ -5,6 +5,7 @@ import { Calculator, CalendarDays, ChevronDown, ChevronUp, CreditCard, Download,
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import YearMonthPicker from '../components/YearMonthPicker';
 import { useLanguage } from '../i18n/LanguageContext';
+import { saveRowsAsExcel } from '../utils/excelExport';
 import { saveElementAsPdf } from '../utils/pdfExport';
 import type { PayrollEmployeeSummary, CommissionRateTier, MonthlyCommissionRecord, PackageNoPayHandling, PayrollAttendanceRecord, RollingCommissionAverageRecord } from '@/src/lib/employees/queries';
 import { calculateStreetPromoterCommission, calculateTelesalesCommission, calculateTotalCommission } from '@/src/lib/employees/commission';
@@ -611,6 +612,8 @@ const translations = {
     exportMpfNoData: '今期沒有需要提交 MPF 的員工。',
     exportPayrollPdf: '匯出薪酬紀錄 PDF',
     exportPayrollPdfFail: '薪酬 PDF 匯出失敗',
+    exportPayrollExcel: '匯出薪酬紀錄 Excel',
+    exportPayrollExcelFail: '薪酬 Excel 匯出失敗',
     exportPayslipSelectTitle: '選擇要匯出的員工',
     exportPayslipSelectDescription: '可剔選一位或多位員工；如選擇多位，系統會分開下載 PDF。',
     exportPayslipCancel: '取消',
@@ -772,6 +775,8 @@ const translations = {
     exportMpfNoData: '本期没有需要提交 MPF 的员工。',
     exportPayrollPdf: '导出薪酬记录 PDF',
     exportPayrollPdfFail: '薪酬 PDF 导出失败',
+    exportPayrollExcel: '导出薪酬记录 Excel',
+    exportPayrollExcelFail: '薪酬 Excel 导出失败',
     exportPayslipSelectTitle: '选择要导出的员工',
     exportPayslipSelectDescription: '可勾选一位或多位员工；如果选择多位，系统会分别下载 PDF。',
     exportPayslipCancel: '取消',
@@ -933,6 +938,8 @@ const translations = {
     exportMpfNoData: 'No employees need MPF submission this month.',
     exportPayrollPdf: 'Export Payroll Records PDF',
     exportPayrollPdfFail: 'Payroll PDF Export Failed',
+    exportPayrollExcel: 'Export Payroll Records Excel',
+    exportPayrollExcelFail: 'Payroll Excel Export Failed',
     exportPayslipSelectTitle: 'Choose Employees To Export',
     exportPayslipSelectDescription: 'Tick one or more employees. If you choose multiple employees, separate PDF files will be downloaded.',
     exportPayslipCancel: 'Cancel',
@@ -1609,6 +1616,7 @@ export default function Payroll({ employees = [], commissionTiers = [], savedRec
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [payrollPdfExportStatus, setPayrollPdfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
+  const [payrollExcelExportStatus, setPayrollExcelExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [mpfExportStatus, setMpfExportStatus] = useState<'idle' | 'exporting' | 'error'>('idle');
   const [importType, setImportType] = useState<PayrollImportType | ''>('');
   const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'error'>('idle');
@@ -3450,6 +3458,56 @@ ${tablePreview}`;
     }
   };
 
+  const handleExportPayrollExcel = async () => {
+    if (filteredRows.length === 0) return;
+
+    setPayrollExcelExportStatus('exporting');
+    try {
+      await saveRowsAsExcel(
+        `payroll-records-${salaryMonth}.xlsx`,
+        salaryMonth,
+        [
+          { key: 'employeeCode', header: t.cols.code, width: 14 },
+          { key: 'name', header: t.cols.name, width: 22 },
+          { key: 'englishName', header: '英文全名', width: 24 },
+          { key: 'company', header: '公司', width: 18 },
+          { key: 'branch', header: t.cols.branch, width: 18 },
+          { key: 'mpfEe', header: t.cols.mpfEe, width: 16 },
+          { key: 'mpfEr', header: t.cols.mpfEr, width: 16 },
+          { key: 'pay7th', header: '7th', width: 16 },
+          { key: 'pay20th', header: '20th', width: 16 },
+        ],
+        filteredRows.map((row) => ({
+          employeeCode: row.employeeCode,
+          name: row.alias || row.nameZh || '-',
+          englishName: row.nameEn || '-',
+          company: row.companyNameZh || row.companyType || '-',
+          branch: row.branchName || '-',
+          mpfEe: row.mpfEe,
+          mpfEr: row.mpfEr,
+          pay7th: row.primaryPayoutNet,
+          pay20th: row.secondaryPayoutNet,
+        })),
+        {
+          employeeCode: t.totals,
+          name: null,
+          englishName: null,
+          company: null,
+          branch: null,
+          mpfEe: filteredRows.reduce((sum, row) => sum + row.mpfEe, 0),
+          mpfEr: filteredRows.reduce((sum, row) => sum + row.mpfEr, 0),
+          pay7th: filteredRows.reduce((sum, row) => sum + row.primaryPayoutNet, 0),
+          pay20th: filteredRows.reduce((sum, row) => sum + row.secondaryPayoutNet, 0),
+        },
+      );
+      setPayrollExcelExportStatus('idle');
+    } catch (error) {
+      console.error('[payroll records excel export] unhandled:', error);
+      setPayrollExcelExportStatus('error');
+      window.setTimeout(() => setPayrollExcelExportStatus('idle'), 3000);
+    }
+  };
+
   const exportMpfBatchAfterReview = () => {
     const { from, to } = getContributionPeriod(salaryMonth);
     const mpfRows = rows.filter((row) => !isExcludedByPayrollReview(row.employeeCode) && row.mpfEnabled && (row.mpfEe > 0 || row.mpfEr > 0));
@@ -3732,6 +3790,11 @@ ${tablePreview}`;
             <button type="button" onClick={() => void handleExportPayrollPdf()} disabled={filteredRows.length === 0 || payrollPdfExportStatus === 'exporting'} title={payrollPdfExportStatus === 'error' ? t.exportPayrollPdfFail : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${payrollPdfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
               <Download className="h-4 w-4" />
               {payrollPdfExportStatus === 'exporting' ? t.exportingPayslip : payrollPdfExportStatus === 'error' ? t.exportPayrollPdfFail : t.exportPayrollPdf}
+            </button>
+
+            <button type="button" onClick={() => void handleExportPayrollExcel()} disabled={filteredRows.length === 0 || payrollExcelExportStatus === 'exporting'} title={payrollExcelExportStatus === 'error' ? t.exportPayrollExcelFail : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${payrollExcelExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
+              <Download className="h-4 w-4" />
+              {payrollExcelExportStatus === 'exporting' ? t.exportingPayslip : payrollExcelExportStatus === 'error' ? t.exportPayrollExcelFail : t.exportPayrollExcel}
             </button>
 
             <button type="button" onClick={handleExportMpfBatch} disabled={mpfExportStatus === 'exporting'} title={isPayrollActionBlocked ? 'Payroll 資料載入中' : mpfExportStatus === 'error' ? t.exportMpfNoData : undefined} className={`${toolbarButtonClasses} whitespace-nowrap ${mpfExportStatus === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'bg-white'}`}>
