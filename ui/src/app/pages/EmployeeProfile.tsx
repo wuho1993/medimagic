@@ -1479,6 +1479,28 @@ function createIr56bDraftXml(employee: EmployeeDetailRecord, bankName: string, e
 `;
 }
 
+function getEmployeeIr56bMissingItems(employee: EmployeeDetailRecord, state: FormState) {
+  const missing: string[] = [];
+  const addressLine1 = state.ir56bResAddressLine1.trim() || state.address.trim() || employee.address?.trim() || '';
+
+  if (!(state.nameEn.trim() || state.nameZh.trim())) missing.push('姓名');
+  if (!state.identityNumber.trim()) missing.push('HKID / Passport');
+  if (!state.dateOfBirth) missing.push('出生日期');
+  if (!state.hireDate) missing.push('入職日期');
+  if (!state.ir56bMaritalStatus) missing.push('婚姻狀況');
+  if (!addressLine1) missing.push('住址第 1 行 / 基本資料地址');
+  if (!state.ir56bResAddressArea) missing.push('住址地區');
+  if (!state.salaryType) missing.push('薪金類型');
+  if (!state.baseSalary && !state.allowanceAmount) missing.push('薪金 / 津貼設定');
+  if (state.gender !== 'male' && state.gender !== 'female') missing.push('性別需要是男或女');
+
+  if (state.ir56bMaritalStatus === '2' && !state.ir56bSpouseName.trim()) {
+    missing.push('配偶姓名');
+  }
+
+  return missing;
+}
+
 function createInitialState(employee: EmployeeDetailRecord): FormState {
   const probationEndDate = calculateProbationEndDate(employee.hireDate, employee.probationMonths) ?? employee.probationEndDate ?? '';
   const employeeMainCommissionRules = (employee.commissionRules ?? []).filter((rule) => rule.metric !== 'shop');
@@ -2629,6 +2651,7 @@ export default function EmployeeProfile({
     line3: formState.ir56bResAddressLine3,
     area: formState.ir56bResAddressArea,
   };
+  const ir56bMissingItems = getEmployeeIr56bMissingItems(employee, formState);
   const displayedProbationEndDate = calculateProbationEndDate(employee.hireDate, employee.probationMonths) ?? employee.probationEndDate;
   const availableBranches = options.branches;
   const selectedBank = options.banks.find((bank) => bank.id === formState.bankId) ?? null;
@@ -3897,6 +3920,18 @@ export default function EmployeeProfile({
                     <InfoRow label="入職 / 離職" value={`${formatDate(employee.hireDate, locale, t.emptyValue)} / ${formatDate(employee.employmentEndDate, locale, t.emptyValue)}`} />
                     <InfoRow label="薪金設定" value={`${employee.salaryType ?? t.emptyValue} / ${employee.baseSalary === null ? t.emptyValue : employee.baseSalary}`} />
                   </div>
+                </div>
+                <div className={`mb-6 rounded-2xl border p-4 text-sm ${ir56bMissingItems.length > 0 ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+                  <div className="font-bold">{ir56bMissingItems.length > 0 ? 'IR56B 資料未齊，請補以下資料' : 'IR56B 基本資料已齊'}</div>
+                  {ir56bMissingItems.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {ir56bMissingItems.map((item) => (
+                        <span key={item} className="rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-700">{item}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-sm text-emerald-700">可以匯出此員工 IR56B XML；年度總入息仍以 Payroll 年度紀錄為準。</div>
+                  )}
                 </div>
                 {isEditing ? (
                   <div className="grid gap-4 md:grid-cols-2">
