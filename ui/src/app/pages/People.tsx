@@ -584,6 +584,11 @@ function downloadTextFile(filename: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+type Ir56bMissingEntry = {
+  record: EmployeeIr56bExportRecord;
+  missing: string[];
+};
+
 function getStoredIr56bHeader(defaultAssessmentYear: number): Ir56bEmployerHeader {
   const stored = typeof window !== 'undefined' ? window.localStorage.getItem('ir56bEmployerHeader') : null;
   const parsed = stored ? JSON.parse(stored) as Partial<Ir56bEmployerHeader> : {};
@@ -687,6 +692,8 @@ export default function People({ employees, ir56bExportRecords = [], ir56bAssess
   const [createProbationMonths, setCreateProbationMonths] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [ir56bMissingEntries, setIr56bMissingEntries] = useState<Ir56bMissingEntry[]>([]);
+  const [pendingIr56bHeader, setPendingIr56bHeader] = useState<Ir56bEmployerHeader | null>(null);
   const [isSubmitting, startSubmitTransition] = useTransition();
 
   const filteredBranches = branches;
@@ -747,6 +754,15 @@ export default function People({ employees, ir56bExportRecords = [], ir56bAssess
     window.location.assign(`/medimagic/app/people?id=${encodeURIComponent(employeeCode)}`);
   }
 
+  function exportIr56bRecords(records: EmployeeIr56bExportRecord[], header: Ir56bEmployerHeader) {
+    if (records.length === 0) {
+      window.alert('未有已齊資料的員工可匯出。請先補齊資料，或調整篩選條件。');
+      return;
+    }
+
+    downloadTextFile(`IR56B_${header.assessmentYear}_${header.typeOfForm}.xml`, `\uFEFF${createBulkIr56bXml(records, header)}`, 'application/xml;charset=utf-8');
+  }
+
   async function handleCreateEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
@@ -793,14 +809,17 @@ export default function People({ employees, ir56bExportRecords = [], ir56bAssess
       return;
     }
 
-    const issueRecords = filteredIr56bExportRecords.filter((record) => validateIr56bRecord(record).length > 0);
+    const issueEntries = filteredIr56bExportRecords
+      .map((record) => ({ record, missing: validateIr56bRecord(record) }))
+      .filter((entry) => entry.missing.length > 0);
 
-    downloadTextFile(`IR56B_${header.assessmentYear}_${header.typeOfForm}.xml`, `\uFEFF${createBulkIr56bXml(filteredIr56bExportRecords, header)}`, 'application/xml;charset=utf-8');
-
-    if (issueRecords.length > 0) {
-      downloadTextFile('IR56B_missing_data_report.csv', createIr56bMissingDataCsv(issueRecords), 'text/csv;charset=utf-8');
-      window.alert(`IR56B XML 已匯出，但有 ${issueRecords.length} 位員工資料未齊或沒有年度 payroll income。系統已下載 IR56B_missing_data_report.csv，請按報告入員工 profile 的「報稅資料 / Tax Info」補返，或先儲存該年度 Payroll。`);
+    if (issueEntries.length > 0) {
+      setPendingIr56bHeader(header);
+      setIr56bMissingEntries(issueEntries);
+      return;
     }
+
+    exportIr56bRecords(filteredIr56bExportRecords, header);
   }
 
   return (
@@ -1059,6 +1078,107 @@ export default function People({ employees, ir56bExportRecords = [], ir56bAssess
       </div>
 
       <AnimatePresence>
+        {ir56bMissingEntries.length > 0 && pendingIr56bHeader ? (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-sm"
+              onClick={() => {
+                setIr56bMissingEntries([]);
+                setPendingIr56bHeader(null);
+              }}
+            />
+            <div className="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-8">
+              <motion.div
+                initial={{ opacity: 0, y: 24, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 24, scale: 0.98 }}
+                className="mx-auto max-w-4xl overflow-hidden rounded-[28px] border border-amber-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.18)]"
+              >
+                <div className="border-b border-amber-100 bg-amber-50 px-6 py-5 sm:px-8">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900">IR56B 資料未齊</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        有 {ir56bMissingEntries.length} 位員工未符合 IR56B export 要求。請補齊後再輸出；或者略過未齊資料，只輸出已齊資料的員工。
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIr56bMissingEntries([]);
+                        setPendingIr56bHeader(null);
+                      }}
+                      className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-700"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[60vh] overflow-y-auto px-6 py-5 sm:px-8">
+                  <div className="space-y-3">
+                    {ir56bMissingEntries.map(({ record, missing }) => (
+                      <div key={record.employeeCode} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="font-bold text-slate-900">{record.employeeCode} · {record.alias || record.nameZh || record.nameEn}</div>
+                            <div className="mt-2 text-sm text-rose-700">缺少：{missing.join('、')}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openEmployeeProfile(record.employeeCode)}
+                            className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                          >
+                            去補資料
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4 sm:px-8">
+                  <button
+                    type="button"
+                    onClick={() => downloadTextFile('IR56B_missing_data_report.csv', createIr56bMissingDataCsv(ir56bMissingEntries.map((entry) => entry.record)), 'text/csv;charset=utf-8')}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    下載缺漏報告 CSV
+                  </button>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIr56bMissingEntries([]);
+                        setPendingIr56bHeader(null);
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const blockedCodes = new Set(ir56bMissingEntries.map((entry) => entry.record.employeeCode));
+                        const readyRecords = filteredIr56bExportRecords.filter((record) => !blockedCodes.has(record.employeeCode));
+                        exportIr56bRecords(readyRecords, pendingIr56bHeader);
+                        downloadTextFile('IR56B_missing_data_report.csv', createIr56bMissingDataCsv(ir56bMissingEntries.map((entry) => entry.record)), 'text/csv;charset=utf-8');
+                        setIr56bMissingEntries([]);
+                        setPendingIr56bHeader(null);
+                      }}
+                      className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B8871A]"
+                    >
+                      略過未齊資料並輸出
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        ) : null}
+
         {isCreateOpen ? (
           <>
             <motion.div
