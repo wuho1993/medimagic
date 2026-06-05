@@ -101,6 +101,21 @@ type FormState = {
   payDayPrimary: string;
   payDaySecondary: string;
   commissionNotes: string;
+  ir56bMaritalStatus: string;
+  ir56bResAddressLine1: string;
+  ir56bResAddressLine2: string;
+  ir56bResAddressLine3: string;
+  ir56bResAddressArea: string;
+  ir56bPostalAddressLine1: string;
+  ir56bPostalAddressLine2: string;
+  ir56bPostalAddressLine3: string;
+  ir56bPostalAddressArea: string;
+  ir56bSpouseName: string;
+  ir56bSpouseHkid: string;
+  ir56bSpousePassport: string;
+  ir56bPlaceOfResidenceIndicator: string;
+  ir56bOverseasCompanyIndicator: string;
+  ir56bRemarks: string;
 };
 
 const PRESET_VALUE_PREFIX = 'preset:';
@@ -136,7 +151,7 @@ const translations = {
     errors: {
       generic: '更新失敗，請稍後再試。',
     },
-    tabs: ['基本資料', '聘用資料', '出糧資料', '薪金資料', '佣金資料', '證書及合約', 'Visa'],
+    tabs: ['基本資料', '聘用資料', '出糧資料', '薪金資料', '佣金資料', '證書及合約', 'Visa', '報稅資料'],
     sections: {
       identity: '身份資料',
       personal: '個人資料',
@@ -406,7 +421,7 @@ const translations = {
     errors: {
       generic: '更新失败，请稍后再试。',
     },
-    tabs: ['基本资料', '雇佣资料', '发薪资料', '薪金资料', '佣金资料', '证书及合同', 'Visa'],
+    tabs: ['基本资料', '雇佣资料', '发薪资料', '薪金资料', '佣金资料', '证书及合同', 'Visa', '报税资料'],
     sections: {
       identity: '身份资料',
       personal: '个人资料',
@@ -676,7 +691,7 @@ const translations = {
     errors: {
       generic: 'Failed to update employee profile. Please try again later.',
     },
-    tabs: ['Basic Info', 'Employment', 'Payroll', 'Salary', 'Commission', 'Certificates & Contracts', 'Visa'],
+    tabs: ['Basic Info', 'Employment', 'Payroll', 'Salary', 'Commission', 'Certificates & Contracts', 'Visa', 'Tax Info'],
     sections: {
       identity: 'Identity',
       personal: 'Personal',
@@ -1433,6 +1448,21 @@ function createInitialState(employee: EmployeeDetailRecord): FormState {
     payDayPrimary: employee.payDayPrimary === null ? '' : String(employee.payDayPrimary),
     payDaySecondary: employee.payDaySecondary === null ? '' : String(employee.payDaySecondary),
     commissionNotes: employee.commissionNotes ?? '',
+    ir56bMaritalStatus: employee.ir56bProfile.maritalStatus ?? '',
+    ir56bResAddressLine1: employee.ir56bProfile.resAddressLine1 ?? '',
+    ir56bResAddressLine2: employee.ir56bProfile.resAddressLine2 ?? '',
+    ir56bResAddressLine3: employee.ir56bProfile.resAddressLine3 ?? '',
+    ir56bResAddressArea: employee.ir56bProfile.resAddressArea ?? '',
+    ir56bPostalAddressLine1: employee.ir56bProfile.postalAddressLine1 ?? '',
+    ir56bPostalAddressLine2: employee.ir56bProfile.postalAddressLine2 ?? '',
+    ir56bPostalAddressLine3: employee.ir56bProfile.postalAddressLine3 ?? '',
+    ir56bPostalAddressArea: employee.ir56bProfile.postalAddressArea ?? '',
+    ir56bSpouseName: employee.ir56bProfile.spouseName ?? '',
+    ir56bSpouseHkid: employee.ir56bProfile.spouseHkid ?? '',
+    ir56bSpousePassport: employee.ir56bProfile.spousePassport ?? '',
+    ir56bPlaceOfResidenceIndicator: employee.ir56bProfile.placeOfResidenceIndicator,
+    ir56bOverseasCompanyIndicator: employee.ir56bProfile.overseasCompanyIndicator,
+    ir56bRemarks: employee.ir56bProfile.remarks ?? '',
   };
 }
 
@@ -3712,6 +3742,93 @@ export default function EmployeeProfile({
                   </div>
                 </div>
               )}
+            </div>
+          ) : null}
+
+          {activeTabIndex === 7 ? (
+            <div className="space-y-8">
+              <div>
+                <h3 className="mb-2 flex items-center gap-2 text-base font-bold text-slate-900">
+                  <div className="h-4 w-1 rounded-full bg-[#D4AF37]"></div>
+                  IR56B 報稅資料
+                </h3>
+                <p className="mb-5 text-sm leading-6 text-slate-500">只供 IR56B 報稅檢查及日後 XML 匯出使用，不會影響現有員工資料、Payroll 或 MPF。</p>
+                {isEditing ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FieldShell label="婚姻狀況">
+                      <select name="ir56bMaritalStatus" value={formState.ir56bMaritalStatus} onChange={handleInputChange} className={inputClasses()}>
+                        <option value="">{t.emptyValue}</option>
+                        <option value="1">1 - 未婚 / 喪偶 / 離婚 / 分開居住</option>
+                        <option value="2">2 - 已婚</option>
+                      </select>
+                    </FieldShell>
+                    <FieldShell label="住址地區">
+                      <select name="ir56bResAddressArea" value={formState.ir56bResAddressArea} onChange={handleInputChange} className={inputClasses()}>
+                        <option value="">{t.emptyValue}</option>
+                        <option value="H">H - 香港</option>
+                        <option value="K">K - 九龍</option>
+                        <option value="N">N - 新界</option>
+                        <option value="F">F - 其他</option>
+                      </select>
+                    </FieldShell>
+                    <FieldShell label="住址第 1 行"><input name="ir56bResAddressLine1" value={formState.ir56bResAddressLine1} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="住址第 2 行"><input name="ir56bResAddressLine2" value={formState.ir56bResAddressLine2} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="住址第 3 行"><input name="ir56bResAddressLine3" value={formState.ir56bResAddressLine3} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="通訊地址地區（如不同）">
+                      <select name="ir56bPostalAddressArea" value={formState.ir56bPostalAddressArea} onChange={handleInputChange} className={inputClasses()}>
+                        <option value="">{t.emptyValue}</option>
+                        <option value="H">H - 香港</option>
+                        <option value="K">K - 九龍</option>
+                        <option value="N">N - 新界</option>
+                        <option value="F">F - 其他</option>
+                      </select>
+                    </FieldShell>
+                    <FieldShell label="通訊地址第 1 行"><input name="ir56bPostalAddressLine1" value={formState.ir56bPostalAddressLine1} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="通訊地址第 2 行"><input name="ir56bPostalAddressLine2" value={formState.ir56bPostalAddressLine2} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="通訊地址第 3 行"><input name="ir56bPostalAddressLine3" value={formState.ir56bPostalAddressLine3} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="配偶姓名"><input name="ir56bSpouseName" value={formState.ir56bSpouseName} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="配偶 HKID"><input name="ir56bSpouseHkid" value={formState.ir56bSpouseHkid} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="配偶 Passport"><input name="ir56bSpousePassport" value={formState.ir56bSpousePassport} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    <FieldShell label="僱主有否提供居所">
+                      <select name="ir56bPlaceOfResidenceIndicator" value={formState.ir56bPlaceOfResidenceIndicator} onChange={handleInputChange} className={inputClasses()}>
+                        <option value="0">0 - 沒有</option>
+                        <option value="1">1 - 有</option>
+                      </select>
+                    </FieldShell>
+                    <FieldShell label="有否非香港公司支付薪酬">
+                      <select name="ir56bOverseasCompanyIndicator" value={formState.ir56bOverseasCompanyIndicator} onChange={handleInputChange} className={inputClasses()}>
+                        <option value="0">0 - 沒有</option>
+                        <option value="1">1 - 有</option>
+                      </select>
+                    </FieldShell>
+                    <div className="md:col-span-2">
+                      <FieldShell label="報稅備註"><textarea name="ir56bRemarks" value={formState.ir56bRemarks} onChange={handleInputChange} rows={3} className={inputClasses()} /></FieldShell>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-x-12 gap-y-8 md:grid-cols-2">
+                    <div className="space-y-4">
+                      <InfoRow label="婚姻狀況" value={employee.ir56bProfile.maritalStatus === '1' ? '1 - 未婚 / 喪偶 / 離婚 / 分開居住' : employee.ir56bProfile.maritalStatus === '2' ? '2 - 已婚' : t.emptyValue} />
+                      <InfoRow label="住址第 1 行" value={renderTextValue(employee.ir56bProfile.resAddressLine1)} />
+                      <InfoRow label="住址第 2 行" value={renderTextValue(employee.ir56bProfile.resAddressLine2)} />
+                      <InfoRow label="住址第 3 行" value={renderTextValue(employee.ir56bProfile.resAddressLine3)} />
+                      <InfoRow label="住址地區" value={renderTextValue(employee.ir56bProfile.resAddressArea)} />
+                      <InfoRow label="僱主提供居所" value={employee.ir56bProfile.placeOfResidenceIndicator === '1' ? t.booleanLabels.yes : t.booleanLabels.no} />
+                    </div>
+                    <div className="space-y-4">
+                      <InfoRow label="通訊地址第 1 行" value={renderTextValue(employee.ir56bProfile.postalAddressLine1)} />
+                      <InfoRow label="通訊地址第 2 行" value={renderTextValue(employee.ir56bProfile.postalAddressLine2)} />
+                      <InfoRow label="通訊地址第 3 行" value={renderTextValue(employee.ir56bProfile.postalAddressLine3)} />
+                      <InfoRow label="通訊地址地區" value={renderTextValue(employee.ir56bProfile.postalAddressArea)} />
+                      <InfoRow label="配偶姓名" value={renderTextValue(employee.ir56bProfile.spouseName)} />
+                      <InfoRow label="配偶 HKID" value={renderTextValue(employee.ir56bProfile.spouseHkid)} />
+                      <InfoRow label="配偶 Passport" value={renderTextValue(employee.ir56bProfile.spousePassport)} />
+                      <InfoRow label="非香港公司支付薪酬" value={employee.ir56bProfile.overseasCompanyIndicator === '1' ? t.booleanLabels.yes : t.booleanLabels.no} />
+                      <InfoRow label="報稅備註" value={renderTextValue(employee.ir56bProfile.remarks)} />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
         </div>

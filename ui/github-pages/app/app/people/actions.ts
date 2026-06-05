@@ -559,5 +559,32 @@ export async function updateEmployee(formData: FormData) {
     }
   }
 
+  const ir56bProfilePayload = {
+    employee_id: employeeId,
+    marital_status: getNullableValue(formData, 'ir56bMaritalStatus'),
+    res_address_line1: getNullableValue(formData, 'ir56bResAddressLine1'),
+    res_address_line2: getNullableValue(formData, 'ir56bResAddressLine2'),
+    res_address_line3: getNullableValue(formData, 'ir56bResAddressLine3'),
+    res_address_area: getNullableValue(formData, 'ir56bResAddressArea'),
+    postal_address_line1: getNullableValue(formData, 'ir56bPostalAddressLine1'),
+    postal_address_line2: getNullableValue(formData, 'ir56bPostalAddressLine2'),
+    postal_address_line3: getNullableValue(formData, 'ir56bPostalAddressLine3'),
+    postal_address_area: getNullableValue(formData, 'ir56bPostalAddressArea'),
+    spouse_name: getNullableValue(formData, 'ir56bSpouseName'),
+    spouse_hkid: getNullableValue(formData, 'ir56bSpouseHkid'),
+    spouse_passport: getNullableValue(formData, 'ir56bSpousePassport'),
+    place_of_residence_indicator: getValue(formData, 'ir56bPlaceOfResidenceIndicator') || '0',
+    overseas_company_indicator: getValue(formData, 'ir56bOverseasCompanyIndicator') || '0',
+    remarks: getNullableValue(formData, 'ir56bRemarks'),
+  };
+
+  const { error: ir56bError } = await supabase
+    .from('employee_ir56b_profiles')
+    .upsert(ir56bProfilePayload, { onConflict: 'employee_id' });
+
+  if (ir56bError && !isMissingColumnError(ir56bError.message)) {
+    throw new Error(ir56bError.message);
+  }
+
   return { employeeCode: normalizedEmployeeCode };
 }

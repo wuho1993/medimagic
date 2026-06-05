@@ -88,6 +88,24 @@ export type EmployeeVisaRecord = {
   remarks: string | null;
 };
 
+export type EmployeeIr56bProfileRecord = {
+  maritalStatus: '1' | '2' | null;
+  resAddressLine1: string | null;
+  resAddressLine2: string | null;
+  resAddressLine3: string | null;
+  resAddressArea: 'H' | 'K' | 'N' | 'F' | null;
+  postalAddressLine1: string | null;
+  postalAddressLine2: string | null;
+  postalAddressLine3: string | null;
+  postalAddressArea: 'H' | 'K' | 'N' | 'F' | null;
+  spouseName: string | null;
+  spouseHkid: string | null;
+  spousePassport: string | null;
+  placeOfResidenceIndicator: '0' | '1';
+  overseasCompanyIndicator: '0' | '1';
+  remarks: string | null;
+};
+
 export type EmployeeDetailRecord = EmployeeDirectoryRecord & {
   positionId: string | null;
   identityType: 'hkid' | 'passport' | 'other';
@@ -149,6 +167,7 @@ export type EmployeeDetailRecord = EmployeeDirectoryRecord & {
   payDaySecondary: number | null;
   commissionNotes: string | null;
   payrollIgnoreCommissionReview: boolean;
+  ir56bProfile: EmployeeIr56bProfileRecord;
   documents: EmployeeDocumentRecord[];
   visas: EmployeeVisaRecord[];
 };
@@ -266,6 +285,24 @@ type EmployeeSalaryProfileRow = {
   pay_day_secondary: number | null;
   commission_notes: string | null;
   payroll_ignore_commission_review?: boolean | null;
+};
+
+type EmployeeIr56bProfileRow = {
+  marital_status: EmployeeIr56bProfileRecord['maritalStatus'];
+  res_address_line1: string | null;
+  res_address_line2: string | null;
+  res_address_line3: string | null;
+  res_address_area: EmployeeIr56bProfileRecord['resAddressArea'];
+  postal_address_line1: string | null;
+  postal_address_line2: string | null;
+  postal_address_line3: string | null;
+  postal_address_area: EmployeeIr56bProfileRecord['postalAddressArea'];
+  spouse_name: string | null;
+  spouse_hkid: string | null;
+  spouse_passport: string | null;
+  place_of_residence_indicator: EmployeeIr56bProfileRecord['placeOfResidenceIndicator'] | null;
+  overseas_company_indicator: EmployeeIr56bProfileRecord['overseasCompanyIndicator'] | null;
+  remarks: string | null;
 };
 
 type EmployeeDocumentRow = {
@@ -498,6 +535,26 @@ function normalizeSalaryProfile(profile: EmployeeSalaryProfileRow | null) {
   };
 }
 
+function normalizeIr56bProfile(profile: EmployeeIr56bProfileRow | null): EmployeeIr56bProfileRecord {
+  return {
+    maritalStatus: profile?.marital_status ?? null,
+    resAddressLine1: profile?.res_address_line1 ?? null,
+    resAddressLine2: profile?.res_address_line2 ?? null,
+    resAddressLine3: profile?.res_address_line3 ?? null,
+    resAddressArea: profile?.res_address_area ?? null,
+    postalAddressLine1: profile?.postal_address_line1 ?? null,
+    postalAddressLine2: profile?.postal_address_line2 ?? null,
+    postalAddressLine3: profile?.postal_address_line3 ?? null,
+    postalAddressArea: profile?.postal_address_area ?? null,
+    spouseName: profile?.spouse_name ?? null,
+    spouseHkid: profile?.spouse_hkid ?? null,
+    spousePassport: profile?.spouse_passport ?? null,
+    placeOfResidenceIndicator: profile?.place_of_residence_indicator ?? '0',
+    overseasCompanyIndicator: profile?.overseas_company_indicator ?? '0',
+    remarks: profile?.remarks ?? null,
+  };
+}
+
 function mapEmployee(row: EmployeeQueryRow): EmployeeDirectoryRecord {
   const company = normalizeLookupValue(row.company);
   const branch = normalizeLookupValue(row.branch);
@@ -529,12 +586,14 @@ function mapEmployee(row: EmployeeQueryRow): EmployeeDirectoryRecord {
 function mapEmployeeDetail(
   row: EmployeeDetailQueryRow,
   salaryProfileRow: EmployeeSalaryProfileRow | null,
+  ir56bProfileRow: EmployeeIr56bProfileRow | null,
   documents: EmployeeDocumentRecord[],
   visas: EmployeeVisaRecord[]
 ): EmployeeDetailRecord {
   const base = mapEmployee(row);
   const bank = normalizeBankName(row.bank);
   const salaryProfile = normalizeSalaryProfile(salaryProfileRow);
+  const ir56bProfile = normalizeIr56bProfile(ir56bProfileRow);
 
   return {
     ...base,
@@ -598,6 +657,7 @@ function mapEmployeeDetail(
     payDaySecondary: salaryProfile.payDaySecondary,
     commissionNotes: salaryProfile.commissionNotes,
     payrollIgnoreCommissionReview: salaryProfile.payrollIgnoreCommissionReview,
+    ir56bProfile,
     documents,
     visas,
   };
@@ -739,13 +799,19 @@ export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppS
   const employeeData = data as unknown as EmployeeDetailQueryRow;
 
   let salaryProfile: EmployeeSalaryProfileRow | null = null;
+  let ir56bProfile: EmployeeIr56bProfileRow | null = null;
   let documents: EmployeeDocumentRecord[] = [];
   let visas: EmployeeVisaRecord[] = [];
 
-  const [salaryResult, documentsResult, visasResult] = await Promise.all([
+  const [salaryResult, ir56bResult, documentsResult, visasResult] = await Promise.all([
     supabase
       .from('employee_salary_profiles')
       .select(EMPLOYEE_SALARY_PROFILE_SELECT_CURRENT)
+      .eq('employee_id', employeeData.id)
+      .maybeSingle(),
+    supabase
+      .from('employee_ir56b_profiles')
+      .select('marital_status, res_address_line1, res_address_line2, res_address_line3, res_address_area, postal_address_line1, postal_address_line2, postal_address_line3, postal_address_area, spouse_name, spouse_hkid, spouse_passport, place_of_residence_indicator, overseas_company_indicator, remarks')
       .eq('employee_id', employeeData.id)
       .maybeSingle(),
     supabase
@@ -779,6 +845,12 @@ export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppS
     salaryProfile = salaryResult.data as EmployeeSalaryProfileRow;
   }
 
+  if (ir56bResult.error) {
+    console.warn(`Failed to load IR56B profile for ${normalizedCode}:`, ir56bResult.error.message);
+  } else if (ir56bResult.data) {
+    ir56bProfile = ir56bResult.data as EmployeeIr56bProfileRow;
+  }
+
   if (documentsResult.error) {
     console.warn(`Failed to load employee documents for ${normalizedCode}:`, documentsResult.error.message);
   } else {
@@ -791,7 +863,7 @@ export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppS
     visas = ((visasResult.data ?? []) as EmployeeVisaRow[]).map(mapEmployeeVisa);
   }
 
-  return mapEmployeeDetail(employeeData, salaryProfile, documents, visas);
+  return mapEmployeeDetail(employeeData, salaryProfile, ir56bProfile, documents, visas);
 }
 
 async function fetchOptions(table: 'positions' | 'banks' | 'companies' | 'branches', user?: AppShellUser) {
