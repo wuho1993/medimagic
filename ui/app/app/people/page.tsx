@@ -20,6 +20,9 @@ export default function PeoplePage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const employeeId = searchParams?.get('id') ?? null;
+  const today = new Date();
+  const defaultIr56bAssessmentYear = today.getMonth() + 1 >= 4 ? today.getFullYear() + 1 : today.getFullYear();
+  const [ir56bAssessmentYear, setIr56bAssessmentYear] = useState(defaultIr56bAssessmentYear);
   const [listData, setListData] = useState<any>(null);
   const [profileData, setProfileData] = useState<Record<string, unknown> | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -29,11 +32,11 @@ export default function PeoplePage() {
     if (!user || employeeId) return;
     let cancelled = false;
     setListData(null);
-    Promise.all([fetchEmployeeDirectory(user), fetchEmployeeDirectoryOptions(user), fetchEmployeeIr56bExportRecords(user)])
+    Promise.all([fetchEmployeeDirectory(user), fetchEmployeeDirectoryOptions(user), fetchEmployeeIr56bExportRecords(user, ir56bAssessmentYear)])
       .then(([e, o, ir56bExportRecords]) => { if (!cancelled) setListData({ employees: e, ir56bExportRecords, ...o }); })
       .catch((error) => { if (!cancelled) console.error(error); });
     return () => { cancelled = true; };
-  }, [user, employeeId]);
+  }, [user, employeeId, ir56bAssessmentYear]);
 
   // Load single employee profile when ?id= is present
   useEffect(() => {
@@ -79,5 +82,5 @@ export default function PeoplePage() {
 
   // Employee list view
   if (!listData) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
-  return <People employees={listData.employees} ir56bExportRecords={listData.ir56bExportRecords} positions={listData.positions} banks={listData.banks} companies={listData.companies} branches={listData.branches} />;
+  return <People employees={listData.employees} ir56bExportRecords={listData.ir56bExportRecords} ir56bAssessmentYear={ir56bAssessmentYear} onIr56bAssessmentYearChange={setIr56bAssessmentYear} positions={listData.positions} banks={listData.banks} companies={listData.companies} branches={listData.branches} />;
 }

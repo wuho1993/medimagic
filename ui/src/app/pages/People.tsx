@@ -315,6 +315,8 @@ const translations = {
 type PeopleProps = {
   employees: EmployeeDirectoryRecord[];
   ir56bExportRecords?: EmployeeIr56bExportRecord[];
+  ir56bAssessmentYear?: number;
+  onIr56bAssessmentYearChange?: (year: number) => void;
   positions: EmployeeDirectoryOption[];
   banks: EmployeeDirectoryOption[];
   companies: EmployeeDirectoryOption[];
@@ -374,53 +376,183 @@ function validateIr56bRecord(record: EmployeeIr56bExportRecord) {
   if (!address.area) missing.push('IR56B 住址地區');
   if (!record.ir56bProfile.maritalStatus) missing.push('婚姻狀況');
   if (!record.salaryType) missing.push('薪金類型');
-  if (record.baseSalary === null && record.allowanceAmount === null) missing.push('薪金 / 津貼設定');
+  if (record.ir56bIncome.payrollMonths.length === 0) missing.push(`Payroll records ${record.ir56bIncome.assessmentYear - 1}-04 至 ${record.ir56bIncome.assessmentYear}-03`);
+  if (record.ir56bIncome.totalIncome <= 0) missing.push('IR56B 年度總入息');
 
   return missing;
 }
 
-function createBulkIr56bXml(records: EmployeeIr56bExportRecord[], exportedAt: string) {
-  const entries = records.map((record) => {
-    const address = getIr56bAddress(record);
-    const taxableSalary = (record.baseSalary ?? 0) + (record.allowanceAmount ?? 0);
-    const issues = validateIr56bRecord(record);
+type Ir56bEmployerHeader = {
+  section: string;
+  ern: string;
+  assessmentYear: number;
+  submissionDate: string;
+  employerName: string;
+  signerName: string;
+  designation: string;
+  typeOfForm: 'O' | 'A' | 'R' | 'S';
+};
 
-    return `  <EmployeeIR56B status="${issues.length > 0 ? 'needs_review' : 'ready'}">
-    <ValidationIssues>${escapeXml(issues.join('; '))}</ValidationIssues>
-    <EmployeeCode>${escapeXml(record.employeeCode)}</EmployeeCode>
-    <NameZh>${escapeXml(record.nameZh)}</NameZh>
-    <NameEn>${escapeXml(record.nameEn)}</NameEn>
-    <IdentityType>${escapeXml(record.identityType)}</IdentityType>
-    <IdentityNumber>${escapeXml(record.identityNumber)}</IdentityNumber>
-    <DateOfBirth>${escapeXml(record.dateOfBirth)}</DateOfBirth>
-    <Gender>${escapeXml(record.gender)}</Gender>
-    <Company>${escapeXml(record.companyNameZh || record.companyNameEn || record.companyType)}</Company>
-    <Branch>${escapeXml(record.branchNameZh || record.branchNameEn || record.branchCode)}</Branch>
-    <Position>${escapeXml(record.positionNameZh)}</Position>
-    <HireDate>${escapeXml(record.hireDate)}</HireDate>
-    <EmploymentEndDate>${escapeXml(record.employmentEndDate)}</EmploymentEndDate>
-    <MaritalStatus>${escapeXml(record.ir56bProfile.maritalStatus)}</MaritalStatus>
-    <ResidentialAddress area="${escapeXml(address.area)}">
-      <Line1>${escapeXml(address.line1)}</Line1>
-      <Line2>${escapeXml(address.line2)}</Line2>
-      <Line3>${escapeXml(address.line3)}</Line3>
-    </ResidentialAddress>
-    <SpouseName>${escapeXml(record.ir56bProfile.spouseName)}</SpouseName>
-    <SpouseHkid>${escapeXml(record.ir56bProfile.spouseHkid)}</SpouseHkid>
-    <SpousePassport>${escapeXml(record.ir56bProfile.spousePassport)}</SpousePassport>
-    <PlaceOfResidenceIndicator>${escapeXml(record.ir56bProfile.placeOfResidenceIndicator)}</PlaceOfResidenceIndicator>
-    <OverseasCompanyIndicator>${escapeXml(record.ir56bProfile.overseasCompanyIndicator)}</OverseasCompanyIndicator>
-    <SalaryType>${escapeXml(record.salaryType)}</SalaryType>
-    <BaseSalary>${escapeXml(record.baseSalary)}</BaseSalary>
-    <AllowanceAmount>${escapeXml(record.allowanceAmount)}</AllowanceAmount>
-    <EstimatedFixedTaxableMonthlyAmount>${escapeXml(taxableSalary || '')}</EstimatedFixedTaxableMonthlyAmount>
-    <PaymentMethod>${escapeXml(record.paymentMethod)}</PaymentMethod>
-    <BankName>${escapeXml(record.bankNameZh || record.bankNameEn)}</BankName>
-    <MpfEnabled>${escapeXml(record.mpfEnabled)}</MpfEnabled>
-  </EmployeeIR56B>`;
+function formatIrdDate(value: string | null | undefined) {
+  return (value ?? '').replace(/-/g, '');
+}
+
+function formatIrdAmount(value: number) {
+  return String(Math.max(0, Math.round(Number.isFinite(value) ? value : 0)));
+}
+
+function formatIrdSheetNo(index: number) {
+  return String(index + 1).padStart(6, '0');
+}
+
+function formatIrdRecordCount(count: number) {
+  return String(count).padStart(5, '0');
+}
+
+function getAssessmentPeriod(assessmentYear: number) {
+  const start = `${assessmentYear - 1}0401`;
+  const end = `${assessmentYear}0331`;
+  return { start, end, period: `${start} - ${end}` };
+}
+
+function normalizeIrdHkid(identityType: EmployeeIr56bExportRecord['identityType'], identityNumber: string | null | undefined) {
+  if (identityType !== 'hkid') return '';
+  const normalized = (identityNumber ?? '').toUpperCase().replace(/[()\s-]/g, '');
+  if (!normalized) return '';
+  return normalized.length === 8 ? ` ${normalized}` : normalized.slice(0, 9);
+}
+
+function getPassportValue(identityType: EmployeeIr56bExportRecord['identityType'], identityNumber: string | null | undefined) {
+  return identityType === 'hkid' ? '' : (identityNumber ?? '').slice(0, 40);
+}
+
+function splitEnglishName(name: string | null | undefined) {
+  const normalized = (name ?? '').trim().replace(/\s+/g, ' ');
+  if (!normalized) return { surname: '', givenName: '' };
+  if (normalized.includes(',')) {
+    const [surname, ...givenParts] = normalized.split(',');
+    return { surname: surname.trim().slice(0, 20).toUpperCase(), givenName: givenParts.join(',').trim().slice(0, 55).toUpperCase() };
+  }
+  const parts = normalized.split(' ');
+  return { surname: (parts[0] ?? '').slice(0, 20).toUpperCase(), givenName: parts.slice(1).join(' ').slice(0, 55).toUpperCase() };
+}
+
+function getIrdSex(gender: EmployeeDirectoryRecord['gender']) {
+  return gender === 'male' ? 'M' : gender === 'female' ? 'F' : '';
+}
+
+function truncateIrd(value: string | null | undefined, maxLength: number) {
+  return (value ?? '').slice(0, maxLength);
+}
+
+function createBulkIr56bXml(records: EmployeeIr56bExportRecord[], header: Ir56bEmployerHeader) {
+  const assessmentPeriod = getAssessmentPeriod(header.assessmentYear);
+  const totalIncomeBatch = records.reduce((sum, record) => sum + record.ir56bIncome.totalIncome, 0);
+  const entries = records.map((record, index) => {
+    const address = getIr56bAddress(record);
+    const englishName = splitEnglishName(record.nameEn || record.alias || record.nameZh);
+    const salaryPeriod = record.ir56bIncome.salary > 0 ? assessmentPeriod.period : '';
+    const commissionPeriod = record.ir56bIncome.commission > 0 ? assessmentPeriod.period : '';
+    const bonusPeriod = record.ir56bIncome.bonus > 0 ? assessmentPeriod.period : '';
+    const allowancePeriod = record.ir56bIncome.allowance > 0 ? assessmentPeriod.period : '';
+    const employmentStart = formatIrdDate(record.hireDate) > assessmentPeriod.start ? formatIrdDate(record.hireDate) : assessmentPeriod.start;
+    const employmentEnd = record.employmentEndDate && formatIrdDate(record.employmentEndDate) < assessmentPeriod.end ? formatIrdDate(record.employmentEndDate) : assessmentPeriod.end;
+
+    return ` <Employee>
+ <SheetNo>${formatIrdSheetNo(index)}</SheetNo>
+ <HKID>${escapeXml(normalizeIrdHkid(record.identityType, record.identityNumber))}</HKID>
+ <TypeOfForm>${header.typeOfForm}</TypeOfForm>
+ <Surname>${escapeXml(englishName.surname)}</Surname>
+ <GivenName>${escapeXml(englishName.givenName)}</GivenName>
+ <NameInChinese>${escapeXml(truncateIrd(record.nameZh, 25))}</NameInChinese>
+ <Sex>${getIrdSex(record.gender)}</Sex>
+ <MaritalStatus>${escapeXml(record.ir56bProfile.maritalStatus ?? '')}</MaritalStatus>
+ <PpNum>${escapeXml(getPassportValue(record.identityType, record.identityNumber))}</PpNum>
+ <SpouseName>${escapeXml(truncateIrd(record.ir56bProfile.spouseName, 50))}</SpouseName>
+ <SpouseHKID>${escapeXml(normalizeIrdHkid('hkid', record.ir56bProfile.spouseHkid))}</SpouseHKID>
+ <SpousePpNum>${escapeXml(truncateIrd(record.ir56bProfile.spousePassport, 40))}</SpousePpNum>
+ <RES_ADDR_LINE1>${escapeXml(truncateIrd(address.line1, 30))}</RES_ADDR_LINE1>
+ <RES_ADDR_LINE2>${escapeXml(truncateIrd(address.line2, 30))}</RES_ADDR_LINE2>
+ <RES_ADDR_LINE3>${escapeXml(truncateIrd(address.line3, 30))}</RES_ADDR_LINE3>
+ <AreaCodeResAddr>${escapeXml(address.area)}</AreaCodeResAddr>
+ <POS_ADDR_LINE1>${escapeXml(truncateIrd(record.ir56bProfile.postalAddressLine1, 30))}</POS_ADDR_LINE1>
+ <POS_ADDR_LINE2>${escapeXml(truncateIrd(record.ir56bProfile.postalAddressLine2, 30))}</POS_ADDR_LINE2>
+ <POS_ADDR_LINE3>${escapeXml(truncateIrd(record.ir56bProfile.postalAddressLine3, 30))}</POS_ADDR_LINE3>
+ <POS_ADDR_AREA>${escapeXml(record.ir56bProfile.postalAddressArea ?? '')}</POS_ADDR_AREA>
+ <Capacity>${escapeXml(truncateIrd(record.positionNameZh, 40))}</Capacity>
+ <RTN_ASS_YR>${header.assessmentYear}</RTN_ASS_YR>
+ <StartDateOfEmp>${employmentStart}</StartDateOfEmp>
+ <EndDateOfEmp>${employmentEnd}</EndDateOfEmp>
+ <PerOfSalary>${salaryPeriod}</PerOfSalary>
+ <AmtOfSalary>${formatIrdAmount(record.ir56bIncome.salary)}</AmtOfSalary>
+ <PerOfLeavePay></PerOfLeavePay>
+ <AmtOfLeavePay>0</AmtOfLeavePay>
+ <PerOfDirectorFee></PerOfDirectorFee>
+ <AmtOfDirectorFee>0</AmtOfDirectorFee>
+ <PerOfCommFee>${commissionPeriod}</PerOfCommFee>
+ <AmtOfCommFee>${formatIrdAmount(record.ir56bIncome.commission)}</AmtOfCommFee>
+ <PerOfBonus>${bonusPeriod}</PerOfBonus>
+ <AmtOfBonus>${formatIrdAmount(record.ir56bIncome.bonus)}</AmtOfBonus>
+ <PerOfBpEtc></PerOfBpEtc>
+ <AmtOfBpEtc>0</AmtOfBpEtc>
+ <PerOfPayRetire></PerOfPayRetire>
+ <AmtOfPayRetire>0</AmtOfPayRetire>
+ <PerOfSalTaxPaid></PerOfSalTaxPaid>
+ <AmtOfSalTaxPaid>0</AmtOfSalTaxPaid>
+ <PerOfEduBen></PerOfEduBen>
+ <AmtOfEduBen>0</AmtOfEduBen>
+ <PerOfGainShareOption></PerOfGainShareOption>
+ <AmtOfGainShareOption>0</AmtOfGainShareOption>
+ <NatureOtherRAP1>${record.ir56bIncome.allowance > 0 ? 'ALLOWANCE' : ''}</NatureOtherRAP1>
+ <PerOfOtherRAP1>${allowancePeriod}</PerOfOtherRAP1>
+ <AmtOfOtherRAP1>${formatIrdAmount(record.ir56bIncome.allowance)}</AmtOfOtherRAP1>
+ <NatureOtherRAP2></NatureOtherRAP2>
+ <PerOfOtherRAP2></PerOfOtherRAP2>
+ <AmtOfOtherRAP2>0</AmtOfOtherRAP2>
+ <NatureOtherRAP3></NatureOtherRAP3>
+ <PerOfOtherRAP3></PerOfOtherRAP3>
+ <AmtOfOtherRAP3>0</AmtOfOtherRAP3>
+ <PerOfPension></PerOfPension>
+ <AmtOfPension>0</AmtOfPension>
+ <TotalIncome>${formatIrdAmount(record.ir56bIncome.totalIncome)}</TotalIncome>
+ <PlaceOfResInd>${escapeXml(record.ir56bProfile.placeOfResidenceIndicator)}</PlaceOfResInd>
+ <AddrOfPlace1></AddrOfPlace1>
+ <NatureOfPlace1></NatureOfPlace1>
+ <PerOfPlace1></PerOfPlace1>
+ <RentPaidEr1>0</RentPaidEr1>
+ <RentPaidEe1>0</RentPaidEe1>
+ <RentRefund1>0</RentRefund1>
+ <RentPaidErByEe1>0</RentPaidErByEe1>
+ <AddrOfPlace2></AddrOfPlace2>
+ <NatureOfPlace2></NatureOfPlace2>
+ <PerOfPlace2></PerOfPlace2>
+ <RentPaidEr2>0</RentPaidEr2>
+ <RentPaidEe2>0</RentPaidEe2>
+ <RentRefund2>0</RentRefund2>
+ <RentPaidErByEe2>0</RentPaidErByEe2>
+ <OverseaIncInd>${escapeXml(record.ir56bProfile.overseasCompanyIndicator)}</OverseaIncInd>
+ <AmtPaidOverseaCo>0</AmtPaidOverseaCo>
+ <NameOfOverseaCo></NameOfOverseaCo>
+ <AddrOfOverseaCo></AddrOfOverseaCo>
+ <Remarks>${escapeXml(truncateIrd(record.ir56bProfile.remarks, 60))}</Remarks>
+ </Employee>`;
   }).join('\n');
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<IR56B_BULK_DRAFT exportedAt="${escapeXml(exportedAt)}" employeeCount="${records.length}">\n${entries}\n</IR56B_BULK_DRAFT>\n`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<IR56B xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ir56b.xsd">
+ <Section>${escapeXml(header.section)}</Section>
+ <ERN>${escapeXml(header.ern)}</ERN>
+ <YrErReturn>${header.typeOfForm === 'O' ? header.assessmentYear : ''}</YrErReturn>
+ <SubDate>${escapeXml(header.submissionDate)}</SubDate>
+ <ErName>${escapeXml(truncateIrd(header.employerName, 70))}</ErName>
+ <NAME_OF_SIGNER>${escapeXml(truncateIrd(header.signerName, 27))}</NAME_OF_SIGNER>
+ <Designation>${escapeXml(truncateIrd(header.designation, 25))}</Designation>
+ <NoRecordBatch>${formatIrdRecordCount(records.length)}</NoRecordBatch>
+ <TotIncomeBatch>${formatIrdAmount(totalIncomeBatch)}</TotIncomeBatch>
+ <IR56VER>B0001</IR56VER>
+${entries}
+</IR56B>
+`;
 }
 
 function createIr56bMissingDataCsv(records: EmployeeIr56bExportRecord[]) {
@@ -450,6 +582,48 @@ function downloadTextFile(filename: string, content: string, type: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function getStoredIr56bHeader(defaultAssessmentYear: number): Ir56bEmployerHeader {
+  const stored = typeof window !== 'undefined' ? window.localStorage.getItem('ir56bEmployerHeader') : null;
+  const parsed = stored ? JSON.parse(stored) as Partial<Ir56bEmployerHeader> : {};
+  const today = new Date();
+  const submissionDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+
+  return {
+    section: parsed.section ?? '',
+    ern: parsed.ern ?? '',
+    assessmentYear: parsed.assessmentYear ?? defaultAssessmentYear,
+    submissionDate: parsed.submissionDate ?? submissionDate,
+    employerName: parsed.employerName ?? '',
+    signerName: parsed.signerName ?? '',
+    designation: parsed.designation ?? '',
+    typeOfForm: parsed.typeOfForm ?? 'O',
+  };
+}
+
+function promptIr56bHeader(defaultAssessmentYear: number): Ir56bEmployerHeader | null {
+  const current = getStoredIr56bHeader(defaultAssessmentYear);
+  const section = window.prompt('僱主檔案號碼首三個字元 Section，例如 6A1', current.section)?.trim().toUpperCase();
+  if (!section) return null;
+  const ern = window.prompt('僱主檔案號碼最後 8 個數字 ERN，例如 01234561', current.ern)?.trim();
+  if (!ern) return null;
+  const assessmentYearValue = window.prompt('受僱期間的年度 / 僱主報税表年份，例如 2025', String(current.assessmentYear))?.trim();
+  const assessmentYear = Number(assessmentYearValue);
+  if (!assessmentYear || !Number.isInteger(assessmentYear)) return null;
+  const submissionDate = window.prompt('遞交日期 YYYYMMDD', current.submissionDate)?.trim();
+  if (!submissionDate) return null;
+  const employerName = window.prompt('僱主名稱', current.employerName)?.trim();
+  if (!employerName) return null;
+  const signerName = window.prompt('簽署人姓名', current.signerName)?.trim();
+  if (!signerName) return null;
+  const designation = window.prompt('簽署人職位，例如 DIRECTOR / MANAGER', current.designation)?.trim();
+  if (!designation) return null;
+  const typeInput = window.prompt('表格類別：O 正本 / A 附加 / R 修訂 / S 補充', current.typeOfForm)?.trim().toUpperCase();
+  const typeOfForm = typeInput === 'A' || typeInput === 'R' || typeInput === 'S' ? typeInput : 'O';
+  const header = { section, ern, assessmentYear, submissionDate, employerName, signerName, designation, typeOfForm } satisfies Ir56bEmployerHeader;
+  window.localStorage.setItem('ir56bEmployerHeader', JSON.stringify(header));
+  return header;
 }
 
 function getInitials(employee: EmployeeDirectoryRecord) {
@@ -496,7 +670,7 @@ function FieldLabel({ label, required = false }: { label: string; required?: boo
   );
 }
 
-export default function People({ employees, ir56bExportRecords = [], positions, banks, companies, branches }: PeopleProps) {
+export default function People({ employees, ir56bExportRecords = [], ir56bAssessmentYear, onIr56bAssessmentYearChange, positions, banks, companies, branches }: PeopleProps) {
   const router = useRouter();
   const { lang } = useLanguage();
   const t = useTranslation(translations);
@@ -543,6 +717,11 @@ export default function People({ employees, ir56bExportRecords = [], positions, 
 
   const paginationLabel = `${filteredEmployees.length} ${t.rows}`;
   const createProbationEndDate = calculateProbationEndDate(createHireDate, createProbationMonths) ?? '';
+  const today = new Date();
+  const defaultAssessmentYear = today.getMonth() + 1 >= 4 ? today.getFullYear() + 1 : today.getFullYear();
+  const selectedAssessmentYear = ir56bAssessmentYear ?? defaultAssessmentYear;
+  const assessmentYearOptions = [defaultAssessmentYear + 1, defaultAssessmentYear, defaultAssessmentYear - 1, defaultAssessmentYear - 2, defaultAssessmentYear - 3]
+    .filter((year, index, list) => list.indexOf(year) === index);
   const filteredEmployeeCodes = new Set(filteredEmployees.map((employee) => employee.employeeCode));
   const filteredIr56bExportRecords = ir56bExportRecords.filter((record) => filteredEmployeeCodes.has(record.employeeCode));
   const ir56bIssueCount = filteredIr56bExportRecords.filter((record) => validateIr56bRecord(record).length > 0).length;
@@ -603,14 +782,24 @@ export default function People({ employees, ir56bExportRecords = [], positions, 
       return;
     }
 
-    const exportedAt = new Date().toISOString();
+    const header = promptIr56bHeader(selectedAssessmentYear);
+    if (!header) {
+      window.alert('已取消匯出。IR56B XML header 必須有僱主檔案號碼、僱主名稱、簽署人及職位。');
+      return;
+    }
+
+    if (header.assessmentYear !== selectedAssessmentYear) {
+      window.alert(`目前頁面選擇的 IR56B 年度是 ${selectedAssessmentYear}，但你輸入 ${header.assessmentYear}。請先喺頁面選返相同年度再匯出。`);
+      return;
+    }
+
     const issueRecords = filteredIr56bExportRecords.filter((record) => validateIr56bRecord(record).length > 0);
 
-    downloadTextFile('IR56B_bulk_draft.xml', createBulkIr56bXml(filteredIr56bExportRecords, exportedAt), 'application/xml;charset=utf-8');
+    downloadTextFile(`IR56B_${header.assessmentYear}_${header.typeOfForm}.xml`, `\uFEFF${createBulkIr56bXml(filteredIr56bExportRecords, header)}`, 'application/xml;charset=utf-8');
 
     if (issueRecords.length > 0) {
       downloadTextFile('IR56B_missing_data_report.csv', createIr56bMissingDataCsv(issueRecords), 'text/csv;charset=utf-8');
-      window.alert(`IR56B XML 已匯出，但有 ${issueRecords.length} 位員工資料未齊。系統已下載 IR56B_missing_data_report.csv，請按報告入員工 profile 的「報稅資料 / Tax Info」補返。`);
+      window.alert(`IR56B XML 已匯出，但有 ${issueRecords.length} 位員工資料未齊或沒有年度 payroll income。系統已下載 IR56B_missing_data_report.csv，請按報告入員工 profile 的「報稅資料 / Tax Info」補返，或先儲存該年度 Payroll。`);
     }
   }
 
@@ -623,6 +812,16 @@ export default function People({ employees, ir56bExportRecords = [], positions, 
             <p className="mt-1 text-slate-500">{t.subtitle}</p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <select
+              value={selectedAssessmentYear}
+              onChange={(event) => onIr56bAssessmentYearChange?.(Number(event.target.value))}
+              className="whitespace-nowrap rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-amber-800 shadow-sm outline-none transition-all focus:ring-2 focus:ring-[#D4AF37]/20"
+              title="IR56B 年度，例如 2025 = 2024/04 至 2025/03"
+            >
+              {assessmentYearOptions.map((year) => (
+                <option key={year} value={year}>IR56B {year} ({year - 1}/04-{year}/03)</option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={handleExportBulkIr56b}

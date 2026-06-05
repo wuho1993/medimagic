@@ -186,6 +186,15 @@ export type EmployeeIr56bExportRecord = EmployeeDirectoryRecord & {
   mpfEnabled: boolean;
   employmentEndDate: string | null;
   ir56bProfile: EmployeeIr56bProfileRecord;
+  ir56bIncome: {
+    assessmentYear: number;
+    salary: number;
+    commission: number;
+    bonus: number;
+    allowance: number;
+    totalIncome: number;
+    payrollMonths: string[];
+  };
 };
 
 export type SavedCommissionPresetRecord = {
@@ -777,7 +786,15 @@ export async function fetchEmployeeDirectory(user: AppShellUser): Promise<Employ
   return ((data ?? []) as EmployeeQueryRow[]).map(mapEmployee);
 }
 
-export async function fetchEmployeeIr56bExportRecords(user: AppShellUser): Promise<EmployeeIr56bExportRecord[]> {
+export async function fetchEmployeeIr56bExportRecords(user: AppShellUser, assessmentYear?: number): Promise<EmployeeIr56bExportRecord[]> {
+  const today = new Date();
+  const resolvedAssessmentYear = assessmentYear && Number.isInteger(assessmentYear) ? assessmentYear : (today.getMonth() + 1 >= 4 ? today.getFullYear() + 1 : today.getFullYear());
+  const taxYearMonths = Array.from({ length: 12 }, (_, index) => {
+    const monthNumber = index + 4;
+    const year = monthNumber <= 12 ? resolvedAssessmentYear - 1 : resolvedAssessmentYear;
+    const month = monthNumber <= 12 ? monthNumber : monthNumber - 12;
+    return `${year}-${String(month).padStart(2, '0')}`;
+  });
   const supabase = await createServerSupabaseClient();
   const baseQuery = supabase
     .from('employees')
@@ -803,9 +820,25 @@ export async function fetchEmployeeIr56bExportRecords(user: AppShellUser): Promi
   const employeeIds = employeeRows.map((row) => row.id);
   const salaryByEmployeeId = new Map<string, EmployeeSalaryProfileRow>();
   const ir56bByEmployeeId = new Map<string, EmployeeIr56bProfileRow>();
+  const monthlyRecordsByEmployeeId = new Map<string, Array<{
+    year_month: string;
+    worked_days: number | string | null;
+    worked_hours: number | string | null;
+    briefing_bonus_amount: number | string | null;
+    attendance_bonus_amount: number | string | null;
+    booking_bonus_amount: number | string | null;
+    office_job_amount?: number | string | null;
+    manual_bonus_amount: number | string | null;
+    manual_deduction_amount: number | string | null;
+    shop_bonus_amount: number | string | null;
+    sales_bonus: number | string | null;
+    payroll_bonus: number | string | null;
+    redeem_bonus_amount: number | string | null;
+    total_commission: number | string | null;
+  }>>();
 
   if (employeeIds.length > 0) {
-    const [salaryResult, ir56bResult] = await Promise.all([
+    const [salaryResult, ir56bResult, monthlyResult] = await Promise.all([
       supabase
         .from('employee_salary_profiles')
         .select(`employee_id, ${EMPLOYEE_SALARY_PROFILE_SELECT_CURRENT}`)
@@ -814,6 +847,11 @@ export async function fetchEmployeeIr56bExportRecords(user: AppShellUser): Promi
         .from('employee_ir56b_profiles')
         .select('employee_id, marital_status, res_address_line1, res_address_line2, res_address_line3, res_address_area, postal_address_line1, postal_address_line2, postal_address_line3, postal_address_area, spouse_name, spouse_hkid, spouse_passport, place_of_residence_indicator, overseas_company_indicator, remarks')
         .in('employee_id', employeeIds),
+      supabase
+        .from('monthly_commission_records')
+        .select('employee_id, year_month, worked_days, worked_hours, briefing_bonus_amount, attendance_bonus_amount, booking_bonus_amount, office_job_amount, manual_bonus_amount, manual_deduction_amount, shop_bonus_amount, sales_bonus, payroll_bonus, redeem_bonus_amount, total_commission')
+        .in('employee_id', employeeIds)
+        .in('year_month', taxYearMonths),
     ]);
 
     if (!salaryResult.error) {
@@ -831,12 +869,68 @@ export async function fetchEmployeeIr56bExportRecords(user: AppShellUser): Promi
     } else if (!isMissingColumnError(ir56bResult.error.message)) {
       console.warn('Failed to load employee IR56B profiles for export:', ir56bResult.error.message);
     }
+
+    if (!monthlyResult.error) {
+      for (const row of (monthlyResult.data ?? []) as unknown as Array<{
+        employee_id: string;
+        year_month: string;
+        worked_days: number | string | null;
+        worked_hours: number | string | null;
+        briefing_bonus_amount: number | string | null;
+        attendance_bonus_amount: number | string | null;
+        booking_bonus_amount: number | string | null;
+        office_job_amount?: number | string | null;
+        manual_bonus_amount: number | string | null;
+        manual_deduction_amount: number | string | null;
+        shop_bonus_amount: number | string | null;
+        sales_bonus: number | string | null;
+        payroll_bonus: number | string | null;
+        redeem_bonus_amount: number | string | null;
+        total_commission: number | string | null;
+      }>) {
+        const rows = monthlyRecordsByEmployeeId.get(row.employee_id) ?? [];
+        rows.push(row);
+        monthlyRecordsByEmployeeId.set(row.employee_id, rows);
+      }
+    } else if (!isMissingColumnError(monthlyResult.error.message)) {
+      console.warn('Failed to load monthly payroll records for IR56B export:', monthlyResult.error.message);
+    }
   }
 
   return employeeRows.map((row) => {
     const base = mapEmployee(row);
     const bank = normalizeBankName(row.bank);
     const salaryProfile = normalizeSalaryProfile(salaryByEmployeeId.get(row.id) ?? null);
+    const monthlyRecords = monthlyRecordsByEmployeeId.get(row.id) ?? [];
+    const monthlyRecordMonths = monthlyRecords.map((record) => record.year_month).sort();
+    const baseSalary = salaryProfile.baseSalary ?? 0;
+    const allowanceAmount = salaryProfile.allowanceAmount ?? 0;
+    const monthlySalary = monthlyRecords.reduce((sum, record) => {
+      if (salaryProfile.salaryType === 'daily') {
+        return sum + baseSalary * Number(record.worked_days ?? 0);
+      }
+      if (salaryProfile.salaryType === 'hourly') {
+        return sum + baseSalary * Number(record.worked_hours ?? 0);
+      }
+      return sum + baseSalary;
+    }, 0);
+    const monthlyAllowance = monthlyRecords.reduce((sum) => sum + allowanceAmount, 0);
+    const monthlyCommission = monthlyRecords.reduce((sum, record) => sum + Number(record.total_commission ?? 0), 0);
+    const monthlyBonus = monthlyRecords.reduce((sum, record) => sum
+      + Number(record.briefing_bonus_amount ?? 0)
+      + Number(record.attendance_bonus_amount ?? 0)
+      + Number(record.booking_bonus_amount ?? 0)
+      + Number(record.office_job_amount ?? 0)
+      + Number(record.manual_bonus_amount ?? 0)
+      + Number(record.shop_bonus_amount ?? 0)
+      + Number(record.sales_bonus ?? 0)
+      + Number(record.payroll_bonus ?? 0)
+      + Number(record.redeem_bonus_amount ?? 0)
+      - Number(record.manual_deduction_amount ?? 0), 0);
+    const salary = Math.round(monthlySalary);
+    const allowance = Math.round(monthlyAllowance);
+    const commission = Math.round(monthlyCommission);
+    const bonus = Math.round(monthlyBonus);
 
     return {
       ...base,
@@ -853,6 +947,15 @@ export async function fetchEmployeeIr56bExportRecords(user: AppShellUser): Promi
       mpfEnabled: salaryProfile.mpfEnabled,
       employmentEndDate: row.employment_end_date,
       ir56bProfile: normalizeIr56bProfile(ir56bByEmployeeId.get(row.id) ?? null),
+      ir56bIncome: {
+        assessmentYear: resolvedAssessmentYear,
+        salary,
+        commission,
+        bonus,
+        allowance,
+        totalIncome: salary + commission + bonus + allowance,
+        payrollMonths: monthlyRecordMonths,
+      },
     };
   });
 }
