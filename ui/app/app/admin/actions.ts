@@ -136,18 +136,14 @@ export async function createLookupItem(formData: FormData) {
 
   const supabase = getSupabase();
 
-  const payload: Record<string, string> = {
+  const payload: Record<string, string | null> = {
     code,
     name_zh: nameZh,
     name_en: nameEn,
   };
 
   if (table === 'branches') {
-    if (!companyId) {
-      throw new Error('Company is required for branches.');
-    }
-
-    payload.company_id = companyId;
+    payload.company_id = companyId || null;
   }
 
   const { error } = id

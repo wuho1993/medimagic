@@ -265,7 +265,7 @@ function LookupSection({
         {requiresCompany ? (
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-500">{labels.company}</label>
-            <select name="companyId" required className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20">
+            <select name="companyId" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20">
               <option value="">{labels.company}</option>
               {(companies ?? []).map((company) => (
                 <option key={company.id} value={company.id}>{company.labelZh}</option>
@@ -302,7 +302,7 @@ function LookupSection({
               {requiresCompany ? (
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-500">{labels.company}</label>
-                  <select name="companyId" defaultValue={item.companyId ?? ''} required className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20">
+                  <select name="companyId" defaultValue={item.companyId ?? ''} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20">
                     <option value="">{labels.company}</option>
                     {(companies ?? []).map((company) => (
                       <option key={company.id} value={company.id}>{company.labelZh}</option>
