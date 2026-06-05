@@ -1375,9 +1375,114 @@ function getBirthdayReminder(dateOfBirth: string | null | undefined, referenceDa
   };
 }
 
+function splitAddressForIr56b(address: string | null | undefined) {
+  const normalized = (address ?? '').replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return { line1: '', line2: '', line3: '' };
+  }
+
+  const explicitLines = normalized
+    .split(/\s*(?:\n|,|，)\s*/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const lines = explicitLines.length > 1 ? explicitLines : normalized.match(/.{1,35}(?:\s|$)/g)?.map((line) => line.trim()).filter(Boolean) ?? [normalized];
+
+  return {
+    line1: lines[0] ?? '',
+    line2: lines[1] ?? '',
+    line3: lines.slice(2).join(' ').slice(0, 80),
+  };
+}
+
+function inferIr56bAddressArea(address: string | null | undefined): '' | 'H' | 'K' | 'N' | 'F' {
+  const value = (address ?? '').toLowerCase();
+  if (!value) return '';
+  if (/hong kong|香港|central|wan chai|causeway|north point|quarry bay|chai wan|aberdeen|薄扶林|中環|灣仔|銅鑼灣|北角|鰂魚涌|柴灣|香港仔/.test(value)) return 'H';
+  if (/kowloon|九龍|kwun tong|mong kok|tsim sha tsui|jordan|yau ma tei|sham shui po|觀塘|旺角|尖沙咀|佐敦|油麻地|深水埗/.test(value)) return 'K';
+  if (/new territories|新界|sha tin|tai wai|tsuen wan|tuen mun|yuen long|fanling|sheung shui|沙田|大圍|荃灣|屯門|元朗|粉嶺|上水/.test(value)) return 'N';
+  return 'F';
+}
+
+function getIr56bAddressLines(employee: EmployeeDetailRecord, profile: EmployeeDetailRecord['ir56bProfile']) {
+  const fallback = splitAddressForIr56b(employee.address);
+  return {
+    line1: profile.resAddressLine1 ?? fallback.line1,
+    line2: profile.resAddressLine2 ?? fallback.line2,
+    line3: profile.resAddressLine3 ?? fallback.line3,
+    area: profile.resAddressArea ?? inferIr56bAddressArea(employee.address),
+  };
+}
+
+function escapeXml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function createIr56bDraftXml(employee: EmployeeDetailRecord, bankName: string, exportedAt: string) {
+  const address = getIr56bAddressLines(employee, employee.ir56bProfile);
+  const taxableSalary = (employee.baseSalary ?? 0) + (employee.allowanceAmount ?? 0);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<IR56B_DRAFT exportedAt="${escapeXml(exportedAt)}">
+  <Employee>
+    <EmployeeCode>${escapeXml(employee.employeeCode)}</EmployeeCode>
+    <NameZh>${escapeXml(employee.nameZh)}</NameZh>
+    <NameEn>${escapeXml(employee.nameEn)}</NameEn>
+    <Gender>${escapeXml(employee.gender)}</Gender>
+    <IdentityType>${escapeXml(employee.identityType)}</IdentityType>
+    <IdentityNumber>${escapeXml(employee.identityNumber)}</IdentityNumber>
+    <DateOfBirth>${escapeXml(employee.dateOfBirth)}</DateOfBirth>
+    <Phone>${escapeXml(employee.phone)}</Phone>
+  </Employee>
+  <Employment>
+    <Company>${escapeXml(employee.companyNameZh || employee.companyNameEn || employee.companyType)}</Company>
+    <Branch>${escapeXml(employee.branchNameZh || employee.branchNameEn || employee.branchCode)}</Branch>
+    <Position>${escapeXml(employee.positionNameZh)}</Position>
+    <EmploymentType>${escapeXml(employee.employmentType)}</EmploymentType>
+    <Status>${escapeXml(employee.employmentStatus)}</Status>
+    <HireDate>${escapeXml(employee.hireDate)}</HireDate>
+    <EmploymentEndDate>${escapeXml(employee.employmentEndDate)}</EmploymentEndDate>
+  </Employment>
+  <IR56BProfile>
+    <MaritalStatus>${escapeXml(employee.ir56bProfile.maritalStatus)}</MaritalStatus>
+    <ResidentialAddress area="${escapeXml(address.area)}">
+      <Line1>${escapeXml(address.line1)}</Line1>
+      <Line2>${escapeXml(address.line2)}</Line2>
+      <Line3>${escapeXml(address.line3)}</Line3>
+    </ResidentialAddress>
+    <PostalAddress area="${escapeXml(employee.ir56bProfile.postalAddressArea)}">
+      <Line1>${escapeXml(employee.ir56bProfile.postalAddressLine1)}</Line1>
+      <Line2>${escapeXml(employee.ir56bProfile.postalAddressLine2)}</Line2>
+      <Line3>${escapeXml(employee.ir56bProfile.postalAddressLine3)}</Line3>
+    </PostalAddress>
+    <SpouseName>${escapeXml(employee.ir56bProfile.spouseName)}</SpouseName>
+    <SpouseHkid>${escapeXml(employee.ir56bProfile.spouseHkid)}</SpouseHkid>
+    <SpousePassport>${escapeXml(employee.ir56bProfile.spousePassport)}</SpousePassport>
+    <PlaceOfResidenceIndicator>${escapeXml(employee.ir56bProfile.placeOfResidenceIndicator)}</PlaceOfResidenceIndicator>
+    <OverseasCompanyIndicator>${escapeXml(employee.ir56bProfile.overseasCompanyIndicator)}</OverseasCompanyIndicator>
+    <Remarks>${escapeXml(employee.ir56bProfile.remarks)}</Remarks>
+  </IR56BProfile>
+  <PayrollReference>
+    <SalaryType>${escapeXml(employee.salaryType)}</SalaryType>
+    <BaseSalary>${escapeXml(employee.baseSalary)}</BaseSalary>
+    <AllowanceAmount>${escapeXml(employee.allowanceAmount)}</AllowanceAmount>
+    <EstimatedFixedTaxableMonthlyAmount>${escapeXml(taxableSalary || '')}</EstimatedFixedTaxableMonthlyAmount>
+    <PaymentMethod>${escapeXml(employee.paymentMethod)}</PaymentMethod>
+    <BankName>${escapeXml(bankName)}</BankName>
+    <MpfEnabled>${escapeXml(employee.mpfEnabled)}</MpfEnabled>
+  </PayrollReference>
+</IR56B_DRAFT>
+`;
+}
+
 function createInitialState(employee: EmployeeDetailRecord): FormState {
   const probationEndDate = calculateProbationEndDate(employee.hireDate, employee.probationMonths) ?? employee.probationEndDate ?? '';
   const employeeMainCommissionRules = (employee.commissionRules ?? []).filter((rule) => rule.metric !== 'shop');
+  const defaultIr56bAddress = splitAddressForIr56b(employee.address);
 
   return {
     employeeCode: employee.employeeCode,
@@ -1449,10 +1554,10 @@ function createInitialState(employee: EmployeeDetailRecord): FormState {
     payDaySecondary: employee.payDaySecondary === null ? '' : String(employee.payDaySecondary),
     commissionNotes: employee.commissionNotes ?? '',
     ir56bMaritalStatus: employee.ir56bProfile.maritalStatus ?? '',
-    ir56bResAddressLine1: employee.ir56bProfile.resAddressLine1 ?? '',
-    ir56bResAddressLine2: employee.ir56bProfile.resAddressLine2 ?? '',
-    ir56bResAddressLine3: employee.ir56bProfile.resAddressLine3 ?? '',
-    ir56bResAddressArea: employee.ir56bProfile.resAddressArea ?? '',
+    ir56bResAddressLine1: employee.ir56bProfile.resAddressLine1 ?? defaultIr56bAddress.line1,
+    ir56bResAddressLine2: employee.ir56bProfile.resAddressLine2 ?? defaultIr56bAddress.line2,
+    ir56bResAddressLine3: employee.ir56bProfile.resAddressLine3 ?? defaultIr56bAddress.line3,
+    ir56bResAddressArea: employee.ir56bProfile.resAddressArea ?? inferIr56bAddressArea(employee.address),
     ir56bPostalAddressLine1: employee.ir56bProfile.postalAddressLine1 ?? '',
     ir56bPostalAddressLine2: employee.ir56bProfile.postalAddressLine2 ?? '',
     ir56bPostalAddressLine3: employee.ir56bProfile.postalAddressLine3 ?? '',
@@ -2517,6 +2622,13 @@ export default function EmployeeProfile({
   const formattedHireDate = formatDate(employee.hireDate, locale, t.emptyValue);
   const annualLeaveValue = employee.annualLeaveDays === null ? t.emptyValue : `${employee.annualLeaveDays}`;
   const bankName = employee.bankNameZh || employee.bankNameEn || t.emptyValue;
+  const ir56bAddress = getIr56bAddressLines(employee, employee.ir56bProfile);
+  const formIr56bAddress = {
+    line1: formState.ir56bResAddressLine1,
+    line2: formState.ir56bResAddressLine2,
+    line3: formState.ir56bResAddressLine3,
+    area: formState.ir56bResAddressArea,
+  };
   const displayedProbationEndDate = calculateProbationEndDate(employee.hireDate, employee.probationMonths) ?? employee.probationEndDate;
   const availableBranches = options.branches;
   const selectedBank = options.banks.find((bank) => bank.id === formState.bankId) ?? null;
@@ -2995,6 +3107,20 @@ export default function EmployeeProfile({
     const link = document.createElement('a');
     link.href = url;
     link.download = `${employee.employeeCode || fileSafeName}_${fileSafeName}_profile.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExportIr56bXml() {
+    const exportedAt = new Date().toISOString();
+    const xml = createIr56bDraftXml(employee, bankName, exportedAt);
+    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${employee.employeeCode || 'employee'}_IR56B_draft.xml`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -3748,11 +3874,30 @@ export default function EmployeeProfile({
           {activeTabIndex === 7 ? (
             <div className="space-y-8">
               <div>
-                <h3 className="mb-2 flex items-center gap-2 text-base font-bold text-slate-900">
-                  <div className="h-4 w-1 rounded-full bg-[#D4AF37]"></div>
-                  IR56B 報稅資料
-                </h3>
-                <p className="mb-5 text-sm leading-6 text-slate-500">只供 IR56B 報稅檢查及日後 XML 匯出使用，不會影響現有員工資料、Payroll 或 MPF。</p>
+                <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="mb-2 flex items-center gap-2 text-base font-bold text-slate-900">
+                      <div className="h-4 w-1 rounded-full bg-[#D4AF37]"></div>
+                      IR56B 報稅資料
+                    </h3>
+                    <p className="text-sm leading-6 text-slate-500">已自動整合員工基本資料、身份證明、入職/離職日期、公司/分店及薪金設定；以下只需補充 IR56B 額外資料。</p>
+                  </div>
+                  <button type="button" onClick={handleExportIr56bXml} className="flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#B8871A]">
+                    <Download className="h-4 w-4" />
+                    匯出 IR56B XML
+                  </button>
+                </div>
+                <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50/60 p-4 text-sm text-slate-700">
+                  <div className="mb-3 font-bold text-slate-900">已整合資料</div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <InfoRow label="姓名 / 員工編號" value={`${displayName} / ${employee.employeeCode}`} />
+                    <InfoRow label="證件資料" value={`${t.identityTypes[employee.identityType]} ${employee.identityNumber}`} />
+                    <InfoRow label="出生日期" value={formatDate(employee.dateOfBirth, locale, t.emptyValue)} />
+                    <InfoRow label="公司 / 分店" value={`${employee.companyNameZh || employee.companyNameEn || employee.companyType} / ${employee.branchNameZh || employee.branchNameEn || employee.branchCode || t.emptyValue}`} />
+                    <InfoRow label="入職 / 離職" value={`${formatDate(employee.hireDate, locale, t.emptyValue)} / ${formatDate(employee.employmentEndDate, locale, t.emptyValue)}`} />
+                    <InfoRow label="薪金設定" value={`${employee.salaryType ?? t.emptyValue} / ${employee.baseSalary === null ? t.emptyValue : employee.baseSalary}`} />
+                  </div>
+                </div>
                 {isEditing ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     <FieldShell label="婚姻狀況">
@@ -3761,6 +3906,20 @@ export default function EmployeeProfile({
                         <option value="1">1 - 未婚 / 喪偶 / 離婚 / 分開居住</option>
                         <option value="2">2 - 已婚</option>
                       </select>
+                    </FieldShell>
+                    <FieldShell label="住址來源">
+                      <button type="button" onClick={() => {
+                        const nextAddress = splitAddressForIr56b(formState.address || employee.address);
+                        setFormState((current) => ({
+                          ...current,
+                          ir56bResAddressLine1: nextAddress.line1,
+                          ir56bResAddressLine2: nextAddress.line2,
+                          ir56bResAddressLine3: nextAddress.line3,
+                          ir56bResAddressArea: inferIr56bAddressArea(current.address || employee.address),
+                        }));
+                      }} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        使用基本資料地址：{formState.address || employee.address || t.emptyValue}
+                      </button>
                     </FieldShell>
                     <FieldShell label="住址地區">
                       <select name="ir56bResAddressArea" value={formState.ir56bResAddressArea} onChange={handleInputChange} className={inputClasses()}>
@@ -3774,21 +3933,12 @@ export default function EmployeeProfile({
                     <FieldShell label="住址第 1 行"><input name="ir56bResAddressLine1" value={formState.ir56bResAddressLine1} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label="住址第 2 行"><input name="ir56bResAddressLine2" value={formState.ir56bResAddressLine2} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
                     <FieldShell label="住址第 3 行"><input name="ir56bResAddressLine3" value={formState.ir56bResAddressLine3} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
-                    <FieldShell label="通訊地址地區（如不同）">
-                      <select name="ir56bPostalAddressArea" value={formState.ir56bPostalAddressArea} onChange={handleInputChange} className={inputClasses()}>
-                        <option value="">{t.emptyValue}</option>
-                        <option value="H">H - 香港</option>
-                        <option value="K">K - 九龍</option>
-                        <option value="N">N - 新界</option>
-                        <option value="F">F - 其他</option>
-                      </select>
-                    </FieldShell>
-                    <FieldShell label="通訊地址第 1 行"><input name="ir56bPostalAddressLine1" value={formState.ir56bPostalAddressLine1} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
-                    <FieldShell label="通訊地址第 2 行"><input name="ir56bPostalAddressLine2" value={formState.ir56bPostalAddressLine2} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
-                    <FieldShell label="通訊地址第 3 行"><input name="ir56bPostalAddressLine3" value={formState.ir56bPostalAddressLine3} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
-                    <FieldShell label="配偶姓名"><input name="ir56bSpouseName" value={formState.ir56bSpouseName} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
-                    <FieldShell label="配偶 HKID"><input name="ir56bSpouseHkid" value={formState.ir56bSpouseHkid} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
-                    <FieldShell label="配偶 Passport"><input name="ir56bSpousePassport" value={formState.ir56bSpousePassport} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                    {formState.ir56bMaritalStatus === '2' ? (
+                      <>
+                        <FieldShell label="配偶姓名"><input name="ir56bSpouseName" value={formState.ir56bSpouseName} onChange={handleInputChange} className={inputClasses()} /></FieldShell>
+                        <FieldShell label="配偶 HKID / Passport"><input name="ir56bSpouseHkid" value={formState.ir56bSpouseHkid || formState.ir56bSpousePassport} onChange={(event) => setFormState((current) => ({ ...current, ir56bSpouseHkid: event.target.value, ir56bSpousePassport: '' }))} className={inputClasses()} /></FieldShell>
+                      </>
+                    ) : null}
                     <FieldShell label="僱主有否提供居所">
                       <select name="ir56bPlaceOfResidenceIndicator" value={formState.ir56bPlaceOfResidenceIndicator} onChange={handleInputChange} className={inputClasses()}>
                         <option value="0">0 - 沒有</option>
@@ -3809,20 +3959,15 @@ export default function EmployeeProfile({
                   <div className="grid gap-x-12 gap-y-8 md:grid-cols-2">
                     <div className="space-y-4">
                       <InfoRow label="婚姻狀況" value={employee.ir56bProfile.maritalStatus === '1' ? '1 - 未婚 / 喪偶 / 離婚 / 分開居住' : employee.ir56bProfile.maritalStatus === '2' ? '2 - 已婚' : t.emptyValue} />
-                      <InfoRow label="住址第 1 行" value={renderTextValue(employee.ir56bProfile.resAddressLine1)} />
-                      <InfoRow label="住址第 2 行" value={renderTextValue(employee.ir56bProfile.resAddressLine2)} />
-                      <InfoRow label="住址第 3 行" value={renderTextValue(employee.ir56bProfile.resAddressLine3)} />
-                      <InfoRow label="住址地區" value={renderTextValue(employee.ir56bProfile.resAddressArea)} />
+                      <InfoRow label="住址第 1 行" value={renderTextValue(ir56bAddress.line1)} />
+                      <InfoRow label="住址第 2 行" value={renderTextValue(ir56bAddress.line2)} />
+                      <InfoRow label="住址第 3 行" value={renderTextValue(ir56bAddress.line3)} />
+                      <InfoRow label="住址地區" value={renderTextValue(ir56bAddress.area)} />
                       <InfoRow label="僱主提供居所" value={employee.ir56bProfile.placeOfResidenceIndicator === '1' ? t.booleanLabels.yes : t.booleanLabels.no} />
                     </div>
                     <div className="space-y-4">
-                      <InfoRow label="通訊地址第 1 行" value={renderTextValue(employee.ir56bProfile.postalAddressLine1)} />
-                      <InfoRow label="通訊地址第 2 行" value={renderTextValue(employee.ir56bProfile.postalAddressLine2)} />
-                      <InfoRow label="通訊地址第 3 行" value={renderTextValue(employee.ir56bProfile.postalAddressLine3)} />
-                      <InfoRow label="通訊地址地區" value={renderTextValue(employee.ir56bProfile.postalAddressArea)} />
                       <InfoRow label="配偶姓名" value={renderTextValue(employee.ir56bProfile.spouseName)} />
-                      <InfoRow label="配偶 HKID" value={renderTextValue(employee.ir56bProfile.spouseHkid)} />
-                      <InfoRow label="配偶 Passport" value={renderTextValue(employee.ir56bProfile.spousePassport)} />
+                      <InfoRow label="配偶 HKID / Passport" value={renderTextValue(employee.ir56bProfile.spouseHkid || employee.ir56bProfile.spousePassport)} />
                       <InfoRow label="非香港公司支付薪酬" value={employee.ir56bProfile.overseasCompanyIndicator === '1' ? t.booleanLabels.yes : t.booleanLabels.no} />
                       <InfoRow label="報稅備註" value={renderTextValue(employee.ir56bProfile.remarks)} />
                     </div>

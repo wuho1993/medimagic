@@ -7,6 +7,7 @@ import { useAuth } from '@/src/lib/hooks/useAuth';
 import {
   fetchEmployeeDirectory,
   fetchEmployeeDirectoryOptions,
+  fetchEmployeeIr56bExportRecords,
   fetchEmployeeDetailByCode,
   fetchCommissionRateTiers,
   fetchSavedCommissionPresets,
@@ -28,8 +29,8 @@ export default function PeoplePage() {
     if (!user || employeeId) return;
     let cancelled = false;
     setListData(null);
-    Promise.all([fetchEmployeeDirectory(user), fetchEmployeeDirectoryOptions(user)])
-      .then(([e, o]) => { if (!cancelled) setListData({ employees: e, ...o }); })
+    Promise.all([fetchEmployeeDirectory(user), fetchEmployeeDirectoryOptions(user), fetchEmployeeIr56bExportRecords(user)])
+      .then(([e, o, ir56bExportRecords]) => { if (!cancelled) setListData({ employees: e, ir56bExportRecords, ...o }); })
       .catch((error) => { if (!cancelled) console.error(error); });
     return () => { cancelled = true; };
   }, [user, employeeId]);
@@ -78,5 +79,5 @@ export default function PeoplePage() {
 
   // Employee list view
   if (!listData) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh' }}><p>載入中…</p></div>;
-  return <People employees={listData.employees} positions={listData.positions} banks={listData.banks} companies={listData.companies} branches={listData.branches} />;
+  return <People employees={listData.employees} ir56bExportRecords={listData.ir56bExportRecords} positions={listData.positions} banks={listData.banks} companies={listData.companies} branches={listData.branches} />;
 }

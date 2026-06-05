@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Plus, Search, MoreHorizontal, Phone, Sparkles, X } from 'lucide-react';
+import { Download, Plus, Search, MoreHorizontal, Phone, Sparkles, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useLanguage, useTranslation } from '../i18n/LanguageContext';
-import type { EmployeeDirectoryOption, EmployeeDirectoryRecord } from '@/src/lib/employees/queries';
+import type { EmployeeDirectoryOption, EmployeeDirectoryRecord, EmployeeIr56bExportRecord } from '@/src/lib/employees/queries';
 import { createEmployee } from '@/app/app/people/actions';
 import { calculateProbationEndDate, EMPLOYEE_EMPLOYMENT_TYPES, type EmployeeEmploymentType } from '@/src/lib/employees/employment';
 
@@ -314,11 +314,143 @@ const translations = {
 
 type PeopleProps = {
   employees: EmployeeDirectoryRecord[];
+  ir56bExportRecords?: EmployeeIr56bExportRecord[];
   positions: EmployeeDirectoryOption[];
   banks: EmployeeDirectoryOption[];
   companies: EmployeeDirectoryOption[];
   branches: EmployeeDirectoryOption[];
 };
+
+function escapeXml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function splitAddressForIr56b(address: string | null | undefined) {
+  const normalized = (address ?? '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return { line1: '', line2: '', line3: '' };
+  const explicitLines = normalized.split(/\s*(?:\n|,|，)\s*/).map((line) => line.trim()).filter(Boolean);
+  const lines = explicitLines.length > 1 ? explicitLines : normalized.match(/.{1,35}(?:\s|$)/g)?.map((line) => line.trim()).filter(Boolean) ?? [normalized];
+
+  return {
+    line1: lines[0] ?? '',
+    line2: lines[1] ?? '',
+    line3: lines.slice(2).join(' ').slice(0, 80),
+  };
+}
+
+function inferIr56bAddressArea(address: string | null | undefined): '' | 'H' | 'K' | 'N' | 'F' {
+  const value = (address ?? '').toLowerCase();
+  if (!value) return '';
+  if (/hong kong|香港|central|wan chai|causeway|north point|quarry bay|chai wan|aberdeen|薄扶林|中環|灣仔|銅鑼灣|北角|鰂魚涌|柴灣|香港仔/.test(value)) return 'H';
+  if (/kowloon|九龍|kwun tong|mong kok|tsim sha tsui|jordan|yau ma tei|sham shui po|觀塘|旺角|尖沙咀|佐敦|油麻地|深水埗/.test(value)) return 'K';
+  if (/new territories|新界|sha tin|tai wai|tsuen wan|tuen mun|yuen long|fanling|sheung shui|沙田|大圍|荃灣|屯門|元朗|粉嶺|上水/.test(value)) return 'N';
+  return 'F';
+}
+
+function getIr56bAddress(record: EmployeeIr56bExportRecord) {
+  const fallback = splitAddressForIr56b(record.address);
+  return {
+    line1: record.ir56bProfile.resAddressLine1 ?? fallback.line1,
+    line2: record.ir56bProfile.resAddressLine2 ?? fallback.line2,
+    line3: record.ir56bProfile.resAddressLine3 ?? fallback.line3,
+    area: record.ir56bProfile.resAddressArea ?? inferIr56bAddressArea(record.address),
+  };
+}
+
+function validateIr56bRecord(record: EmployeeIr56bExportRecord) {
+  const address = getIr56bAddress(record);
+  const missing: string[] = [];
+
+  if (!record.nameEn && !record.nameZh) missing.push('姓名');
+  if (!record.identityNumber) missing.push('HKID / Passport');
+  if (!record.dateOfBirth) missing.push('出生日期');
+  if (!record.hireDate) missing.push('入職日期');
+  if (!address.line1) missing.push('IR56B 住址第 1 行 / 基本資料地址');
+  if (!address.area) missing.push('IR56B 住址地區');
+  if (!record.ir56bProfile.maritalStatus) missing.push('婚姻狀況');
+  if (!record.salaryType) missing.push('薪金類型');
+  if (record.baseSalary === null && record.allowanceAmount === null) missing.push('薪金 / 津貼設定');
+
+  return missing;
+}
+
+function createBulkIr56bXml(records: EmployeeIr56bExportRecord[], exportedAt: string) {
+  const entries = records.map((record) => {
+    const address = getIr56bAddress(record);
+    const taxableSalary = (record.baseSalary ?? 0) + (record.allowanceAmount ?? 0);
+    const issues = validateIr56bRecord(record);
+
+    return `  <EmployeeIR56B status="${issues.length > 0 ? 'needs_review' : 'ready'}">
+    <ValidationIssues>${escapeXml(issues.join('; '))}</ValidationIssues>
+    <EmployeeCode>${escapeXml(record.employeeCode)}</EmployeeCode>
+    <NameZh>${escapeXml(record.nameZh)}</NameZh>
+    <NameEn>${escapeXml(record.nameEn)}</NameEn>
+    <IdentityType>${escapeXml(record.identityType)}</IdentityType>
+    <IdentityNumber>${escapeXml(record.identityNumber)}</IdentityNumber>
+    <DateOfBirth>${escapeXml(record.dateOfBirth)}</DateOfBirth>
+    <Gender>${escapeXml(record.gender)}</Gender>
+    <Company>${escapeXml(record.companyNameZh || record.companyNameEn || record.companyType)}</Company>
+    <Branch>${escapeXml(record.branchNameZh || record.branchNameEn || record.branchCode)}</Branch>
+    <Position>${escapeXml(record.positionNameZh)}</Position>
+    <HireDate>${escapeXml(record.hireDate)}</HireDate>
+    <EmploymentEndDate>${escapeXml(record.employmentEndDate)}</EmploymentEndDate>
+    <MaritalStatus>${escapeXml(record.ir56bProfile.maritalStatus)}</MaritalStatus>
+    <ResidentialAddress area="${escapeXml(address.area)}">
+      <Line1>${escapeXml(address.line1)}</Line1>
+      <Line2>${escapeXml(address.line2)}</Line2>
+      <Line3>${escapeXml(address.line3)}</Line3>
+    </ResidentialAddress>
+    <SpouseName>${escapeXml(record.ir56bProfile.spouseName)}</SpouseName>
+    <SpouseHkid>${escapeXml(record.ir56bProfile.spouseHkid)}</SpouseHkid>
+    <SpousePassport>${escapeXml(record.ir56bProfile.spousePassport)}</SpousePassport>
+    <PlaceOfResidenceIndicator>${escapeXml(record.ir56bProfile.placeOfResidenceIndicator)}</PlaceOfResidenceIndicator>
+    <OverseasCompanyIndicator>${escapeXml(record.ir56bProfile.overseasCompanyIndicator)}</OverseasCompanyIndicator>
+    <SalaryType>${escapeXml(record.salaryType)}</SalaryType>
+    <BaseSalary>${escapeXml(record.baseSalary)}</BaseSalary>
+    <AllowanceAmount>${escapeXml(record.allowanceAmount)}</AllowanceAmount>
+    <EstimatedFixedTaxableMonthlyAmount>${escapeXml(taxableSalary || '')}</EstimatedFixedTaxableMonthlyAmount>
+    <PaymentMethod>${escapeXml(record.paymentMethod)}</PaymentMethod>
+    <BankName>${escapeXml(record.bankNameZh || record.bankNameEn)}</BankName>
+    <MpfEnabled>${escapeXml(record.mpfEnabled)}</MpfEnabled>
+  </EmployeeIR56B>`;
+  }).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<IR56B_BULK_DRAFT exportedAt="${escapeXml(exportedAt)}" employeeCount="${records.length}">\n${entries}\n</IR56B_BULK_DRAFT>\n`;
+}
+
+function createIr56bMissingDataCsv(records: EmployeeIr56bExportRecord[]) {
+  const rows = records
+    .map((record) => ({ record, missing: validateIr56bRecord(record) }))
+    .filter((entry) => entry.missing.length > 0);
+
+  const quote = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  return [
+    ['Employee Code', 'Name', 'Missing Fields', 'Where To Fix'].map(quote).join(','),
+    ...rows.map(({ record, missing }) => [
+      record.employeeCode,
+      record.alias || record.nameZh || record.nameEn,
+      missing.join('; '),
+      `/medimagic/app/people?id=${encodeURIComponent(record.employeeCode)} -> 報稅資料 / Tax Info`,
+    ].map(quote).join(',')),
+  ].join('\n');
+}
+
+function downloadTextFile(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 function getInitials(employee: EmployeeDirectoryRecord) {
   const source = employee.alias || employee.nameEn || employee.nameZh;
@@ -364,7 +496,7 @@ function FieldLabel({ label, required = false }: { label: string; required?: boo
   );
 }
 
-export default function People({ employees, positions, banks, companies, branches }: PeopleProps) {
+export default function People({ employees, ir56bExportRecords = [], positions, banks, companies, branches }: PeopleProps) {
   const router = useRouter();
   const { lang } = useLanguage();
   const t = useTranslation(translations);
@@ -411,6 +543,9 @@ export default function People({ employees, positions, banks, companies, branche
 
   const paginationLabel = `${filteredEmployees.length} ${t.rows}`;
   const createProbationEndDate = calculateProbationEndDate(createHireDate, createProbationMonths) ?? '';
+  const filteredEmployeeCodes = new Set(filteredEmployees.map((employee) => employee.employeeCode));
+  const filteredIr56bExportRecords = ir56bExportRecords.filter((record) => filteredEmployeeCodes.has(record.employeeCode));
+  const ir56bIssueCount = filteredIr56bExportRecords.filter((record) => validateIr56bRecord(record).length > 0).length;
 
   const searchSuggestions = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
@@ -462,6 +597,23 @@ export default function People({ employees, positions, banks, companies, branche
     });
   }
 
+  function handleExportBulkIr56b() {
+    if (filteredIr56bExportRecords.length === 0) {
+      window.alert('未有可匯出的員工資料。');
+      return;
+    }
+
+    const exportedAt = new Date().toISOString();
+    const issueRecords = filteredIr56bExportRecords.filter((record) => validateIr56bRecord(record).length > 0);
+
+    downloadTextFile('IR56B_bulk_draft.xml', createBulkIr56bXml(filteredIr56bExportRecords, exportedAt), 'application/xml;charset=utf-8');
+
+    if (issueRecords.length > 0) {
+      downloadTextFile('IR56B_missing_data_report.csv', createIr56bMissingDataCsv(issueRecords), 'text/csv;charset=utf-8');
+      window.alert(`IR56B XML 已匯出，但有 ${issueRecords.length} 位員工資料未齊。系統已下載 IR56B_missing_data_report.csv，請按報告入員工 profile 的「報稅資料 / Tax Info」補返。`);
+    }
+  }
+
   return (
     <>
       <div className="flex h-full flex-col space-y-6">
@@ -470,7 +622,17 @@ export default function People({ employees, positions, banks, companies, branche
             <h2 className="text-2xl font-bold text-slate-800">{t.title}</h2>
             <p className="mt-1 text-slate-500">{t.subtitle}</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleExportBulkIr56b}
+              disabled={filteredEmployees.length === 0 || filteredIr56bExportRecords.length === 0}
+              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title={ir56bIssueCount > 0 ? `${ir56bIssueCount} 位員工 IR56B 資料未齊，匯出時會同時下載報告` : undefined}
+            >
+              <Download className="h-4 w-4" />
+              匯出全部 IR56B XML{ir56bIssueCount > 0 ? ` (${ir56bIssueCount} 未齊)` : ''}
+            </button>
             <button
               onClick={() => {
                 setFormError(null);

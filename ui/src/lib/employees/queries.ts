@@ -172,6 +172,22 @@ export type EmployeeDetailRecord = EmployeeDirectoryRecord & {
   visas: EmployeeVisaRecord[];
 };
 
+export type EmployeeIr56bExportRecord = EmployeeDirectoryRecord & {
+  identityType: EmployeeDetailRecord['identityType'];
+  identityNumber: string;
+  dateOfBirth: string | null;
+  address: string | null;
+  salaryType: EmployeeDetailRecord['salaryType'];
+  baseSalary: number | null;
+  allowanceAmount: number | null;
+  paymentMethod: EmployeeDetailRecord['paymentMethod'];
+  bankNameZh: string | null;
+  bankNameEn: string | null;
+  mpfEnabled: boolean;
+  employmentEndDate: string | null;
+  ir56bProfile: EmployeeIr56bProfileRecord;
+};
+
 export type SavedCommissionPresetRecord = {
   id: string;
   name: string;
@@ -759,6 +775,86 @@ export async function fetchEmployeeDirectory(user: AppShellUser): Promise<Employ
   }
 
   return ((data ?? []) as EmployeeQueryRow[]).map(mapEmployee);
+}
+
+export async function fetchEmployeeIr56bExportRecords(user: AppShellUser): Promise<EmployeeIr56bExportRecord[]> {
+  const supabase = await createServerSupabaseClient();
+  const baseQuery = supabase
+    .from('employees')
+    .select(
+      'id, employee_code, name_zh, name_en, alias, gender, phone, company_type, company_id, branch_id, branch_code, employment_type, employment_status, hire_date, annual_leave_days, position_id, identity_type, identity_number, date_of_birth, address, payment_method, bank_id, bank_account_number, probation_months, manager_employee_id, probation_end_date, employment_end_date, termination_reason, final_payroll_month, notes, position:positions(name_zh), company:companies(name_zh,name_en), branch:branches(name_zh,name_en), bank:banks(name_zh,name_en)'
+    )
+    .order('hire_date', { ascending: false });
+
+  const scopedQuery = applyScopeFilters(baseQuery, user);
+
+  if (!scopedQuery) {
+    return [];
+  }
+
+  const { data, error } = await scopedQuery;
+
+  if (error) {
+    console.error('Failed to load employee IR56B export records from Supabase:', error.message);
+    return [];
+  }
+
+  const employeeRows = (data ?? []) as unknown as EmployeeDetailQueryRow[];
+  const employeeIds = employeeRows.map((row) => row.id);
+  const salaryByEmployeeId = new Map<string, EmployeeSalaryProfileRow>();
+  const ir56bByEmployeeId = new Map<string, EmployeeIr56bProfileRow>();
+
+  if (employeeIds.length > 0) {
+    const [salaryResult, ir56bResult] = await Promise.all([
+      supabase
+        .from('employee_salary_profiles')
+        .select(`employee_id, ${EMPLOYEE_SALARY_PROFILE_SELECT_CURRENT}`)
+        .in('employee_id', employeeIds),
+      supabase
+        .from('employee_ir56b_profiles')
+        .select('employee_id, marital_status, res_address_line1, res_address_line2, res_address_line3, res_address_area, postal_address_line1, postal_address_line2, postal_address_line3, postal_address_area, spouse_name, spouse_hkid, spouse_passport, place_of_residence_indicator, overseas_company_indicator, remarks')
+        .in('employee_id', employeeIds),
+    ]);
+
+    if (!salaryResult.error) {
+      for (const row of (salaryResult.data ?? []) as unknown as (EmployeeSalaryProfileRow & { employee_id: string })[]) {
+        salaryByEmployeeId.set(row.employee_id, row);
+      }
+    } else {
+      console.warn('Failed to load employee salary profiles for IR56B export:', salaryResult.error.message);
+    }
+
+    if (!ir56bResult.error) {
+      for (const row of (ir56bResult.data ?? []) as unknown as (EmployeeIr56bProfileRow & { employee_id: string })[]) {
+        ir56bByEmployeeId.set(row.employee_id, row);
+      }
+    } else if (!isMissingColumnError(ir56bResult.error.message)) {
+      console.warn('Failed to load employee IR56B profiles for export:', ir56bResult.error.message);
+    }
+  }
+
+  return employeeRows.map((row) => {
+    const base = mapEmployee(row);
+    const bank = normalizeBankName(row.bank);
+    const salaryProfile = normalizeSalaryProfile(salaryByEmployeeId.get(row.id) ?? null);
+
+    return {
+      ...base,
+      identityType: row.identity_type,
+      identityNumber: row.identity_number,
+      dateOfBirth: row.date_of_birth,
+      address: row.address,
+      salaryType: salaryProfile.salaryType,
+      baseSalary: salaryProfile.baseSalary,
+      allowanceAmount: salaryProfile.allowanceAmount,
+      paymentMethod: row.payment_method,
+      bankNameZh: bank.nameZh,
+      bankNameEn: bank.nameEn,
+      mpfEnabled: salaryProfile.mpfEnabled,
+      employmentEndDate: row.employment_end_date,
+      ir56bProfile: normalizeIr56bProfile(ir56bByEmployeeId.get(row.id) ?? null),
+    };
+  });
 }
 
 export async function fetchEmployeeDetailByCode(employeeCode: string, user: AppShellUser): Promise<EmployeeDetailRecord | null> {
