@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Search, TrendingUp } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Download, Search, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/src/lib/hooks/useAuth';
 import { createBrowserSupabaseClient } from '@/src/lib/supabase/client';
 import { fetchCommissionAverageAuditRecords, type CommissionAverageAuditRecord } from '@/src/lib/employees/queries';
@@ -33,6 +33,29 @@ function sourceClass(source: CommissionAverageAuditRecord['source']) {
   if (source === 'seed') return 'bg-amber-50 text-amber-700 ring-amber-200';
   if (source === 'payroll') return 'bg-blue-50 text-blue-700 ring-blue-200';
   return 'bg-slate-50 text-slate-500 ring-slate-200';
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function downloadExcel(filename: string, headers: string[], rows: Array<Array<string | number>>) {
+  const table = `<table><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8" /></head><body>${table}</body></html>`;
+  const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 export default function AverageWagesPage() {
@@ -100,6 +123,45 @@ export default function AverageWagesPage() {
     router.replace(`/app/payroll/average-wages?${params.toString()}`);
   };
 
+  const handleExportExcel = () => {
+    const monthSet = new Set<string>();
+    filteredRecords.forEach((record) => record.monthlyBreakdown.forEach((entry) => monthSet.add(entry.yearMonth)));
+    const months = Array.from(monthSet).sort();
+    const headers = [
+      '員工編號', '姓名', '分店', '資料來源', '計至月份', '歷史/Seed總佣金', '歷史/Seed日數', 'HRMS月數', 'HRMS月佣金合計', 'HRMS日數', '365總佣金', '合資格日數', '平均佣金/日', 'AL日數', 'SH日數', 'AL/SH日數', '應補金額', '狀態', '備註',
+      ...months.flatMap((month) => [`${month}佣金`, `${month}日數`]),
+    ];
+    const rows = filteredRecords.map((record) => {
+      const monthly = new Map(record.monthlyBreakdown.map((entry) => [entry.yearMonth, entry]));
+      return [
+        record.employeeCode,
+        record.displayName,
+        record.branchName ?? '',
+        sourceLabel(record.source),
+        record.cutoffMonth,
+        record.seedTotalCommission,
+        record.seedEligibleDays,
+        record.monthlySourceCount,
+        record.monthlySourceTotal,
+        record.monthlySourceDays,
+        record.totalCommission,
+        record.eligibleDays,
+        record.dailyAverageCommission,
+        record.annualLeaveDays,
+        record.statutoryHolidayDays,
+        record.alShDays,
+        record.finalAlShAverageCommissionPay,
+        record.complianceStatus === 'ok' ? '正常' : '需確認',
+        record.complianceRemark ?? '',
+        ...months.flatMap((month) => {
+          const entry = monthly.get(month);
+          return [entry?.commissionAmount ?? 0, entry?.eligibleDays ?? 0];
+        }),
+      ];
+    });
+    downloadExcel(`365日平均佣金_${selectedMonth}.xls`, headers, rows);
+  };
+
   if (!user) {
     return <div className="flex min-h-[60vh] items-center justify-center text-slate-500">載入中...</div>;
   }
@@ -156,6 +218,10 @@ export default function AverageWagesPage() {
             <input type="checkbox" checked={onlyWithAlSh} onChange={(event) => setOnlyWithAlSh(event.target.checked)} className="rounded border-slate-300 text-[#D4AF37] focus:ring-[#D4AF37]" />
             只睇有 AL/SH
           </label>
+          <button type="button" onClick={handleExportExcel} disabled={filteredRecords.length === 0} className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">
+            <Download className="h-4 w-4" />
+            匯出詳細 Excel
+          </button>
         </div>
       </div>
 

@@ -1726,6 +1726,11 @@ export type CommissionAverageAuditRecord = {
   monthlySourceCount: number;
   monthlySourceTotal: number;
   monthlySourceDays: number;
+  monthlyBreakdown: Array<{
+    yearMonth: string;
+    commissionAmount: number;
+    eligibleDays: number;
+  }>;
   mappingStatus: string | null;
   mappingSourceCode: string | null;
   mappingRemark: string | null;
@@ -1894,8 +1899,8 @@ export async function fetchCommissionAverageAuditRecords(user: AppShellUser, sel
   }
 
   const seedByCode = new Map(((seedResult.data ?? []) as Array<{ employee_code: string; total_commission: number | string | null; eligible_days: number | string | null }>).map((row) => [row.employee_code, row]));
-  const monthlyByCode = new Map<string, Array<{ employee_code: string; average_commission_amount: number | string | null; eligible_days: number | string | null }>>();
-  for (const row of (monthlyResult.data ?? []) as Array<{ employee_code: string; average_commission_amount: number | string | null; eligible_days: number | string | null }>) {
+  const monthlyByCode = new Map<string, Array<{ employee_code: string; year_month: string; average_commission_amount: number | string | null; eligible_days: number | string | null }>>();
+  for (const row of (monthlyResult.data ?? []) as Array<{ employee_code: string; year_month: string; average_commission_amount: number | string | null; eligible_days: number | string | null }>) {
     const list = monthlyByCode.get(row.employee_code) ?? [];
     list.push(row);
     monthlyByCode.set(row.employee_code, list);
@@ -1924,6 +1929,13 @@ export async function fetchCommissionAverageAuditRecords(user: AppShellUser, sel
     const monthlyRows = monthlyByCode.get(employee.employeeCode) ?? [];
     const monthlySourceTotal = monthlyRows.reduce((sum, row) => sum + Number(row.average_commission_amount ?? 0), 0);
     const monthlySourceDays = monthlyRows.reduce((sum, row) => sum + Number(row.eligible_days ?? 0), 0);
+    const monthlyBreakdown = monthlyRows
+      .map((row) => ({
+        yearMonth: row.year_month,
+        commissionAmount: Math.round(Number(row.average_commission_amount ?? 0) * 100) / 100,
+        eligibleDays: Number(row.eligible_days ?? 0),
+      }))
+      .sort((left, right) => left.yearMonth.localeCompare(right.yearMonth));
     const mapping = mappingByCode.get(employee.employeeCode);
     const calendarDays = attendanceRecord?.calendarDays && attendanceRecord.calendarDays > 0
       ? attendanceRecord.calendarDays
@@ -1963,6 +1975,7 @@ export async function fetchCommissionAverageAuditRecords(user: AppShellUser, sel
       monthlySourceCount: monthlyRows.length,
       monthlySourceTotal: Math.round(monthlySourceTotal * 100) / 100,
       monthlySourceDays,
+      monthlyBreakdown,
       mappingStatus: mapping?.match_status ?? null,
       mappingSourceCode: mapping?.source_code ?? null,
       mappingRemark: mapping?.remark ?? null,
