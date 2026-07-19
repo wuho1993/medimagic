@@ -3039,7 +3039,8 @@ export default function EmployeeProfile({
       const params = new URLSearchParams();
       params.set('id', result.employeeCode);
       params.set('updated', String(Date.now()));
-      window.location.replace(`/medimagic/app/people?${params.toString()}`);
+      const basePath = window.location.hostname.endsWith('github.io') ? '/medimagic' : '';
+      window.location.replace(`${basePath}/app/people?${params.toString()}`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t.errors.generic);
     } finally {
@@ -3157,7 +3158,7 @@ export default function EmployeeProfile({
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
-        <button onClick={() => window.location.assign('/medimagic/app/people')} type="button" className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900">
+        <button onClick={() => window.location.assign(`${window.location.hostname.endsWith('github.io') ? '/medimagic' : ''}/app/people`)} type="button" className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
           {t.back}
         </button>

@@ -353,6 +353,7 @@ function TestModePanel({ labels }: { labels: typeof translations.en.testMode }) 
   const [session, setSession] = useState<TestModeSession | null>(null);
   const [busy, setBusy] = useState<'start' | 'finish' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const apiBasePath = typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') ? '/medimagic' : '';
 
   const requestJson = async (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000) => {
     const controller = new AbortController();
@@ -373,7 +374,7 @@ function TestModePanel({ labels }: { labels: typeof translations.en.testMode }) 
   };
 
   const loadStatus = async () => {
-    const { response, data } = await requestJson('/medimagic/api/test-mode', { cache: 'no-store' });
+    const { response, data } = await requestJson(`${apiBasePath}/api/test-mode`, { cache: 'no-store' });
     if (!response.ok || !data.ok) {
       throw new Error(data.error || 'Failed to load test mode status.');
     }
@@ -388,26 +389,26 @@ function TestModePanel({ labels }: { labels: typeof translations.en.testMode }) 
 
   useEffect(() => {
     loadStatus().catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
-  }, []);
+  }, [apiBasePath]);
 
   useEffect(() => {
     const finishOnUnload = () => {
       const sessionId = window.localStorage.getItem('medi_magic_test_mode_session');
       if (!sessionId) return;
       const body = JSON.stringify({ action: 'finish', sessionId });
-      navigator.sendBeacon('/medimagic/api/test-mode', new Blob([body], { type: 'application/json' }));
+      navigator.sendBeacon(`${apiBasePath}/api/test-mode`, new Blob([body], { type: 'application/json' }));
       window.localStorage.removeItem('medi_magic_test_mode_session');
     };
 
     window.addEventListener('beforeunload', finishOnUnload);
     return () => window.removeEventListener('beforeunload', finishOnUnload);
-  }, []);
+  }, [apiBasePath]);
 
   const start = async () => {
     setBusy('start');
     setMessage(null);
     try {
-      const { response, data } = await requestJson('/medimagic/api/test-mode', {
+      const { response, data } = await requestJson(`${apiBasePath}/api/test-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'start' }),
@@ -427,7 +428,7 @@ function TestModePanel({ labels }: { labels: typeof translations.en.testMode }) 
     setBusy('finish');
     setMessage(null);
     try {
-      const { response, data } = await requestJson('/medimagic/api/test-mode', {
+      const { response, data } = await requestJson(`${apiBasePath}/api/test-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'finish', sessionId: session.id }),

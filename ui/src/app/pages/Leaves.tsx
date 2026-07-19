@@ -891,7 +891,8 @@ export default function AttendanceManagement({ overview, focusMode = false, init
       month: selectedMonth,
       scale: tableScale.toFixed(2),
     });
-    window.open(`/medimagic/app/attendance/focus?${params.toString()}`, '_blank', 'noopener,noreferrer');
+    const basePath = window.location.hostname.endsWith('github.io') ? '/medimagic' : '';
+    window.open(`${basePath}/app/attendance/focus?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleSaveRow = async (row: CombinedAttendanceRow, options: { skipMismatchConfirm?: boolean } = {}) => {

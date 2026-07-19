@@ -751,7 +751,8 @@ export default function People({ employees, ir56bExportRecords = [], ir56bAssess
   function openEmployeeProfile(employeeCode: string) {
     setIsSearchFocused(false);
     setSearchValue('');
-    window.location.assign(`/medimagic/app/people?id=${encodeURIComponent(employeeCode)}`);
+    const basePath = window.location.hostname.endsWith('github.io') ? '/medimagic' : '';
+    window.location.assign(`${basePath}/app/people?id=${encodeURIComponent(employeeCode)}`);
   }
 
   function exportIr56bRecords(records: EmployeeIr56bExportRecord[], header: Ir56bEmployerHeader) {
@@ -1002,7 +1003,7 @@ export default function People({ employees, ir56bExportRecords = [], ir56bAssess
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.04 }}
-                      onClick={() => window.location.assign(`/medimagic/app/people?id=${encodeURIComponent(employee.employeeCode)}`)}
+                      onClick={() => openEmployeeProfile(employee.employeeCode)}
                       className="group cursor-pointer transition-colors hover:bg-slate-50/80"
                     >
                       <td className="whitespace-nowrap px-6 py-4">

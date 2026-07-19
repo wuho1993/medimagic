@@ -126,6 +126,7 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
       ? t.nav[currentHiddenRoute.key]
       : t.nav.people;
   const profileRole = user.roleLabel || t.profile.role;
+  const appBasePath = typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') ? '/medimagic' : '';
 
   const handleSignOut = React.useCallback(() => {
     startSignOutTransition(async () => {
@@ -147,7 +148,7 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
           {visibleNavigation.map((item) => (
             <a
               key={item.key}
-              href={`/medimagic${item.href}`}
+              href={`${appBasePath}${item.href}`}
               className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all ${
                 pathname === item.href || pathname.startsWith(`${item.href}/`)
                   ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5'
@@ -247,7 +248,7 @@ export default function Layout({ children, user }: { children: React.ReactNode; 
                 {visibleNavigation.map((item) => (
                   <a
                     key={item.key}
-                    href={`/medimagic${item.href}`}
+                    href={`${appBasePath}${item.href}`}
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all ${
                       pathname === item.href || pathname.startsWith(`${item.href}/`)

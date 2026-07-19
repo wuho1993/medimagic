@@ -2360,12 +2360,12 @@ ${tablePreview}`;
     }
 
     const query = params.toString();
-    const basePath = window.location.pathname.startsWith('/medimagic') ? '/medimagic' : '';
+    const basePath = window.location.hostname.endsWith('github.io') ? '/medimagic' : '';
     window.location.assign(`${basePath}/app/payroll/${query ? `?${query}` : ''}`);
   };
 
   const navigateEmployeeProfile = (employeeCode: string) => {
-    const basePath = window.location.pathname.startsWith('/medimagic') ? '/medimagic' : '';
+    const basePath = window.location.hostname.endsWith('github.io') ? '/medimagic' : '';
     window.location.assign(`${basePath}/app/people?id=${encodeURIComponent(employeeCode)}`);
   };
 
@@ -3893,7 +3893,7 @@ ${tablePreview}`;
               {t.aiImportTitle}
             </button>
 
-            <a href={`/medimagic/app/payroll/average-wages?month=${encodeURIComponent(salaryMonth)}`} className={`${toolbarButtonClasses} whitespace-nowrap bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800`}>
+            <a href={`${window.location.hostname.endsWith('github.io') ? '/medimagic' : ''}/app/payroll/average-wages?month=${encodeURIComponent(salaryMonth)}`} className={`${toolbarButtonClasses} whitespace-nowrap bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800`}>
               <Calculator className="h-4 w-4" />
               {t.avg365}
             </a>
@@ -5687,7 +5687,7 @@ ${tablePreview}`;
               return (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0px' }}>
-                    <img src="/medimagic/medi-magic-logo.png" alt="Medi Magic logo" style={{ width: '116px', height: '116px', objectFit: 'contain' }} />
+                    <img src={`${window.location.hostname.endsWith('github.io') ? '/medimagic' : ''}/medi-magic-logo.png`} alt="Medi Magic logo" style={{ width: '116px', height: '116px', objectFit: 'contain' }} />
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <colgroup>
