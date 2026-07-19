@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const DEFAULT_BASE_URL = 'https://128api.cn/v1';
-const DEFAULT_MODELS = ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.2'];
+const DEFAULT_BASE_URL = 'https://ai.aiclick.cc/v1';
+const DEFAULT_MODELS = ['gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-5.5'];
 
 function normalizeOpenAiBaseUrl(value: string) {
   const baseUrl = value.replace(/\/$/, '');

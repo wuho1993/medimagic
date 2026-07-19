@@ -40,8 +40,8 @@ type PayrollImportRow = {
   sgm?: number;
 };
 
-const AI_IMPORT_DEFAULT_BASE_URL = 'https://128api.cn/v1';
-const AI_IMPORT_DEFAULT_MODELS = ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.2'];
+const AI_IMPORT_DEFAULT_BASE_URL = 'https://ai.aiclick.cc/v1';
+const AI_IMPORT_DEFAULT_MODELS = ['gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-5.5'];
 
 function normalizeAiBaseUrl(value: string) {
   const baseUrl = value.replace(/\/$/, '');
@@ -116,7 +116,8 @@ async function requestAiImport(prompt: string) {
     return requestBrowserAiImport(prompt);
   }
 
-  const aiResponse = await fetch('/medimagic/api/payroll/ai-import', {
+  const appBasePath = window.location.hostname.endsWith('github.io') ? '/medimagic' : '';
+  const aiResponse = await fetch(`${appBasePath}/api/payroll/ai-import`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
