@@ -35,53 +35,71 @@ export async function POST(request: Request) {
     const errors: string[] = [];
 
     for (const model of models) {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a payroll import assistant. Return only valid JSON array output and nothing else.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.1,
-          max_tokens: 800,
-        }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      const responseText = await response.text();
+      try {
+        const response = await fetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a payroll import assistant. Return only valid JSON array output and nothing else.',
+              },
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+            temperature: 0.1,
+            max_tokens: 800,
+          }),
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        errors.push(`${model}: ${response.status} ${responseText.slice(0, 300)}`);
-        if ([400, 401, 403].includes(response.status)) {
-          break;
+        clearTimeout(timeoutId);
+
+        const responseText = await response.text();
+
+        if (!response.ok) {
+          const errorDetail = responseText.slice(0, 500);
+          console.error(`AI API Error for ${model}:`, response.status, errorDetail);
+          errors.push(`${model}: HTTP ${response.status} - ${errorDetail}`);
+          if ([400, 401, 403].includes(response.status)) {
+            break;
+          }
+          continue;
+        }
+
+        let payload: { choices?: Array<{ message?: { content?: string | null } }> };
+        try {
+          payload = JSON.parse(responseText) as { choices?: Array<{ message?: { content?: string | null } }> };
+        } catch {
+          errors.push(`${model}: response was not JSON (${responseText.slice(0, 80)})`);
+          continue;
+        }
+
+        const text = payload.choices?.[0]?.message?.content ?? '';
+        if (text) {
+          return NextResponse.json({ text, model });
+        }
+
+        errors.push(`${model}: empty AI response`);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error instanceof Error && error.name === 'AbortError') {
+          errors.push(`${model}: request timeout after 30 seconds`);
+        } else {
+          errors.push(`${model}: ${error instanceof Error ? error.message : 'unknown error'}`);
         }
         continue;
       }
-
-      let payload: { choices?: Array<{ message?: { content?: string | null } }> };
-      try {
-        payload = JSON.parse(responseText) as { choices?: Array<{ message?: { content?: string | null } }> };
-      } catch {
-        errors.push(`${model}: response was not JSON (${responseText.slice(0, 80)})`);
-        continue;
-      }
-
-      const text = payload.choices?.[0]?.message?.content ?? '';
-      if (text) {
-        return NextResponse.json({ text, model });
-      }
-
-      errors.push(`${model}: empty AI response`);
     }
 
     return NextResponse.json({ error: `No available AI model channel. Tried: ${errors.join(' | ')}` }, { status: 503 });
