@@ -125,7 +125,7 @@ function getPresetSelectValue(presetId: string) {
 }
 
 function extractPresetIdFromSelectValue(value: string | null | undefined) {
-  if (!value || !value.startsWith(PRESET_VALUE_PREFIX)) {
+  if (!value || typeof value !== 'string' || !value.startsWith(PRESET_VALUE_PREFIX)) {
     return null;
   }
 
@@ -1230,7 +1230,7 @@ function getAppliedShopDisplayName(employee: EmployeeDetailRecord, shopRules: Co
 }
 
 function parseJsonSafely(value: string) {
-  if (!value.trim()) return [];
+  if (!value || typeof value !== 'string' || !value.trim()) return [];
   try {
     return JSON.parse(value);
   } catch {
@@ -1481,10 +1481,10 @@ function createIr56bDraftXml(employee: EmployeeDetailRecord, bankName: string, e
 
 function getEmployeeIr56bMissingItems(employee: EmployeeDetailRecord, state: FormState) {
   const missing: string[] = [];
-  const addressLine1 = state.ir56bResAddressLine1.trim() || state.address.trim() || employee.address?.trim() || '';
+  const addressLine1 = (state.ir56bResAddressLine1 || '').trim() || (state.address || '').trim() || (employee.address || '').trim() || '';
 
-  if (!(state.nameEn.trim() || state.nameZh.trim())) missing.push('姓名');
-  if (!state.identityNumber.trim()) missing.push('HKID / Passport');
+  if (!((state.nameEn || '').trim() || (state.nameZh || '').trim())) missing.push('姓名');
+  if (!(state.identityNumber || '').trim()) missing.push('HKID / Passport');
   if (!state.dateOfBirth) missing.push('出生日期');
   if (!state.hireDate) missing.push('入職日期');
   if (!state.ir56bMaritalStatus) missing.push('婚姻狀況');
@@ -1494,7 +1494,7 @@ function getEmployeeIr56bMissingItems(employee: EmployeeDetailRecord, state: For
   if (!state.baseSalary && !state.allowanceAmount) missing.push('薪金 / 津貼設定');
   if (state.gender !== 'male' && state.gender !== 'female') missing.push('性別需要是男或女');
 
-  if (state.ir56bMaritalStatus === '2' && !state.ir56bSpouseName.trim()) {
+  if (state.ir56bMaritalStatus === '2' && !(state.ir56bSpouseName || '').trim()) {
     missing.push('配偶姓名');
   }
 
@@ -2893,7 +2893,8 @@ export default function EmployeeProfile({
   }
 
   async function renameSavedPreset(type: 'commission' | 'shop', presetId: string, currentName: string) {
-    const nextName = window.prompt('輸入新的方案名稱', currentName)?.trim();
+    const promptResult = window.prompt('輸入新的方案名稱', currentName);
+    const nextName = promptResult ? promptResult.trim() : '';
     if (!nextName || nextName === currentName) return;
 
     setErrorMessage(null);
@@ -3152,7 +3153,7 @@ export default function EmployeeProfile({
   }
 
   function renderTextValue(value: string | null) {
-    return value && value.trim().length > 0 ? value : t.emptyValue;
+    return value && typeof value === 'string' && value.trim().length > 0 ? value : t.emptyValue;
   }
 
   return (
